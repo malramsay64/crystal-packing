@@ -1,7 +1,0 @@
-[package]
-name = "pypacking"
-version = "0.1.0"
-authors = ["Malcolm Ramsay <malramsay64@gmail.com>"]
-
-[lib]
-crate-type = ["dylib"]
