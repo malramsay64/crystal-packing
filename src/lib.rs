@@ -7,127 +7,14 @@
 extern crate nalgebra as na;
 extern crate rand;
 
+pub mod basis;
+
 use nalgebra::{Matrix2, Vector2};
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
 use std::f64::consts::PI;
 
-/// A Value which can be modified in many places
-///
-/// Rust's ownership rules preclude multiple mutable borrows from taking place. The SharedValue
-/// struct is a wrapper around some of Rust's built in methods of handling this, providing a
-/// nicer interface for that tasks I require.
-///
-pub struct SharedValue {
-    value: std::rc::Rc<std::cell::RefCell<f64>>,
-}
-
-impl Clone for SharedValue {
-    fn clone(&self) -> Self {
-        return Self {
-            value: std::rc::Rc::clone(&self.value),
-        };
-    }
-}
-
-impl SharedValue {
-    pub fn get_value(&self) -> f64 {
-        return *self.value.borrow();
-    }
-    pub fn set_value(&self, value: f64) {
-        *self.value.borrow_mut() = value;
-    }
-
-    pub fn new(val: f64) -> Self {
-        return Self {
-            value: std::rc::Rc::new(std::cell::RefCell::new(val)),
-        };
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn new_shared_value() {
-        let value = SharedValue::new(1.);
-        assert_eq!(value.get_value(), 1.);
-    }
-
-    #[test]
-    fn update_shared_value() {
-        let value = SharedValue::new(1.);
-        assert_eq!(value.get_value(), 1.);
-        value.set_value(0.5);
-        assert_eq!(value.get_value(), 0.5);
-    }
-
-    #[test]
-    fn cloned_shared_value() {
-        let value1 = SharedValue::new(1.);
-        let value2 = value1.clone();
-        assert_eq!(value1.get_value(), 1.);
-        assert_eq!(value2.get_value(), 1.);
-
-        value2.set_value(0.5);
-        assert_eq!(value1.get_value(), 0.5);
-        assert_eq!(value2.get_value(), 0.5);
-    }
-}
-
-pub trait Basis {
-    fn set_value(&mut self, new_value: f64);
-    fn get_value(&self) -> f64;
-    fn reset_value(&self);
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64;
-}
-
-#[derive(Clone)]
-pub struct StandardBasis {
-    value: SharedValue,
-    old: f64,
-    min: f64,
-    max: f64,
-}
-
-impl StandardBasis {
-    pub fn new(value: f64, min: f64, max: f64) -> Self {
-        Self {
-            value: SharedValue::new(value),
-            old: value,
-            min,
-            max,
-        }
-    }
-
-    fn value_range(&self) -> f64 {
-        return self.max - self.min;
-    }
-}
-
-impl Basis for StandardBasis {
-    fn get_value(&self) -> f64 {
-        return self.value.get_value();
-    }
-
-    fn set_value(&mut self, new_value: f64) {
-        self.old = self.get_value();
-        self.value.set_value(match new_value {
-            x if x < self.min => self.min,
-            x if x > self.max => self.max,
-            x => x,
-        })
-    }
-
-    fn reset_value(&self) {
-        self.value.set_value(self.old);
-    }
-
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
-        return self.get_value() + self.value_range() * rng.gen_range(-0.5, 0.5);
-    }
-}
+pub use crate::basis::{Basis, SharedValue, StandardBasis};
 
 /// The different crystal families that can be represented
 ///
@@ -237,35 +124,34 @@ impl OccupiedSite {
     }
 
     fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
-        let basis: &[StandardBasis] = &[
-            StandardBasis {
+        let mut basis: Vec<StandardBasis> = vec![];
+        let dof = self.wyckoff.degrees_of_freedom();
+
+        if dof[0] {
+            basis.push(StandardBasis {
                 value: self.x.clone(),
                 old: self.x.get_value(),
                 min: 0.,
                 max: 1.,
-            },
-            StandardBasis {
+            });
+        }
+        if dof[1] {
+            basis.push(StandardBasis {
                 value: self.y.clone(),
                 old: self.y.get_value(),
                 min: 0.,
                 max: 1.,
-            },
-            StandardBasis {
+            });
+        }
+        if dof[2] {
+            basis.push(StandardBasis {
                 value: self.angle.clone(),
                 old: self.angle.get_value(),
                 min: 0.,
                 max: 2. * PI / rot_symmetry as f64,
-            },
-        ];
-
-        return self
-            .wyckoff
-            .degrees_of_freedom()
-            .iter()
-            .zip(basis)
-            .filter(|&(b, _)| *b)
-            .map(|(_, val)| val.clone())
-            .collect::<Vec<StandardBasis>>();
+            });
+        }
+        basis
     }
 }
 
