@@ -20,7 +20,7 @@ pub use crate::basis::{Basis, SharedValue, StandardBasis};
 ///
 /// These are all the valid types of crystal symmetries which are valid in a 2D space.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum CrystalFamily {
     Monoclinic,
     Orthorhombic,
@@ -128,28 +128,17 @@ impl OccupiedSite {
         let dof = self.wyckoff.degrees_of_freedom();
 
         if dof[0] {
-            basis.push(StandardBasis {
-                value: self.x.clone(),
-                old: self.x.get_value(),
-                min: 0.,
-                max: 1.,
-            });
+            basis.push(StandardBasis::new(&self.x, 0., 1.));
         }
         if dof[1] {
-            basis.push(StandardBasis {
-                value: self.y.clone(),
-                old: self.y.get_value(),
-                min: 0.,
-                max: 1.,
-            });
+            basis.push(StandardBasis::new(&self.y, 0., 1.));
         }
         if dof[2] {
-            basis.push(StandardBasis {
-                value: self.angle.clone(),
-                old: self.angle.get_value(),
-                min: 0.,
-                max: 2. * PI / rot_symmetry as f64,
-            });
+            basis.push(StandardBasis::new(
+                &self.angle,
+                0.,
+                2. * PI / rot_symmetry as f64,
+            ));
         }
         basis
     }
@@ -198,34 +187,31 @@ impl Cell {
     }
 
     fn get_basis(&self) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![
-            StandardBasis {
-                value: self.x_len.clone(),
-                old: self.x_len.get_value(),
-                min: 0.01,
-                max: self.x_len.get_value(),
-            },
-            StandardBasis {
-                value: self.y_len.clone(),
-                old: self.y_len.get_value(),
-                min: 0.01,
-                max: self.y_len.get_value(),
-            },
-            StandardBasis {
-                value: self.angle.clone(),
-                old: self.angle.get_value(),
-                min: PI / 4.,
-                max: 3. * PI / 4.,
-            },
-        ];
+        let mut basis: Vec<StandardBasis> = vec![];
 
-        match self.family {
-            CrystalFamily::Hexagonal | CrystalFamily::Tetragonal => basis.truncate(1),
-            CrystalFamily::Orthorhombic => basis.truncate(2),
-            CrystalFamily::Monoclinic => basis.truncate(3),
-        };
+        // All cells have at least a single variable cell length
+        basis.push(StandardBasis::new(
+            &self.x_len,
+            0.01,
+            self.x_len.get_value(),
+        ));
 
-        return basis;
+        // Both the Orthorhombic and Monoclinic cells have a second variable cell length
+        if (self.family == CrystalFamily::Orthorhombic) | (self.family == CrystalFamily::Monoclinic)
+        {
+            basis.push(StandardBasis::new(
+                &self.y_len,
+                0.01,
+                self.y_len.get_value(),
+            ));
+        }
+
+        // The Monoclinic family is the only one to have a variable cell angle.
+        if self.family == CrystalFamily::Monoclinic {
+            basis.push(StandardBasis::new(&self.angle, PI / 4., 3. * PI / 4.));
+        }
+
+        basis
     }
 }
 

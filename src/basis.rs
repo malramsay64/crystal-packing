@@ -80,17 +80,17 @@ pub trait Basis {
 
 #[derive(Clone)]
 pub struct StandardBasis {
-    pub value: SharedValue,
-    pub old: f64,
-    pub min: f64,
-    pub max: f64,
+    value: SharedValue,
+    old: f64,
+    min: f64,
+    max: f64,
 }
 
 impl StandardBasis {
-    pub fn new(value: f64, min: f64, max: f64) -> Self {
+    pub fn new(value: &SharedValue, min: f64, max: f64) -> Self {
         Self {
-            value: SharedValue::new(value),
-            old: value,
+            value: value.clone(),
+            old: value.get_value(),
             min,
             max,
         }
