@@ -249,6 +249,10 @@ impl Cell {
 
         basis
     }
+
+    fn area(&self) -> f64 {
+        self.angle.get_value().sin() * self.x_len.get_value() * self.y_len.get_value()
+    }
 }
 
 #[derive(Clone)]
