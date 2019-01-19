@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 //
-extern crate nalgebra as na;
+extern crate nalgebra;
 extern crate rand;
 
 pub mod basis;
@@ -21,7 +21,7 @@ pub use crate::basis::{Basis, SharedValue, StandardBasis};
 /// These are all the valid types of crystal symmetries which are valid in a 2D space.
 ///
 #[derive(Debug, Clone, PartialEq)]
-enum CrystalFamily {
+pub enum CrystalFamily {
     Monoclinic,
     Orthorhombic,
     Hexagonal,
@@ -33,27 +33,27 @@ enum CrystalFamily {
 /// This is the highest level description of the symmetry operations of a crystal structure.
 ///
 #[derive(Debug, Clone)]
-struct Wallpaper {
-    name: String,
-    family: CrystalFamily,
+pub struct Wallpaper {
+    pub name: String,
+    pub family: CrystalFamily,
 }
 
 /// Define the transformations of particle positions
 ///
 /// These
 #[derive(Debug, Clone)]
-struct SymmetryTransform {
-    rotation: Matrix2<f64>,
-    translation: Vector2<f64>,
+pub struct SymmetryTransform {
+    pub rotation: Matrix2<f64>,
+    pub translation: Vector2<f64>,
 }
 
 #[derive(Debug, Clone)]
-struct WyckoffSite {
-    letter: char,
-    symmetries: Vec<SymmetryTransform>,
-    num_rotations: u64,
-    mirror_primary: bool,
-    mirror_secondary: bool,
+pub struct WyckoffSite {
+    pub letter: char,
+    pub symmetries: Vec<SymmetryTransform>,
+    pub num_rotations: u64,
+    pub mirror_primary: bool,
+    pub mirror_secondary: bool,
 }
 
 impl WyckoffSite {
@@ -70,11 +70,52 @@ impl WyckoffSite {
 }
 
 #[derive(Debug, Clone)]
-struct Shape {
-    name: String,
-    radial_points: Vec<f64>,
-    rotational_symmetries: u64,
-    mirrors: u64,
+pub struct Shape {
+    pub name: String,
+    pub radial_points: Vec<f64>,
+    pub rotational_symmetries: u64,
+    pub mirrors: u64,
+}
+
+pub struct ShapeIter<'a> {
+    shape: &'a Shape,
+    index: usize,
+    len: usize,
+}
+
+impl<'a> ShapeIter<'a> {
+    fn new(shape: &'a Shape) -> Self {
+        Self {
+            shape,
+            index: 0,
+            len: shape.radial_points.len(),
+        }
+    }
+}
+
+impl<'a> Iterator for ShapeIter<'a> {
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<(f64, f64)> {
+        if self.index >= self.len {
+            return None;
+        }
+        let result = Some((
+            self.shape.radial_points[self.index],
+            self.shape.radial_points[(self.index + 1) % self.len],
+        ));
+        self.index += 1;
+        result
+    }
+}
+
+impl<'a> IntoIterator for &'a Shape {
+    type Item = (f64, f64);
+    type IntoIter = ShapeIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ShapeIter::new(&self)
+    }
 }
 
 impl Shape {
@@ -216,7 +257,7 @@ impl Cell {
 }
 
 #[derive(Clone)]
-struct PackedState {
+pub struct PackedState {
     wallpaper: Wallpaper,
     shape: Shape,
     cell: Cell,
@@ -225,12 +266,12 @@ struct PackedState {
 }
 
 impl PackedState {
-    fn check_intersection(&self) -> bool {
+    pub fn check_intersection(&self) -> bool {
         // TODO Implement
         return true;
     }
 
-    fn total_shapes(&self) -> usize {
+    pub fn total_shapes(&self) -> usize {
         let mut sum: usize = 0;
         for site in self.occupied_sites.iter() {
             sum += site.multiplicity();
@@ -238,12 +279,11 @@ impl PackedState {
         return sum;
     }
 
-    fn packing_fraction(&self) -> f64 {
-        // TODO Implement
-        return 0.;
+    pub fn packing_fraction(&self) -> f64 {
+        self.cell.area() / (self.shape.area() * self.total_shapes() as f64)
     }
 
-    fn initialise(
+    pub fn initialise(
         shape: Shape,
         wallpaper: Wallpaper,
         isopointal: Vec<WyckoffSite>,
