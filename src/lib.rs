@@ -380,3 +380,40 @@ fn monte_carlo_best_packing<'a, 'b>(vars: &'a MCVars, state: &'b mut PackedState
     );
     return best_state;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shape_init_test() {
+        let square = Shape {
+            name: String::from("Square"),
+            radial_points: vec![1., 1., 1., 1.],
+            rotational_symmetries: 4,
+            mirrors: 4,
+        };
+        assert_eq!(square.name, "Square");
+        assert_eq!(square.radial_points, vec![1., 1., 1., 1.]);
+        assert_eq!(square.rotational_symmetries, 4);
+        assert_eq!(square.mirrors, 4);
+    }
+
+    #[test]
+    fn shape_area_test() {
+        let square = Shape {
+            name: String::from("Square"),
+            radial_points: vec![1., 1., 1., 1.],
+            rotational_symmetries: 4,
+            mirrors: 4,
+        };
+        assert_eq!(square.area(), 2.);
+    }
+
+    #[test]
+    fn crystal_family_equality_test() {
+        assert_eq!(CrystalFamily::Monoclinic, CrystalFamily::Monoclinic);
+        assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Monoclinic);
+    }
+
+}
