@@ -122,15 +122,10 @@ impl Shape {
     fn area(&self) -> f64 {
         // This is the sine of the angle between each point
         let angle_term: f64 = f64::sin(2. * PI / self.radial_points.len() as f64);
-        return self
-            .radial_points
-            .iter()
-            // Get the next value of the iterator to compare, cycling back to the start
-            .zip(&self.radial_points.iter().cycle().nth(1))
-            // Calculate the area of each triangle
-            .map(|(a, b)| a * *b * angle_term)
-            // Sum everything together
-            .sum();
+
+        self.into_iter()
+            .map(|(a, b)| 0.5 * angle_term * a * b)
+            .sum()
     }
 
     fn max_radius(&self) -> f64 {
