@@ -415,4 +415,37 @@ mod tests {
         assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Monoclinic);
     }
 
+    fn init_packed_state() -> PackedState {
+        let square = Shape {
+            name: String::from("Square"),
+            radial_points: vec![1., 1., 1., 1.],
+            rotational_symmetries: 4,
+            mirrors: 4,
+        };
+
+        let wallpaper = Wallpaper {
+            name: String::from("p1"),
+            family: CrystalFamily::Monoclinic,
+        };
+
+        let isopointal = vec![WyckoffSite {
+            letter: 'a',
+            symmetries: vec![SymmetryTransform {
+                rotation: Matrix2::new(1., 0., 1., 0.),
+                translation: Vector2::new(0., 0.),
+            }],
+            num_rotations: 1,
+            mirror_primary: false,
+            mirror_secondary: false,
+        }];
+
+        PackedState::initialise(square, wallpaper, isopointal, 0.1)
+    }
+
+    #[test]
+    fn packed_state_total_shapes() {
+        let state = init_packed_state();
+        assert_eq!(state.total_shapes(), 1);
+    }
+
 }
