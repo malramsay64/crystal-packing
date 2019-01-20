@@ -62,6 +62,7 @@ impl WyckoffSite {
     }
 
     fn degrees_of_freedom(&self) -> &[bool] {
+        // TODO implement
         // Check x
         // Check y
         // Check rotations
@@ -384,14 +385,18 @@ fn monte_carlo_best_packing<'a, 'b>(vars: &'a MCVars, state: &'b mut PackedState
 mod tests {
     use super::*;
 
-    #[test]
-    fn shape_init_test() {
-        let square = Shape {
+    fn create_square() -> Shape {
+        Shape {
             name: String::from("Square"),
             radial_points: vec![1., 1., 1., 1.],
             rotational_symmetries: 4,
             mirrors: 4,
-        };
+        }
+    }
+
+    #[test]
+    fn shape_init_test() {
+        let square = create_square();
         assert_eq!(square.name, "Square");
         assert_eq!(square.radial_points, vec![1., 1., 1., 1.]);
         assert_eq!(square.rotational_symmetries, 4);
@@ -400,12 +405,7 @@ mod tests {
 
     #[test]
     fn shape_area_test() {
-        let square = Shape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        };
+        let square = create_square();
         assert_eq!(square.area(), 2.);
     }
 
@@ -416,12 +416,7 @@ mod tests {
     }
 
     fn init_packed_state() -> PackedState {
-        let square = Shape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        };
+        let square = create_square();
 
         let wallpaper = Wallpaper {
             name: String::from("p1"),
