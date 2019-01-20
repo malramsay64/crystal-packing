@@ -35,7 +35,19 @@ mod crystal_family_test {
     #[test]
     fn equality() {
         assert_eq!(CrystalFamily::Monoclinic, CrystalFamily::Monoclinic);
+        assert_eq!(CrystalFamily::Orthorhombic, CrystalFamily::Orthorhombic);
+        assert_eq!(CrystalFamily::Hexagonal, CrystalFamily::Hexagonal);
+        assert_eq!(CrystalFamily::Tetragonal, CrystalFamily::Tetragonal);
+    }
+
+    #[test]
+    fn inequality() {
+        assert_ne!(CrystalFamily::Orthorhombic, CrystalFamily::Monoclinic);
         assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Monoclinic);
+        assert_ne!(CrystalFamily::Tetragonal, CrystalFamily::Monoclinic);
+        assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Orthorhombic);
+        assert_ne!(CrystalFamily::Tetragonal, CrystalFamily::Orthorhombic);
+        assert_ne!(CrystalFamily::Tetragonal, CrystalFamily::Hexagonal);
     }
 }
 
