@@ -41,17 +41,17 @@ impl SharedValue {
 }
 
 #[cfg(test)]
-mod tests {
+mod shared_value_tests {
     use super::*;
 
     #[test]
-    fn new_shared_value() {
+    fn new() {
         let value = SharedValue::new(1.);
         assert_eq!(value.get_value(), 1.);
     }
 
     #[test]
-    fn update_shared_value() {
+    fn set_value() {
         let value = SharedValue::new(1.);
         assert_eq!(value.get_value(), 1.);
         value.set_value(0.5);
@@ -59,7 +59,7 @@ mod tests {
     }
 
     #[test]
-    fn cloned_shared_value() {
+    fn clone() {
         let value1 = SharedValue::new(1.);
         let value2 = value1.clone();
         assert_eq!(value1.get_value(), 1.);
@@ -122,4 +122,56 @@ impl Basis for StandardBasis {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
         return self.get_value() + self.value_range() * rng.gen_range(-0.5, 0.5);
     }
+}
+
+#[cfg(test)]
+mod standard_basis_tests {
+    use super::*;
+    use rand::thread_rng;
+
+    #[test]
+    fn get_value() {
+        let value = SharedValue::new(1.);
+        let mut basis = StandardBasis::new(&value, 0., 1.);
+        basis.set_value(0.5);
+        assert_eq!(basis.get_value(), 0.5);
+        assert_eq!(value.get_value(), 0.5);
+    }
+
+    #[test]
+    fn set_value_limits() {
+        let value = SharedValue::new(1.);
+        let mut basis = StandardBasis::new(&value, 0., 1.);
+
+        // Over maximum value
+        basis.set_value(1.1);
+        assert_eq!(basis.get_value(), 1.);
+
+        // Less than minimum value
+        basis.set_value(-0.1);
+        assert_eq!(basis.get_value(), 0.);
+    }
+
+    #[test]
+    fn reset_value() {
+        let value = SharedValue::new(1.);
+        let mut basis = StandardBasis::new(&value, 0., 1.);
+        basis.set_value(0.5);
+        assert_eq!(basis.get_value(), 0.5);
+        basis.reset_value();
+        assert_eq!(basis.get_value(), 1.);
+    }
+
+    #[test]
+    fn sample() {
+        let value = SharedValue::new(1.);
+        let mut basis = StandardBasis::new(&value, 0., 1.);
+        let mut rng = thread_rng();
+        for _ in 0..100 {
+            let val = basis.sample(&mut rng);
+            // Range of values which should be present
+            assert!(val >= 0.5 && val <= 1.5);
+        }
+    }
+
 }
