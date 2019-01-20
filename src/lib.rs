@@ -28,6 +28,17 @@ pub enum CrystalFamily {
     Tetragonal,
 }
 
+#[cfg(test)]
+mod crystal_family_test {
+    use super::*;
+
+    #[test]
+    fn equality() {
+        assert_eq!(CrystalFamily::Monoclinic, CrystalFamily::Monoclinic);
+        assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Monoclinic);
+    }
+}
+
 /// Defining one of the Crystallographic wallpaper groups.
 ///
 /// This is the highest level description of the symmetry operations of a crystal structure.
@@ -68,6 +79,31 @@ impl WyckoffSite {
         // Check rotations
         return &[true, true, true];
     }
+}
+
+#[cfg(test)]
+mod wyckoff_site_tests {
+    use super::*;
+
+    pub fn create_wyckoff() -> WyckoffSite {
+        WyckoffSite {
+            letter: 'a',
+            symmetries: vec![SymmetryTransform {
+                rotation: Matrix2::new(1., 0., 1., 0.),
+                translation: Vector2::new(0., 0.),
+            }],
+            num_rotations: 1,
+            mirror_primary: false,
+            mirror_secondary: false,
+        }
+    }
+
+    #[test]
+    fn multiplicity() {
+        let wyckoff = create_wyckoff();
+        assert_eq!(wyckoff.multiplicity(), 1);
+    }
+
 }
 
 #[derive(Debug, Clone)]
@@ -121,7 +157,8 @@ impl<'a> IntoIterator for &'a Shape {
 
 impl Shape {
     fn area(&self) -> f64 {
-        // This is the sine of the angle between each point
+        // This is the sine of the angle between each point, this is used for every calculation
+        // so pre-calculate here.
         let angle_term: f64 = f64::sin(2. * PI / self.radial_points.len() as f64);
 
         self.into_iter()
@@ -130,7 +167,67 @@ impl Shape {
     }
 
     fn max_radius(&self) -> f64 {
-        return self.radial_points.iter().cloned().fold(0. / 0., f64::max);
+        return self
+            .radial_points
+            .iter()
+            .cloned()
+            // The f64 type doesn't have complete ordering because of Nan and Inf, so the
+            // standard min/max comparators don't work. Instead we use the f64::max which ignores
+            // the NAN and max values.
+            .fold(std::f64::MIN, f64::max);
+    }
+}
+
+#[cfg(test)]
+mod shape_tests {
+    use super::*;
+
+    pub fn create_square() -> Shape {
+        Shape {
+            name: String::from("Square"),
+            radial_points: vec![1., 1., 1., 1.],
+            rotational_symmetries: 4,
+            mirrors: 4,
+        }
+    }
+
+    #[test]
+    fn init() {
+        let square = create_square();
+        assert_eq!(square.name, "Square");
+        assert_eq!(square.radial_points, vec![1., 1., 1., 1.]);
+        assert_eq!(square.rotational_symmetries, 4);
+        assert_eq!(square.mirrors, 4);
+    }
+
+    #[test]
+    fn area() {
+        let square = create_square();
+        assert_eq!(square.area(), 2.);
+    }
+
+    #[test]
+    fn max_radius() {
+        let shape = Shape {
+            name: String::from("iter_test"),
+            radial_points: vec![1., 2., 3., 4.],
+            rotational_symmetries: 1,
+            mirrors: 0,
+        };
+        assert_eq!(shape.max_radius(), 4.);
+        assert_eq!(shape.max_radius(), 4.);
+    }
+
+    #[test]
+    fn iter_values() {
+        let shape = Shape {
+            name: String::from("iter_test"),
+            radial_points: vec![1., 2., 3., 4.],
+            rotational_symmetries: 1,
+            mirrors: 0,
+        };
+        let manual = vec![(1., 2.), (2., 3.), (3., 4.), (4., 1.)];
+        assert_eq!(shape.into_iter().collect::<Vec<(f64, f64)>>(), manual);
     }
 }
 
@@ -314,6 +411,40 @@ impl PackedState {
     }
 }
 
+#[cfg(test)]
+mod packed_state_tests {
+    use super::*;
+
+    fn init_packed_state() -> PackedState {
+        let square = shape_tests::create_square();
+
+        let wallpaper = Wallpaper {
+            name: String::from("p1"),
+            family: CrystalFamily::Monoclinic,
+        };
+
+        let isopointal = vec![WyckoffSite {
+            letter: 'a',
+            symmetries: vec![SymmetryTransform {
+                rotation: Matrix2::new(1., 0., 1., 0.),
+                translation: Vector2::new(0., 0.),
+            }],
+            num_rotations: 1,
+            mirror_primary: false,
+            mirror_secondary: false,
+        }];
+
+        PackedState::initialise(square, wallpaper, isopointal, 0.1)
+    }
+
+    #[test]
+    fn packed_state_total_shapes() {
+        let state = init_packed_state();
+        assert_eq!(state.total_shapes(), 1);
+    }
+
+}
+
 struct MCVars {
     kt_start: f64,
     kt_finish: f64,
@@ -379,68 +510,4 @@ fn monte_carlo_best_packing<'a, 'b>(vars: &'a MCVars, state: &'b mut PackedState
         rejections as f64 / vars.steps as f64,
     );
     return best_state;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn create_square() -> Shape {
-        Shape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        }
-    }
-
-    #[test]
-    fn shape_init_test() {
-        let square = create_square();
-        assert_eq!(square.name, "Square");
-        assert_eq!(square.radial_points, vec![1., 1., 1., 1.]);
-        assert_eq!(square.rotational_symmetries, 4);
-        assert_eq!(square.mirrors, 4);
-    }
-
-    #[test]
-    fn shape_area_test() {
-        let square = create_square();
-        assert_eq!(square.area(), 2.);
-    }
-
-    #[test]
-    fn crystal_family_equality_test() {
-        assert_eq!(CrystalFamily::Monoclinic, CrystalFamily::Monoclinic);
-        assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Monoclinic);
-    }
-
-    fn init_packed_state() -> PackedState {
-        let square = create_square();
-
-        let wallpaper = Wallpaper {
-            name: String::from("p1"),
-            family: CrystalFamily::Monoclinic,
-        };
-
-        let isopointal = vec![WyckoffSite {
-            letter: 'a',
-            symmetries: vec![SymmetryTransform {
-                rotation: Matrix2::new(1., 0., 1., 0.),
-                translation: Vector2::new(0., 0.),
-            }],
-            num_rotations: 1,
-            mirror_primary: false,
-            mirror_secondary: false,
-        }];
-
-        PackedState::initialise(square, wallpaper, isopointal, 0.1)
-    }
-
-    #[test]
-    fn packed_state_total_shapes() {
-        let state = init_packed_state();
-        assert_eq!(state.total_shapes(), 1);
-    }
-
 }
