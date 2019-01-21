@@ -73,9 +73,11 @@ pub struct SymmetryTransform {
 }
 
 impl SymmetryTransform {
-    fn parse_ops(ops: &str) -> Vector2<f64> {
+    fn parse_ops(ops: &str) -> (Vector2<f64>, f64) {
         let mut vec = Vector2::zeros();
         let mut sign = 1.;
+        let mut constant = 0.;
+        let mut operator: Option<char> = None;
         for c in ops.chars() {
             match c {
                 'x' => {
@@ -86,39 +88,56 @@ impl SymmetryTransform {
                     vec[1] = sign;
                     sign = 1.;
                 }
+                '*' | '/' => {
+                    operator = Some(c);
+                }
                 '-' => {
                     sign = -1.;
                 }
+                '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
+                    let val = c.to_string().parse::<u64>().unwrap() as f64;
+                    // Is there an operator defined, i.e. is this the first digit
+                    if let Some(op) = operator {
+                        constant = match op {
+                            '/' => sign * constant / val,
+                            '*' => sign * constant * val,
+                            _ => 0.,
+                        };
+                        operator = None;
+                    } else {
+                        constant = sign * val;
+                    }
+                    sign = 1.
+                }
+                // Default is do nothing (shouldn't encounter this at all)
                 _ => {}
             };
         }
 
-        vec
+        (vec, constant)
     }
 
     pub fn new(sym_ops: &str) -> SymmetryTransform {
-        println!("{}", sym_ops);
-        // Remove all whitespace
-        let ops_clean: String = sym_ops
-            .chars()
-            .filter(|a: &char| !a.is_whitespace())
-            .collect();
         let braces: &[_] = &['(', ')'];
-        let ops: Vec<&str> = ops_clean
+        let operations: Vec<&str> = sym_ops
             // Remove braces from front and back
             .trim_matches(braces)
             // Split at the comma
             .split_terminator(',')
             .collect();
-        println!("{:?}", ops);
-        let trans = na::Translation2::new(0., 0.);
+        let mut trans = Vector2::new(0., 0.);
         let mut rot: Matrix2<f64> = Matrix2::new(1., 0., 0., 1.);
 
-        for (index, op) in ops.iter().enumerate() {
-            rot.set_row(index, &SymmetryTransform::parse_ops(op).transpose());
+        for (index, op) in operations.iter().enumerate() {
+            let (r, t) = SymmetryTransform::parse_ops(op);
+            rot.set_row(index, &r.transpose());
+            trans[index] = t;
         }
         SymmetryTransform {
-            isometry: IsometryMatrix2::from_parts(trans, na::Rotation2::from_matrix_unchecked(rot)),
+            isometry: IsometryMatrix2::from_parts(
+                na::Translation2::from(trans),
+                na::Rotation2::from_matrix_unchecked(rot),
+            ),
         }
     }
 
@@ -181,11 +200,35 @@ mod symmetry_transform_tests {
     }
 
     #[test]
-    fn new() {
+    fn parse_operation_default() {
+        let input = String::from("(x, y)");
+        let st = SymmetryTransform::new(&input);
+        let point = Point2::new(0.1, 0.2);
+        assert_relative_eq!(st.transform(&point), Point2::new(0.1, 0.2));
+    }
+
+    #[test]
+    fn parse_operation_xy() {
         let input = String::from("(-x, x+y)");
         let st = SymmetryTransform::new(&input);
         let point = Point2::new(0.1, 0.2);
         assert_relative_eq!(st.transform(&point), Point2::new(-0.1, 0.3));
+    }
+
+    #[test]
+    fn parse_operation_consts() {
+        let input = String::from("(x+1/2, -y)");
+        let st = SymmetryTransform::new(&input);
+        let point = Point2::new(0.1, 0.2);
+        assert_relative_eq!(st.transform(&point), Point2::new(0.6, -0.2));
+    }
+
+    #[test]
+    fn parse_operation_neg_consts() {
+        let input = String::from("(x-1/2, -y)");
+        let st = SymmetryTransform::new(&input);
+        let point = Point2::new(0.1, 0.2);
+        assert_relative_eq!(st.transform(&point), Point2::new(-0.4, -0.2));
     }
 
 }
