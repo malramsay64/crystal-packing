@@ -452,7 +452,7 @@ impl OccupiedSite {
 }
 
 #[derive(Clone)]
-struct Cell {
+pub struct Cell {
     x_len: SharedValue,
     y_len: SharedValue,
     angle: SharedValue,
@@ -521,7 +521,7 @@ impl Cell {
         basis
     }
 
-    fn area(&self) -> f64 {
+    pub fn area(&self) -> f64 {
         self.angle.get_value().sin() * self.x_len.get_value() * self.y_len.get_value()
     }
 }
@@ -550,7 +550,7 @@ impl PackedState {
     }
 
     pub fn packing_fraction(&self) -> f64 {
-        self.cell.area() / (self.shape.area() * self.total_shapes() as f64)
+        (self.shape.area() * self.total_shapes() as f64) / self.cell.area()
     }
 
     pub fn initialise(
@@ -588,23 +588,77 @@ impl PackedState {
 mod packed_state_tests {
     use super::*;
 
-    fn init_packed_state() -> PackedState {
-        let square = shape_tests::create_square();
-
+    fn create_wallpaper_p1() -> (Wallpaper, Vec<WyckoffSite>) {
         let wallpaper = Wallpaper {
             name: String::from("p1"),
             family: CrystalFamily::Monoclinic,
         };
+        let isopointal = vec![WyckoffSite {
+            letter: 'a',
+            symmetries: vec![SymmetryTransform::new("x,y")],
+            num_rotations: 1,
+            mirror_primary: false,
+            mirror_secondary: false,
+        }];
 
-        let isopointal = vec![wyckoff_site_tests::create_wyckoff()];
+        (wallpaper, isopointal)
+    }
 
-        PackedState::initialise(square, wallpaper, isopointal, 0.1)
+    fn create_wallpaper_p2mg() -> (Wallpaper, Vec<WyckoffSite>) {
+        let wallpaper = Wallpaper {
+            name: String::from("p2mg"),
+            family: CrystalFamily::Monoclinic,
+        };
+        let isopointal = vec![WyckoffSite {
+            letter: 'd',
+            symmetries: vec![
+                SymmetryTransform::new("x,y"),
+                SymmetryTransform::new("-x,-y"),
+                SymmetryTransform::new("-x+1/2,y"),
+                SymmetryTransform::new("x+1/2,-y"),
+            ],
+            num_rotations: 1,
+            mirror_primary: false,
+            mirror_secondary: false,
+        }];
+
+        (wallpaper, isopointal)
+    }
+
+    fn init_packed_state(group: &str) -> PackedState {
+        let square = shape_tests::create_square();
+
+        let (wallpaper, isopointal) = (match group {
+            "p1" => Some(create_wallpaper_p1()),
+            "p2mg" => Some(create_wallpaper_p2mg()),
+            _ => None,
+        })
+        .unwrap();
+        PackedState::initialise(square, wallpaper, isopointal)
     }
 
     #[test]
-    fn packed_state_total_shapes() {
-        let state = init_packed_state();
+    fn total_shapes_p1() {
+        let state = init_packed_state("p1");
         assert_eq!(state.total_shapes(), 1);
+    }
+
+    #[test]
+    fn packing_fraction_p1() {
+        let state = init_packed_state("p1");
+        assert_relative_eq!(state.packing_fraction(), 1. / 8.);
+    }
+
+    #[test]
+    fn total_shapes_p2mg() {
+        let state = init_packed_state("p2mg");
+        assert_eq!(state.total_shapes(), 4);
+    }
+
+    #[test]
+    fn packing_fraction_p2mg() {
+        let state = init_packed_state("p2mg");
+        assert_relative_eq!(state.packing_fraction(), 1. / 32.);
     }
 
 }
