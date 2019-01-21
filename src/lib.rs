@@ -336,7 +336,7 @@ impl<'a> IntoIterator for &'a Shape {
 }
 
 impl Shape {
-    fn area(&self) -> f64 {
+    pub fn area(&self) -> f64 {
         // This is the sine of the angle between each point, this is used for every calculation
         // so pre-calculate here.
         let angle_term: f64 = f64::sin(2. * PI / self.radial_points.len() as f64);
@@ -535,9 +535,9 @@ impl Cell {
 
 #[derive(Clone)]
 pub struct PackedState {
-    wallpaper: Wallpaper,
-    shape: Shape,
-    cell: Cell,
+    pub wallpaper: Wallpaper,
+    pub shape: Shape,
+    pub cell: Cell,
     occupied_sites: Vec<OccupiedSite>,
     basis: Vec<StandardBasis>,
 }
@@ -564,7 +564,6 @@ impl PackedState {
         shape: Shape,
         wallpaper: Wallpaper,
         isopointal: Vec<WyckoffSite>,
-        step_size: f64,
     ) -> PackedState {
         let mut basis: Vec<StandardBasis> = Vec::new();
 
