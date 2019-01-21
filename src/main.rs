@@ -4,7 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-use nalgebra::{Matrix2, Vector2};
 use packing;
 
 fn main() {
@@ -22,10 +21,7 @@ fn main() {
 
     let isopointal = vec![packing::WyckoffSite {
         letter: 'a',
-        symmetries: vec![packing::SymmetryTransform {
-            rotation: Matrix2::new(1., 0., 1., 0.),
-            translation: Vector2::new(0., 0.),
-        }],
+        symmetries: vec![packing::SymmetryTransform::default()],
         num_rotations: 1,
         mirror_primary: false,
         mirror_secondary: false,

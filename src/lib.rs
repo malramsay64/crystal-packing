@@ -4,12 +4,12 @@
 // Distributed under terms of the MIT license.
 //
 //
-extern crate nalgebra;
+extern crate nalgebra as na;
 extern crate rand;
 
 pub mod basis;
 
-use nalgebra::{Matrix2, Vector2};
+use nalgebra::{Isometry2, Point2, Vector2};
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
 use std::f64::consts::PI;
@@ -66,8 +66,80 @@ pub struct Wallpaper {
 /// These
 #[derive(Debug, Clone)]
 pub struct SymmetryTransform {
-    pub rotation: Matrix2<f64>,
-    pub translation: Vector2<f64>,
+    isometry: Isometry2<f64>,
+}
+
+impl SymmetryTransform {
+    fn new(sym_ops: &str) -> SymmetryTransform {
+        let ops: Vec<&str> = sym_ops.matches("-+xy").collect();
+        SymmetryTransform {
+            isometry: Isometry2::identity(),
+        }
+    }
+
+    fn transform(&self, position: &Point2<f64>) -> Point2<f64> {
+        self.isometry * position
+    }
+
+    fn rotate(&self, vect: &Vector2<f64>) -> Vector2<f64> {
+        self.isometry * vect
+    }
+}
+
+impl Default for SymmetryTransform {
+    fn default() -> Self {
+        Self {
+            isometry: Isometry2::identity(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod symmetry_transform_tests {
+    use super::*;
+
+    fn create_identity() -> SymmetryTransform {
+        SymmetryTransform {
+            isometry: Isometry2::identity(),
+        }
+    }
+
+    #[test]
+    fn default() {
+        let point = Point2::new(0.2, 0.2);
+        let transform = SymmetryTransform::default();
+        assert_eq!(transform.transform(&point), point);
+    }
+
+    #[test]
+    fn identity_transform() {
+        let identity = create_identity();
+        let point = Point2::new(0.2, 0.2);
+        assert_eq!(identity.transform(&point), point);
+
+        let vec = Vector2::new(0.2, 0.2);
+        assert_eq!(identity.rotate(&vec), vec);
+    }
+
+    #[test]
+    fn transform() {
+        let isometry = SymmetryTransform {
+            isometry: Isometry2::new(Vector2::new(1., 1.), PI / 2.),
+        };
+
+        let point = Point2::new(0.2, 0.2);
+        assert_eq!(isometry.transform(&point), Point2::new(0.8, 1.2));
+
+        let vec = Vector2::new(0.2, 0.2);
+        assert_eq!(isometry.rotate(&vec), Vector2::new(-0.2, 0.2));
+    }
+
+    #[test]
+    fn new() {
+        let input = String::from("(-x, x+y)");
+        let st = SymmetryTransform::new(&input);
+    }
+
 }
 
 #[derive(Debug, Clone)]
@@ -100,10 +172,7 @@ mod wyckoff_site_tests {
     pub fn create_wyckoff() -> WyckoffSite {
         WyckoffSite {
             letter: 'a',
-            symmetries: vec![SymmetryTransform {
-                rotation: Matrix2::new(1., 0., 1., 0.),
-                translation: Vector2::new(0., 0.),
-            }],
+            symmetries: vec![SymmetryTransform::default()],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -435,16 +504,7 @@ mod packed_state_tests {
             family: CrystalFamily::Monoclinic,
         };
 
-        let isopointal = vec![WyckoffSite {
-            letter: 'a',
-            symmetries: vec![SymmetryTransform {
-                rotation: Matrix2::new(1., 0., 1., 0.),
-                translation: Vector2::new(0., 0.),
-            }],
-            num_rotations: 1,
-            mirror_primary: false,
-            mirror_secondary: false,
-        }];
+        let isopointal = vec![wyckoff_site_tests::create_wyckoff()];
 
         PackedState::initialise(square, wallpaper, isopointal, 0.1)
     }
