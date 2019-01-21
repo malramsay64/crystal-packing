@@ -4,6 +4,8 @@
 // Distributed under terms of the MIT license.
 //
 //
+
+#[allow(unused_imports)]
 #[macro_use]
 extern crate approx;
 
@@ -160,7 +162,6 @@ impl Default for SymmetryTransform {
 
 #[cfg(test)]
 mod symmetry_transform_tests {
-
     use super::*;
 
     fn create_identity() -> SymmetryTransform {
