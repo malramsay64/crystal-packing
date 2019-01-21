@@ -4,12 +4,15 @@
 // Distributed under terms of the MIT license.
 //
 //
+#[macro_use]
+extern crate approx;
+
 extern crate nalgebra as na;
 extern crate rand;
 
 pub mod basis;
 
-use nalgebra::{Isometry2, Point2, Vector2};
+use nalgebra::{IsometryMatrix2, Matrix2, Point2, Vector2};
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
 use std::f64::consts::PI;
@@ -66,22 +69,64 @@ pub struct Wallpaper {
 /// These
 #[derive(Debug, Clone)]
 pub struct SymmetryTransform {
-    isometry: Isometry2<f64>,
+    isometry: IsometryMatrix2<f64>,
 }
 
 impl SymmetryTransform {
-    fn new(sym_ops: &str) -> SymmetryTransform {
-        let ops: Vec<&str> = sym_ops.matches("-+xy").collect();
+    fn parse_ops(ops: &str) -> Vector2<f64> {
+        let mut vec = Vector2::zeros();
+        let mut sign = 1.;
+        for c in ops.chars() {
+            match c {
+                'x' => {
+                    vec[0] = sign;
+                    sign = 1.;
+                }
+                'y' => {
+                    vec[1] = sign;
+                    sign = 1.;
+                }
+                '-' => {
+                    sign = -1.;
+                }
+                _ => {}
+            };
+        }
+
+        vec
+    }
+
+    pub fn new(sym_ops: &str) -> SymmetryTransform {
+        println!("{}", sym_ops);
+        // Remove all whitespace
+        let ops_clean: String = sym_ops
+            .chars()
+            .filter(|a: &char| !a.is_whitespace())
+            .collect();
+        let braces: &[_] = &['(', ')'];
+        let ops: Vec<&str> = ops_clean
+            // Remove braces from front and back
+            .trim_matches(braces)
+            // Split at the comma
+            .split_terminator(',')
+            .collect();
+        println!("{:?}", ops);
+        let trans = na::Translation2::new(0., 0.);
+        let mut rot: Matrix2<f64> = Matrix2::new(1., 0., 0., 1.);
+
+        for (index, op) in ops.iter().enumerate() {
+            rot.set_row(index, &SymmetryTransform::parse_ops(op).transpose());
+        }
         SymmetryTransform {
-            isometry: Isometry2::identity(),
+            isometry: IsometryMatrix2::from_parts(trans, na::Rotation2::from_matrix_unchecked(rot)),
         }
     }
 
-    fn transform(&self, position: &Point2<f64>) -> Point2<f64> {
+    pub fn transform(&self, position: &Point2<f64>) -> Point2<f64> {
         self.isometry * position
     }
 
-    fn rotate(&self, vect: &Vector2<f64>) -> Vector2<f64> {
+    pub fn rotate(&self, vect: &Vector2<f64>) -> Vector2<f64> {
         self.isometry * vect
     }
 }
@@ -89,18 +134,19 @@ impl SymmetryTransform {
 impl Default for SymmetryTransform {
     fn default() -> Self {
         Self {
-            isometry: Isometry2::identity(),
+            isometry: IsometryMatrix2::identity(),
         }
     }
 }
 
 #[cfg(test)]
 mod symmetry_transform_tests {
+
     use super::*;
 
     fn create_identity() -> SymmetryTransform {
         SymmetryTransform {
-            isometry: Isometry2::identity(),
+            isometry: IsometryMatrix2::identity(),
         }
     }
 
@@ -124,7 +170,7 @@ mod symmetry_transform_tests {
     #[test]
     fn transform() {
         let isometry = SymmetryTransform {
-            isometry: Isometry2::new(Vector2::new(1., 1.), PI / 2.),
+            isometry: IsometryMatrix2::new(Vector2::new(1., 1.), PI / 2.),
         };
 
         let point = Point2::new(0.2, 0.2);
@@ -138,6 +184,8 @@ mod symmetry_transform_tests {
     fn new() {
         let input = String::from("(-x, x+y)");
         let st = SymmetryTransform::new(&input);
+        let point = Point2::new(0.1, 0.2);
+        assert_relative_eq!(st.transform(&point), Point2::new(-0.1, 0.3));
     }
 
 }
