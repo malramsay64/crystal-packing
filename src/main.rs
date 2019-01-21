@@ -15,21 +15,30 @@ fn main() {
     };
 
     let wallpaper = packing::Wallpaper {
-        name: String::from("p1"),
+        name: String::from("p2mg"),
         family: packing::CrystalFamily::Monoclinic,
     };
 
     let isopointal = vec![packing::WyckoffSite {
-        letter: 'a',
-        symmetries: vec![packing::SymmetryTransform::default()],
+        letter: 'd',
+        symmetries: vec![
+            packing::SymmetryTransform::new("x,y"),
+            packing::SymmetryTransform::new("-x,-y"),
+            packing::SymmetryTransform::new("-x+1/2,y"),
+            packing::SymmetryTransform::new("x+1/2,-y"),
+        ],
         num_rotations: 1,
         mirror_primary: false,
         mirror_secondary: false,
     }];
 
-    let state = packing::PackedState::initialise(square, wallpaper, isopointal, 0.1);
+    let state = packing::PackedState::initialise(square, wallpaper, isopointal);
 
-    assert_eq!(state.total_shapes(), 1);
-
-    println!("Hello, world!");
+    assert_eq!(state.total_shapes(), 4);
+    println!(
+        "Cell Area: {}, Shape Area: {}",
+        state.cell.area(),
+        state.shape.area()
+    );
+    println!("{}", state.packing_fraction());
 }
