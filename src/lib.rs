@@ -96,7 +96,7 @@ impl SymmetryTransform {
                 '-' => {
                     sign = -1.;
                 }
-                '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
+                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
                     let val = c.to_string().parse::<u64>().unwrap() as f64;
                     // Is there an operator defined, i.e. is this the first digit
                     if let Some(op) = operator {
@@ -232,6 +232,13 @@ mod symmetry_transform_tests {
         assert_relative_eq!(st.transform(&point), Point2::new(-0.4, -0.2));
     }
 
+    #[test]
+    fn parse_operation_zero_const() {
+        let input = String::from("(-y, 0)");
+        let st = SymmetryTransform::new(&input);
+        let point = Point2::new(0.1, 0.2);
+        assert_relative_eq!(st.transform(&point), Point2::new(-0.2, 0.));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -249,10 +256,10 @@ impl WyckoffSite {
     }
 
     fn degrees_of_freedom(&self) -> &[bool] {
-        // TODO implement
-        // Check x
-        // Check y
-        // Check rotations
+        // TODO implement -> This is only required for the non-general wyckoff sites since all the
+        // general sites have 3 degrees-of-freedom.
+        //
+        // This will be checked as a method of the SymmetryTransform struct.
         return &[true, true, true];
     }
 }
