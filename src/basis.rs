@@ -5,7 +5,6 @@
 //
 extern crate rand;
 
-use approx;
 use rand::Rng;
 
 /// A Value which can be modified in many places
