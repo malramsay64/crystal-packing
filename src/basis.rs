@@ -5,6 +5,7 @@
 //
 extern crate rand;
 
+use approx;
 use rand::Rng;
 
 /// A Value which can be modified in many places
@@ -47,27 +48,27 @@ mod shared_value_tests {
     #[test]
     fn new() {
         let value = SharedValue::new(1.);
-        assert_eq!(value.get_value(), 1.);
+        assert_abs_diff_eq!(value.get_value(), 1.);
     }
 
     #[test]
     fn set_value() {
         let value = SharedValue::new(1.);
-        assert_eq!(value.get_value(), 1.);
+        assert_abs_diff_eq!(value.get_value(), 1.);
         value.set_value(0.5);
-        assert_eq!(value.get_value(), 0.5);
+        assert_abs_diff_eq!(value.get_value(), 0.5);
     }
 
     #[test]
     fn clone() {
         let value1 = SharedValue::new(1.);
         let value2 = value1.clone();
-        assert_eq!(value1.get_value(), 1.);
-        assert_eq!(value2.get_value(), 1.);
+        assert_abs_diff_eq!(value1.get_value(), 1.);
+        assert_abs_diff_eq!(value2.get_value(), 1.);
 
         value2.set_value(0.5);
-        assert_eq!(value1.get_value(), 0.5);
-        assert_eq!(value2.get_value(), 0.5);
+        assert_abs_diff_eq!(value1.get_value(), 0.5);
+        assert_abs_diff_eq!(value2.get_value(), 0.5);
     }
 }
 
@@ -134,8 +135,8 @@ mod standard_basis_tests {
         let value = SharedValue::new(1.);
         let mut basis = StandardBasis::new(&value, 0., 1.);
         basis.set_value(0.5);
-        assert_eq!(basis.get_value(), 0.5);
-        assert_eq!(value.get_value(), 0.5);
+        assert_abs_diff_eq!(basis.get_value(), 0.5);
+        assert_abs_diff_eq!(value.get_value(), 0.5);
     }
 
     #[test]
@@ -145,11 +146,11 @@ mod standard_basis_tests {
 
         // Over maximum value
         basis.set_value(1.1);
-        assert_eq!(basis.get_value(), 1.);
+        assert_abs_diff_eq!(basis.get_value(), 1.);
 
         // Less than minimum value
         basis.set_value(-0.1);
-        assert_eq!(basis.get_value(), 0.);
+        assert_abs_diff_eq!(basis.get_value(), 0.);
     }
 
     #[test]
@@ -157,9 +158,9 @@ mod standard_basis_tests {
         let value = SharedValue::new(1.);
         let mut basis = StandardBasis::new(&value, 0., 1.);
         basis.set_value(0.5);
-        assert_eq!(basis.get_value(), 0.5);
+        assert_abs_diff_eq!(basis.get_value(), 0.5);
         basis.reset_value();
-        assert_eq!(basis.get_value(), 1.);
+        assert_abs_diff_eq!(basis.get_value(), 1.);
     }
 
     #[test]
@@ -170,7 +171,7 @@ mod standard_basis_tests {
         for _ in 0..100 {
             let val = basis.sample(&mut rng);
             // Range of values which should be present
-            assert!(val >= 0.5 && val <= 1.5);
+            assert!(0.5 <= val && val <= 1.5);
         }
     }
 

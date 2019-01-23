@@ -1,5 +1,5 @@
-//
 // shape.rs
+//
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
@@ -112,7 +112,7 @@ mod shape_tests {
     #[test]
     fn area() {
         let square = create_square();
-        assert_eq!(square.area(), 2.);
+        assert_abs_diff_eq!(square.area(), 2.);
     }
 
     #[test]
@@ -123,8 +123,8 @@ mod shape_tests {
             rotational_symmetries: 1,
             mirrors: 0,
         };
-        assert_eq!(shape.max_radius(), 4.);
-        assert_eq!(shape.max_radius(), 4.);
+        assert_abs_diff_eq!(shape.max_radius(), 4.);
+        assert_abs_diff_eq!(shape.max_radius(), 4.);
     }
 
     #[test]
@@ -263,7 +263,7 @@ mod line_tests {
                 }
             }
         }
-        return result;
+        result
     }
 
     //
