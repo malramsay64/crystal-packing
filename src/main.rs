@@ -19,7 +19,7 @@ fn main() {
         family: packing::CrystalFamily::Monoclinic,
     };
 
-    let isopointal = vec![packing::WyckoffSite {
+    let isopointal = &[packing::WyckoffSite {
         letter: 'd',
         symmetries: vec![
             packing::SymmetryTransform::new("x,y"),
@@ -32,7 +32,7 @@ fn main() {
         mirror_secondary: false,
     }];
 
-    let state = packing::PackedState::initialise(square, wallpaper, &isopointal);
+    let mut state = packing::PackedState::initialise(square, wallpaper, isopointal);
 
     assert_eq!(state.total_shapes(), 4);
     println!(
@@ -40,5 +40,17 @@ fn main() {
         state.cell.area(),
         state.shape.area()
     );
-    println!("{}", state.packing_fraction());
+    println!("Init packing fraction: {}", state.packing_fraction());
+
+    let vars = packing::MCVars {
+        kt_start: 0.1,
+        kt_finish: 0.001,
+        max_step_size: 0.1,
+        num_start_configs: 1,
+        steps: 100,
+    };
+
+    let final_state = packing::monte_carlo_best_packing(&vars, &mut state);
+
+    println!("Final packing fraction: {}", final_state.packing_fraction());
 }

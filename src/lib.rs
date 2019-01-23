@@ -349,6 +349,17 @@ pub struct Cell {
     family: CrystalFamily,
 }
 
+impl Default for Cell {
+    fn default() -> Cell {
+        Cell {
+            x_len: SharedValue::new(1.),
+            y_len: SharedValue::new(1.),
+            angle: SharedValue::new(PI / 2.),
+            family: CrystalFamily::Monoclinic,
+        }
+    }
+}
+
 impl Cell {
     /// Convert a transformation into cartesion coorsinates
     ///
@@ -359,8 +370,11 @@ impl Cell {
     ///
     pub fn to_cartesian(&self, transform: IsometryMatrix2<f64>) -> IsometryMatrix2<f64> {
         let x = transform.translation.vector.x * self.x_len.get_value()
-            + transform.translation.vector.y * self.y_len.get_value() * self.angle.get_value();
-        let y = transform.translation.vector.y * self.y_len.get_value() * self.angle.get_value();
+            + transform.translation.vector.y
+                * self.y_len.get_value()
+                * self.angle.get_value().cos();
+        let y =
+            transform.translation.vector.y * self.y_len.get_value() * self.angle.get_value().sin();
 
         IsometryMatrix2::from_parts(na::Translation2::new(x, y), transform.rotation)
     }
@@ -429,6 +443,26 @@ impl Cell {
 
     pub fn area(&self) -> f64 {
         self.angle.get_value().sin() * self.x_len.get_value() * self.y_len.get_value()
+    }
+}
+
+#[cfg(test)]
+mod cell_tests {
+    use super::*;
+
+    #[test]
+    fn to_cartesian_test() {
+        let cell = Cell::default();
+        let trans = na::IsometryMatrix2::new(na::Vector2::new(0.5, 0.5), 0.);
+
+        assert_eq!(cell.to_cartesian(trans), trans);
+
+        cell.angle.set_value(PI / 4.);
+        let expected = na::IsometryMatrix2::new(
+            na::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
+            0.,
+        );
+        assert_abs_diff_eq!(cell.to_cartesian(trans), expected);
     }
 }
 
@@ -640,7 +674,7 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
     for _ in 0..vars.steps {
         let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
         if let Some(basis_current) = state.basis.get_mut(basis_index) {
-            basis_current.set_value(basis_current.sample(&mut rng));
+            basis_current.set_value(basis_current.sample(&mut rng, vars.max_step_size));
         }
 
         if state.check_intersection() {
@@ -664,9 +698,9 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
         kt *= kt_ratio;
     }
     println!(
-        "Packing Fraction: {}, Rejection Percentage {}",
+        "Packing Fraction: {}, Rejection Percentage {:.2}",
         packing_max,
-        rejections as f64 / vars.steps as f64,
+        100. * rejections as f64 / vars.steps as f64,
     );
     best_state
 }
