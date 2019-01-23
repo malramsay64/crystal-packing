@@ -305,8 +305,8 @@ mod line_tests {
 /// This matches a Shape to a transformation, placing it in 2D space.
 #[derive(PartialEq)]
 pub struct ShapeInstance<'a> {
-    shape: &'a Shape,
-    isometry: IsometryMatrix2<f64>,
+    pub shape: &'a Shape,
+    pub isometry: IsometryMatrix2<f64>,
 }
 
 impl<'a> ShapeInstance<'a> {

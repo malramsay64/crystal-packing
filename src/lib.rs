@@ -335,6 +335,12 @@ impl OccupiedSite {
     }
 }
 
+/// Representing the unit cell of a crystal packing
+///
+/// The unit cell holds the unit cell parameters, being the length of each side of the cell in
+/// addition to the contained angles. Each cell belongs to one of the Crystal Families which
+/// dictate the degrees of freedom the cell can take.
+///
 #[derive(Clone)]
 pub struct Cell {
     x_len: SharedValue,
@@ -342,7 +348,23 @@ pub struct Cell {
     angle: SharedValue,
     family: CrystalFamily,
 }
+
 impl Cell {
+    /// Convert a transformation into cartesion coorsinates
+    ///
+    /// The positions of particles are stored in fractional coordinates, making changes to the
+    /// unit cell simple. This function takes transformation to apply to a collection of points
+    /// and converts the values of the fractional coordinates in the translation to real
+    /// cartesian coordinates based on the current cell parameters.
+    ///
+    pub fn to_cartesian(&self, transform: IsometryMatrix2<f64>) -> IsometryMatrix2<f64> {
+        let x = transform.translation.vector.x * self.x_len.get_value()
+            + transform.translation.vector.y * self.y_len.get_value() * self.angle.get_value();
+        let y = transform.translation.vector.y * self.y_len.get_value() * self.angle.get_value();
+
+        IsometryMatrix2::from_parts(na::Translation2::new(x, y), transform.rotation)
+    }
+
     fn from_family(family: &CrystalFamily, length: f64) -> Cell {
         let (x_len, y_len, angle) = match family {
             // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
@@ -420,9 +442,38 @@ pub struct PackedState {
 }
 
 impl PackedState {
+    fn all_positions(&self) -> Vec<SymmetryTransform> {
+        let mut transforms: Vec<SymmetryTransform> = vec![];
+        for site in self.occupied_sites.iter() {
+            for symmetry in site.wyckoff.symmetries.iter() {
+                transforms.push(symmetry.clone());
+            }
+        }
+        transforms
+    }
+
     pub fn check_intersection(&self) -> bool {
-        // TODO Implement
-        true
+        for position1 in self.all_positions().iter() {
+            let shape_i1 = shape::ShapeInstance {
+                shape: &self.shape,
+                isometry: self.cell.to_cartesian(position1.isometry),
+            };
+            for position2 in self.all_positions().iter() {
+                for x_periodic in [-1., 0., 1.].iter() {
+                    for y_periodic in [-1., 0., 1.].iter() {
+                        let translation = na::Translation2::new(*x_periodic, *y_periodic);
+                        let shape_i2 = shape::ShapeInstance {
+                            shape: &self.shape,
+                            isometry: self.cell.to_cartesian(position2.isometry * translation),
+                        };
+                        if shape_i1.intersects(&shape_i2) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
     }
 
     pub fn total_shapes(&self) -> usize {
