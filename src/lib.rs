@@ -254,7 +254,7 @@ pub struct WyckoffSite {
 
 impl WyckoffSite {
     fn multiplicity(&self) -> usize {
-        return self.symmetries.len();
+        self.symmetries.len()
     }
 
     fn degrees_of_freedom(&self) -> &[bool] {
@@ -262,7 +262,7 @@ impl WyckoffSite {
         // general sites have 3 degrees-of-freedom.
         //
         // This will be checked as a method of the SymmetryTransform struct.
-        return &[true, true, true];
+        &[true, true, true]
     }
 }
 
@@ -298,7 +298,7 @@ struct OccupiedSite {
 
 impl OccupiedSite {
     fn multiplicity(&self) -> usize {
-        return self.wyckoff.symmetries.len();
+        self.wyckoff.symmetries.len()
     }
 
     fn from_wyckoff(wyckoff: &WyckoffSite) -> OccupiedSite {
@@ -306,12 +306,12 @@ impl OccupiedSite {
         let y = SharedValue::new(0.);
         let angle = SharedValue::new(0.);
 
-        return OccupiedSite {
+        OccupiedSite {
             wyckoff: wyckoff.clone(),
             x,
             y,
             angle,
-        };
+        }
     }
 
     fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
@@ -369,12 +369,12 @@ impl Cell {
                 SharedValue::new(PI / 2.),
             ),
         };
-        return Cell {
+        Cell {
             x_len,
             y_len,
             angle,
             family: family.clone(),
-        };
+        }
     }
 
     fn get_basis(&self) -> Vec<StandardBasis> {
@@ -422,15 +422,13 @@ pub struct PackedState {
 impl PackedState {
     pub fn check_intersection(&self) -> bool {
         // TODO Implement
-        return true;
+        true
     }
 
     pub fn total_shapes(&self) -> usize {
-        let mut sum: usize = 0;
-        for site in self.occupied_sites.iter() {
-            sum += site.multiplicity();
-        }
-        return sum;
+        self.occupied_sites
+            .iter()
+            .fold(0, |sum, site| sum + site.multiplicity())
     }
 
     pub fn packing_fraction(&self) -> f64 {
@@ -440,7 +438,7 @@ impl PackedState {
     pub fn initialise(
         shape: Shape,
         wallpaper: Wallpaper,
-        isopointal: Vec<WyckoffSite>,
+        isopointal: &[WyckoffSite],
     ) -> PackedState {
         let mut basis: Vec<StandardBasis> = Vec::new();
 
@@ -457,13 +455,13 @@ impl PackedState {
             occupied_sites.push(site);
         }
 
-        return PackedState {
+        PackedState {
             wallpaper,
             shape,
             cell,
             occupied_sites,
             basis,
-        };
+        }
     }
 }
 
@@ -526,7 +524,7 @@ mod packed_state_tests {
             _ => None,
         })
         .unwrap();
-        PackedState::initialise(square, wallpaper, isopointal)
+        PackedState::initialise(square, wallpaper, &isopointal)
     }
 
     #[test]
@@ -555,25 +553,25 @@ mod packed_state_tests {
 
 }
 
-struct MCVars {
-    kt_start: f64,
-    kt_finish: f64,
-    max_step_size: f64,
-    num_start_configs: u64,
-    steps: u64,
+pub struct MCVars {
+    pub kt_start: f64,
+    pub kt_finish: f64,
+    pub max_step_size: f64,
+    pub num_start_configs: u64,
+    pub steps: u64,
 }
 
 impl MCVars {
     fn kt_ratio(&self) -> f64 {
-        return f64::powf(self.kt_finish / self.kt_start, 1.0 / self.steps as f64);
+        f64::powf(self.kt_finish / self.kt_start, 1.0 / self.steps as f64)
     }
 }
 
 fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
-    return f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32);
+    f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-fn monte_carlo_best_packing<'a, 'b>(vars: &'a MCVars, state: &'b mut PackedState) -> PackedState {
+pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> PackedState {
     let mut rng = rand::thread_rng();
     let mut rejections: u64 = 0;
 
@@ -619,5 +617,5 @@ fn monte_carlo_best_packing<'a, 'b>(vars: &'a MCVars, state: &'b mut PackedState
         packing_max,
         rejections as f64 / vars.steps as f64,
     );
-    return best_state;
+    best_state
 }

@@ -19,24 +19,24 @@ pub struct SharedValue {
 
 impl Clone for SharedValue {
     fn clone(&self) -> Self {
-        return Self {
+        Self {
             value: std::rc::Rc::clone(&self.value),
-        };
+        }
     }
 }
 
 impl SharedValue {
     pub fn get_value(&self) -> f64 {
-        return *self.value.borrow();
+        *self.value.borrow()
     }
     pub fn set_value(&self, value: f64) {
         *self.value.borrow_mut() = value;
     }
 
     pub fn new(val: f64) -> Self {
-        return Self {
+        Self {
             value: std::rc::Rc::new(std::cell::RefCell::new(val)),
-        };
+        }
     }
 }
 
@@ -97,13 +97,13 @@ impl StandardBasis {
     }
 
     fn value_range(&self) -> f64 {
-        return self.max - self.min;
+        self.max - self.min
     }
 }
 
 impl Basis for StandardBasis {
     fn get_value(&self) -> f64 {
-        return self.value.get_value();
+        self.value.get_value()
     }
 
     fn set_value(&mut self, new_value: f64) {
@@ -120,7 +120,7 @@ impl Basis for StandardBasis {
     }
 
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
-        return self.get_value() + self.value_range() * rng.gen_range(-0.5, 0.5);
+        self.get_value() + self.value_range() * rng.gen_range(-0.5, 0.5)
     }
 }
 
@@ -165,7 +165,7 @@ mod standard_basis_tests {
     #[test]
     fn sample() {
         let value = SharedValue::new(1.);
-        let mut basis = StandardBasis::new(&value, 0., 1.);
+        let basis = StandardBasis::new(&value, 0., 1.);
         let mut rng = thread_rng();
         for _ in 0..100 {
             let val = basis.sample(&mut rng);

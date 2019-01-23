@@ -32,7 +32,7 @@ fn main() {
         mirror_secondary: false,
     }];
 
-    let state = packing::PackedState::initialise(square, wallpaper, isopointal);
+    let state = packing::PackedState::initialise(square, wallpaper, &isopointal);
 
     assert_eq!(state.total_shapes(), 4);
     println!(

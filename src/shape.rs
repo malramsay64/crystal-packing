@@ -38,14 +38,13 @@ impl Shape {
     }
 
     pub fn max_radius(&self) -> f64 {
-        return self
-            .radial_points
+        self.radial_points
             .iter()
             .cloned()
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
-            .fold(std::f64::MIN, f64::max);
+            .fold(std::f64::MIN, f64::max)
     }
 
     pub fn radial_step(&self) -> f64 {
