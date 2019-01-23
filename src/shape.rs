@@ -140,7 +140,7 @@ mod shape_tests {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Line {
     pub start: Point2<f64>,
     pub end: Point2<f64>,
@@ -192,39 +192,45 @@ impl Line {
         }
     }
 
+    /// The diffence in the x values over the line.
+    pub fn dx(&self) -> f64 {
+        self.end.x - self.start.x
+    }
+
+    /// The diffence in the y values over the line.
+    pub fn dy(&self) -> f64 {
+        self.end.y - self.start.y
+    }
+
+    /// Determine whether two line segments intersect
+    ///
+    /// This calculates whether two lines intersect at a point contained within each line segment
+    /// see [this](https://en.wikipedia.org/wiki/Intersection_%28Euclidean_geometry%29#Two_line_segments)
+    /// Wikipedia article for more information on the algorithm used for this calculation.
+    ///
     pub fn intersects(&self, other: &Line) -> bool {
-        let a1_x = self.start[0];
-        let a1_y = self.start[1];
-        let a2_x = self.end[0];
-        let a2_y = self.end[1];
-        let b1_x = other.start[0];
-        let b1_y = other.start[1];
-        let b2_x = other.end[0];
-        let b2_y = other.end[1];
+        // Also see below links for other implementations of this algorithm
+        // - https://github.com/georust/geo/blob/96c7846d703a74f59ba68e68929415cbce4a68d9/geo/src/algorithm/intersects.rs#L142
+        // - https://github.com/brandonxiang/geojson-python-utils/blob/33b4c00c6cf27921fb296052d0c0341bd6ca1af2/geojson_utils.py
+        // - http://www.kevlindev.com/gui/math/intersection/Intersection.js
+        //
+        let u_b = other.dy() * self.dx() - other.dx() * self.dy();
+        // Where u_b == 0 the two lines are parallel. In this case we don't need any further checks
+        // since we are only concerned with lines that cross, parralel is fine.
+        if u_b == 0. {
+            return false;
+        }
 
-        let ua_t = (b2_x - b1_x) * (a1_y - b1_y) - (b2_y - b1_y) * (a1_x - b1_x);
-        let ub_t = (a2_x - a1_x) * (a1_y - b1_y) - (a2_y - a1_y) * (a1_x - b1_x);
-        let u_b = (b2_y - b1_y) * (a2_x - a1_x) - (b2_x - b1_x) * (a2_y - a1_y);
+        let ua_t = other.dx() * (self.start.y - other.start.y)
+            - other.dy() * (self.start.x - other.start.x);
+        let ub_t =
+            self.dx() * (self.start.y - other.start.y) - self.dy() * (self.start.x - other.start.x);
 
-        if u_b != 0. {
-            let ua = ua_t / u_b;
-            let ub = ub_t / u_b;
-            println!("u_b: {}, ua: {}, ub: {}", u_b, ua, ub);
-            println!("ua <= 1.: {}", ua <= 1.);
-            println!("ua >= 0.: {}", ua >= 0.);
-            println!("ub >= 0.: {}", ub >= 0.);
-            println!("ub <= 1.: {}", ub <= 1.);
-            if ua >= 0. && ua <= 1. && ub >= 0. && ub <= 1. {
-                println!(
-                    "Intersect at: {:.4} {:.4}",
-                    a1_x + ua * (a2_x - a1_x),
-                    a1_y + ua * (a2_y - a1_y)
-                );
-                println!("Line1: {:?}, Line2: {:?}", self, other);
-                return true;
-            }
-        } else {
-            println!("u_b == 0");
+        let ua = ua_t / u_b;
+        let ub = ub_t / u_b;
+        // Should the points ua, ub both lie on the interval [0, 1] the lines intersect.
+        if 0. <= ua && ua <= 1. && 0. <= ub && ub <= 1. {
+            return true;
         }
         false
     }

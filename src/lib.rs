@@ -486,15 +486,34 @@ impl PackedState {
         transforms
     }
 
+    /// Check for intersections of shapes in the current state.
+    ///
+    /// This checks for intersections between any shapes, checking all occupied sites and their
+    /// symmetry defined copies for the current cell and the neighbouring cells. Checking the
+    /// neighbouring cells ensures there are no intersections of when tiling space.
+    ///
     pub fn check_intersection(&self) -> bool {
-        for position1 in self.all_positions().iter() {
+        for (index1, position1) in self.all_positions().iter().enumerate() {
             let shape_i1 = shape::ShapeInstance {
                 shape: &self.shape,
                 isometry: self.cell.to_cartesian(position1.isometry),
             };
-            for position2 in self.all_positions().iter() {
-                for x_periodic in [-1., 0., 1.].iter() {
-                    for y_periodic in [-1., 0., 1.].iter() {
+            // We only need to check the positions after that of index1, since the previous ones
+            // have already been checked, hence `.skip(index1)`
+            for (index2, position2) in self.all_positions().iter().enumerate().skip(index1) {
+                // The list of periodic images to check. Currently only checking the first shell,
+                // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
+                // nessecary, although this is currently not an issue due to the limiting of the
+                // value of the cell angle.
+                let periodic_images: &[f64] = &[-1., 0., 1.];
+                for x_periodic in periodic_images {
+                    for y_periodic in periodic_images {
+                        // A shape is always going to intersect with itself. This skips the check
+                        // for a shape intersecting with itself, while still checking the periodic
+                        // copies.
+                        if index1 == index2 && *x_periodic == 0. && *y_periodic == 0. {
+                            continue;
+                        }
                         let translation = na::Translation2::new(*x_periodic, *y_periodic);
                         let shape_i2 = shape::ShapeInstance {
                             shape: &self.shape,
@@ -674,7 +693,7 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
     for _ in 0..vars.steps {
         let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
         if let Some(basis_current) = state.basis.get_mut(basis_index) {
-            basis_current.set_value(basis_current.sample(&mut rng, vars.max_step_size));
+            basis_current.set_value(basis_current.sample(&mut rng));
         }
 
         if state.check_intersection() {
