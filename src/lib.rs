@@ -303,8 +303,8 @@ impl OccupiedSite {
     }
 
     fn from_wyckoff(wyckoff: &WyckoffSite) -> OccupiedSite {
-        let x = SharedValue::new(0.);
-        let y = SharedValue::new(0.);
+        let x = SharedValue::new(0.25);
+        let y = SharedValue::new(0.25);
         let angle = SharedValue::new(0.);
 
         OccupiedSite {
@@ -320,10 +320,10 @@ impl OccupiedSite {
         let dof = self.wyckoff.degrees_of_freedom();
 
         if dof[0] {
-            basis.push(StandardBasis::new(&self.x, 0., 1.));
+            basis.push(StandardBasis::new(&self.x, -0.5, 0.5));
         }
         if dof[1] {
-            basis.push(StandardBasis::new(&self.y, 0., 1.));
+            basis.push(StandardBasis::new(&self.y, -0.5, 0.5));
         }
         if dof[2] {
             basis.push(StandardBasis::new(
@@ -440,6 +440,11 @@ impl Cell {
         }
 
         basis
+    }
+
+    pub fn center(&self) -> Point2<f64> {
+        let (x, y) = self.to_cartesian(0.5, 0.5);
+        Point2::new(x, y)
     }
 
     pub fn area(&self) -> f64 {
