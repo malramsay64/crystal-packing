@@ -730,7 +730,7 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
         kt *= kt_ratio;
     }
     println!(
-        "Packing Fraction: {}, Rejection Percentage {:.2}",
+        "Packing Fraction: {}, Rejection Percentage: {:.2}%",
         packing_max,
         100. * rejections as f64 / vars.steps as f64,
     );

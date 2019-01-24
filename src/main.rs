@@ -22,21 +22,34 @@ fn main() {
     };
 
     let wallpaper = packing::Wallpaper {
-        name: String::from("p1"),
+        name: String::from("p2"),
         family: packing::CrystalFamily::Monoclinic,
     };
 
     let isopointal = &[packing::WyckoffSite {
         letter: 'd',
-        symmetries: vec![packing::SymmetryTransform::new("x,y")],
+        symmetries: vec![
+            packing::SymmetryTransform::new("x,y"),
+            packing::SymmetryTransform::new("-x,-y"),
+        ],
         num_rotations: 1,
         mirror_primary: false,
         mirror_secondary: false,
     }];
 
+    let x = isopointal[0].clone();
+    for sym in x.symmetries {
+        println!("{:?}", sym);
+    }
+
     let mut state = packing::PackedState::initialise(square, wallpaper, isopointal);
 
-    assert_eq!(state.total_shapes(), 1);
+    for position in state.cartesian_positions() {
+        println!("{:?}", position);
+    }
+
+    println!("Initial state intersects: {}", state.check_intersection());
+
     println!(
         "Cell Area: {}, Shape Area: {}",
         state.cell.area(),
@@ -49,10 +62,17 @@ fn main() {
         kt_finish: 0.001,
         max_step_size: 0.1,
         num_start_configs: 1,
-        steps: 10000,
+        steps: 1000,
     };
 
     let final_state = packing::monte_carlo_best_packing(&vars, &mut state);
+
+    println!(
+        "Cell Area: {}, Shape Area: {}",
+        state.cell.area(),
+        state.shape.area()
+    );
+    println!("{:?}", state.cell);
 
     println!("Final packing fraction: {}", final_state.packing_fraction());
 }
