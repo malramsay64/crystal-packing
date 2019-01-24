@@ -98,7 +98,8 @@ impl SymmetryTransform {
                 '-' => {
                     sign = -1.;
                 }
-                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
+                // This matches all digits from 0 to 9
+                '0'...'9' => {
                     let val = c.to_string().parse::<u64>().unwrap() as f64;
                     // Is there an operator defined, i.e. is this the first digit
                     if let Some(op) = operator {
