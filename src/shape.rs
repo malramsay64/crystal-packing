@@ -184,6 +184,17 @@ impl std::fmt::Debug for Line {
     }
 }
 
+impl std::ops::Mul<IsometryMatrix2<f64>> for Line {
+    type Output = Self;
+
+    fn mul(self, rhs: IsometryMatrix2<f64>) -> Self::Output {
+        Self {
+            start: rhs * self.start,
+            end: rhs * self.end,
+        }
+    }
+}
+
 impl Line {
     pub fn new(start: (f64, f64), end: (f64, f64)) -> Self {
         Self {
@@ -270,6 +281,16 @@ mod line_tests {
             }
         }
         result
+    }
+
+    #[test]
+    fn isometry_matrix_mul() {
+        let ident: IsometryMatrix2<f64> = IsometryMatrix2::identity();
+        let line = Line::new((1., 1.), (0., 0.));
+        assert_eq!(line * ident, line);
+
+        let trans: IsometryMatrix2<f64> = IsometryMatrix2::new(na::Matrix2x1::new(1., 1.), 0.);
+        assert_eq!(line * trans, Line::new((2., 2.), (1., 1.)));
     }
 
     //
