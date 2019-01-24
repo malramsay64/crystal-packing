@@ -371,15 +371,24 @@ impl Cell {
     /// and converts the values of the fractional coordinates in the translation to real
     /// cartesian coordinates based on the current cell parameters.
     ///
-    pub fn to_cartesian(&self, transform: IsometryMatrix2<f64>) -> IsometryMatrix2<f64> {
-        let x = transform.translation.vector.x * self.x_len.get_value()
-            + transform.translation.vector.y
-                * self.y_len.get_value()
-                * self.angle.get_value().cos();
-        let y =
-            transform.translation.vector.y * self.y_len.get_value() * self.angle.get_value().sin();
-
+    pub fn to_cartesian_isometry(&self, transform: &IsometryMatrix2<f64>) -> IsometryMatrix2<f64> {
+        let (x, y) = self.to_cartesian(
+            transform.translation.vector.x,
+            transform.translation.vector.y,
+        );
         IsometryMatrix2::from_parts(na::Translation2::new(x, y), transform.rotation)
+    }
+
+    pub fn to_cartesian_point(&self, point: Point2<f64>) -> Point2<f64> {
+        let (x, y) = self.to_cartesian(point.x, point.y);
+        Point2::new(x, y)
+    }
+
+    pub fn to_cartesian(&self, x: f64, y: f64) -> (f64, f64) {
+        (
+            x * self.x_len.get_value() + y * self.y_len.get_value() * self.angle.get_value().cos(),
+            y * self.y_len.get_value() * self.angle.get_value().sin(),
+        )
     }
 
     fn from_family(family: &CrystalFamily, length: f64) -> Cell {
@@ -463,14 +472,14 @@ mod cell_tests {
         let cell = Cell::default();
         let trans = na::IsometryMatrix2::new(na::Vector2::new(0.5, 0.5), 0.);
 
-        assert_eq!(cell.to_cartesian(trans), trans);
+        assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
         cell.angle.set_value(PI / 4.);
         let expected = na::IsometryMatrix2::new(
             na::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
             0.,
         );
-        assert_abs_diff_eq!(cell.to_cartesian(trans), expected);
+        assert_abs_diff_eq!(cell.to_cartesian_isometry(&trans), expected);
     }
 }
 
@@ -484,8 +493,20 @@ pub struct PackedState {
 }
 
 impl PackedState {
-    fn all_positions(&self) -> Vec<SymmetryTransform> {
-        let mut transforms: Vec<SymmetryTransform> = vec![];
+    pub fn cartesian_positions(&self) -> Vec<Vec<shape::Line>> {
+        let mut positions: Vec<Vec<shape::Line>> = vec![];
+        for position in self.relative_positions().iter() {
+            let shape_i = shape::ShapeInstance {
+                shape: &self.shape,
+                isometry: self.cell.to_cartesian_isometry(position),
+            };
+            positions.push(shape_i.lines());
+        }
+        positions
+    }
+
+    fn relative_positions(&self) -> Vec<IsometryMatrix2<f64>> {
+        let mut transforms: Vec<IsometryMatrix2<f64>> = vec![];
         for site in self.occupied_sites.iter() {
             for symmetry in site.wyckoff.symmetries.iter() {
                 transforms.push(symmetry.clone());
@@ -501,14 +522,14 @@ impl PackedState {
     /// neighbouring cells ensures there are no intersections of when tiling space.
     ///
     pub fn check_intersection(&self) -> bool {
-        for (index1, position1) in self.all_positions().iter().enumerate() {
+        for (index1, position1) in self.relative_positions().iter().enumerate() {
             let shape_i1 = shape::ShapeInstance {
                 shape: &self.shape,
-                isometry: self.cell.to_cartesian(position1.isometry),
+                isometry: self.cell.to_cartesian_isometry(position1),
             };
             // We only need to check the positions after that of index1, since the previous ones
             // have already been checked, hence `.skip(index1)`
-            for (index2, position2) in self.all_positions().iter().enumerate().skip(index1) {
+            for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
                 // The list of periodic images to check. Currently only checking the first shell,
                 // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
                 // nessecary, although this is currently not an issue due to the limiting of the
@@ -526,7 +547,7 @@ impl PackedState {
                         let translation = na::Translation2::new(*x_periodic, *y_periodic);
                         let shape_i2 = shape::ShapeInstance {
                             shape: &self.shape,
-                            isometry: self.cell.to_cartesian(position2.isometry * translation),
+                            isometry: self.cell.to_cartesian_isometry(&iso),
                         };
                         if shape_i1.intersects(&shape_i2) {
                             return true;
