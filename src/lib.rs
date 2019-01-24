@@ -8,6 +8,8 @@
 #[allow(unused_imports)]
 #[macro_use]
 extern crate approx;
+#[macro_use]
+extern crate log;
 
 extern crate nalgebra as na;
 extern crate rand;
@@ -511,6 +513,7 @@ impl PackedState {
                 // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
                 // nessecary, although this is currently not an issue due to the limiting of the
                 // value of the cell angle.
+                debug!("Checking {} against {}", index1, index2);
                 let periodic_images: &[f64] = &[-1., 0., 1.];
                 for x_periodic in periodic_images {
                     for y_periodic in periodic_images {
@@ -557,6 +560,8 @@ impl PackedState {
 
         let cell = Cell::from_family(&wallpaper.family, max_cell_size);
         basis.append(&mut cell.get_basis());
+
+        debug!("Cell: {:?}", cell);
 
         let mut occupied_sites: Vec<OccupiedSite> = Vec::new();
         for wyckoff in isopointal.iter() {
@@ -703,11 +708,13 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
         }
 
         if state.check_intersection() {
+            debug!("Rejected for intersection.");
             rejections += 1;
             state.basis[basis_index].reset_value();
         } else {
             packing = state.packing_fraction();
             if rng.gen::<f64>() > mc_temperature(packing_prev, packing, kt, total_shapes) {
+                debug!("Rejected for Increasing packing fraction.");
                 rejections += 1;
                 state.basis[basis_index].reset_value();
                 packing = packing_prev;

@@ -3,10 +3,17 @@
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
+//
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 use packing;
 
 fn main() {
+    env_logger::init();
+
+    debug!("test message");
     let square = packing::RadialShape {
         name: String::from("Square"),
         radial_points: vec![1., 1., 1., 1.],
