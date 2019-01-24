@@ -7,7 +7,7 @@
 use packing;
 
 fn main() {
-    let square = packing::Shape {
+    let square = packing::RadialShape {
         name: String::from("Square"),
         radial_points: vec![1., 1., 1., 1.],
         rotational_symmetries: 4,

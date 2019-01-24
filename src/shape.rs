@@ -10,23 +10,23 @@ use nalgebra::{IsometryMatrix2, Point2};
 use std::f64::consts::PI;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Shape {
+pub struct RadialShape {
     pub name: String,
     pub radial_points: Vec<f64>,
     pub rotational_symmetries: u64,
     pub mirrors: u64,
 }
 
-impl<'a> IntoIterator for &'a Shape {
+impl<'a> IntoIterator for &'a RadialShape {
     type Item = (f64, f64);
-    type IntoIter = ShapeIter<'a>;
+    type IntoIter = RadialShapeIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        ShapeIter::new(&self)
+        Self::IntoIter::new(&self)
     }
 }
 
-impl Shape {
+impl RadialShape {
     pub fn area(&self) -> f64 {
         // This is the sine of the angle between each point, this is used for every calculation
         // so pre-calculate here.
@@ -52,18 +52,18 @@ impl Shape {
     }
 }
 
-/// Iterator for the Shape class
+/// Iterator for the RadialShape class
 ///
 /// This iterates over all the line segments comprising a shape.
-pub struct ShapeIter<'a> {
-    shape: &'a Shape,
+pub struct RadialShapeIter<'a> {
+    shape: &'a RadialShape,
     index: usize,
     len: usize,
 }
 
-impl<'a> ShapeIter<'a> {
-    fn new(shape: &'a Shape) -> Self {
-        Self {
+impl<'a> RadialShapeIter<'a> {
+    fn new(shape: &'a RadialShape) -> Self {
+        RadialShapeIter {
             shape,
             index: 0,
             len: shape.radial_points.len(),
@@ -71,7 +71,7 @@ impl<'a> ShapeIter<'a> {
     }
 }
 
-impl<'a> Iterator for ShapeIter<'a> {
+impl<'a> Iterator for RadialShapeIter<'a> {
     type Item = (f64, f64);
 
     fn next(&mut self) -> Option<(f64, f64)> {
@@ -91,8 +91,8 @@ impl<'a> Iterator for ShapeIter<'a> {
 mod shape_tests {
     use super::*;
 
-    fn create_square() -> Shape {
-        Shape {
+    fn create_square() -> RadialShape {
+        RadialShape {
             name: String::from("Square"),
             radial_points: vec![1., 1., 1., 1.],
             rotational_symmetries: 4,
@@ -117,7 +117,7 @@ mod shape_tests {
 
     #[test]
     fn max_radius() {
-        let shape = Shape {
+        let shape = RadialShape {
             name: String::from("iter_test"),
             radial_points: vec![1., 2., 3., 4.],
             rotational_symmetries: 1,
@@ -129,7 +129,7 @@ mod shape_tests {
 
     #[test]
     fn iter_values() {
-        let shape = Shape {
+        let shape = RadialShape {
             name: String::from("iter_test"),
             radial_points: vec![1., 2., 3., 4.],
             rotational_symmetries: 1,
@@ -332,7 +332,7 @@ mod line_tests {
 /// This matches a Shape to a transformation, placing it in 2D space.
 #[derive(PartialEq)]
 pub struct ShapeInstance<'a> {
-    pub shape: &'a Shape,
+    pub shape: &'a RadialShape,
     pub isometry: IsometryMatrix2<f64>,
 }
 
@@ -389,7 +389,7 @@ mod shape_instance_tests {
 
     #[test]
     fn lines() {
-        let shape = Shape {
+        let shape = RadialShape {
             name: String::from("Square"),
             radial_points: vec![1., 1., 1., 1.],
             rotational_symmetries: 4,
@@ -427,7 +427,7 @@ mod shape_instance_tests {
 
     #[test]
     fn lines_translate() {
-        let shape = Shape {
+        let shape = RadialShape {
             name: String::from("Square"),
             radial_points: vec![1., 1., 1., 1.],
             rotational_symmetries: 4,
@@ -465,7 +465,7 @@ mod shape_instance_tests {
 
     #[test]
     fn lines_translate_rotate() {
-        let shape = Shape {
+        let shape = RadialShape {
             name: String::from("Square"),
             radial_points: vec![1., 1., 1., 1.],
             rotational_symmetries: 4,
@@ -521,7 +521,7 @@ mod shape_instance_tests {
     //
     #[test]
     fn intersects() {
-        let shape = Shape {
+        let shape = RadialShape {
             name: String::from("Square"),
             radial_points: vec![1., 1., 1., 1.],
             rotational_symmetries: 4,

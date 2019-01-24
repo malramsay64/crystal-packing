@@ -21,7 +21,7 @@ use rand::Rng;
 use std::f64::consts::PI;
 
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
-pub use crate::shape::Shape;
+pub use crate::shape::RadialShape;
 
 /// The different crystal families that can be represented
 ///
@@ -469,7 +469,7 @@ mod cell_tests {
 #[derive(Clone)]
 pub struct PackedState {
     pub wallpaper: Wallpaper,
-    pub shape: Shape,
+    pub shape: RadialShape,
     pub cell: Cell,
     occupied_sites: Vec<OccupiedSite>,
     basis: Vec<StandardBasis>,
@@ -540,7 +540,7 @@ impl PackedState {
     }
 
     pub fn initialise(
-        shape: Shape,
+        shape: RadialShape,
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
     ) -> PackedState {
@@ -573,8 +573,8 @@ impl PackedState {
 mod packed_state_tests {
     use super::*;
 
-    fn create_square() -> Shape {
-        Shape {
+    fn create_square() -> RadialShape {
+        RadialShape {
             name: String::from("Square"),
             radial_points: vec![1., 1., 1., 1.],
             rotational_symmetries: 4,
