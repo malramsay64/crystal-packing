@@ -63,7 +63,9 @@ fn main() {
 
     let mut state = packing::PackedState::initialise(polygon, wallpaper, isopointal);
 
-    println!("Initial state intersects: {}", state.check_intersection());
+    if state.check_intersection() {
+        panic!("Initial state has intersetions...exiting.");
+    }
 
     println!("Init packing fraction: {}", state.packing_fraction());
 
