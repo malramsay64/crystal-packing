@@ -19,6 +19,8 @@ pub mod shape;
 
 use nalgebra::{IsometryMatrix2, Matrix2, Point2, Vector2};
 use rand::distributions::{Distribution, Uniform};
+use rand::prelude::*;
+use rand::rngs::SmallRng;
 use rand::Rng;
 use std::error::Error;
 use std::f64::consts::PI;
@@ -802,7 +804,7 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
 }
 
 pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> PackedState {
-    let mut rng = rand::thread_rng();
+    let mut rng = SmallRng::seed_from_u64(0);
     let mut rejections: u64 = 0;
 
     let mut kt: f64 = vars.kt_start;
