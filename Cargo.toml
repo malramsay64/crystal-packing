@@ -5,12 +5,13 @@ authors = ["Malcolm Ramsay <malramsay64@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = "0.16"
-rand = "0.6"
-approx = "0.3"
-log = "0.4.0"
-env_logger = "0.6.0"
+nalgebra = "~0.16.0"
+rand = "~0.6.0"
+approx = "~0.3.0"
+log = "~0.4.0"
+env_logger = "~0.6.0"
 clap = "~2.31.0"
+rayon = "~1.0.3"
 
 [dev-dependencies]
 criterion = "0.2"

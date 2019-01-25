@@ -9,10 +9,12 @@
 extern crate clap;
 extern crate env_logger;
 extern crate log;
+extern crate rayon;
 
 use clap::{App, Arg};
 use packing;
 use packing::wallpaper::WallpaperGroups;
+use rayon::prelude::*;
 
 fn cli() -> clap::ArgMatches<'static> {
     let matches = App::new("packing")
@@ -61,8 +63,7 @@ fn main() {
     let wallpaper = packing::Wallpaper::new(&group);
     let isopointal = &[packing::WyckoffSite::new(&group)];
 
-    let mut state = packing::PackedState::initialise(polygon, wallpaper, isopointal);
-
+    let state = packing::PackedState::initialise(polygon.clone(), wallpaper.clone(), isopointal);
     if state.check_intersection() {
         panic!("Initial state has intersetions...exiting.");
     }
@@ -71,8 +72,17 @@ fn main() {
 
     let mut vars = packing::MCVars::default();
     vars.steps = matches.value_of("steps").unwrap().parse().unwrap();
+    vars.num_start_configs = 32;
 
-    let final_state = packing::monte_carlo_best_packing(&vars, &mut state);
+    let final_state = (0..vars.num_start_configs)
+        .into_par_iter()
+        .map(|_| {
+            let mut state =
+                packing::PackedState::initialise(polygon.clone(), wallpaper.clone(), isopointal);
+            packing::monte_carlo_best_packing(&vars, &mut state)
+        })
+        .max()
+        .unwrap();
 
     println!(
         "Cell Area: {}, Shape Area: {}",

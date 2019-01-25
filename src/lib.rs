@@ -20,6 +20,7 @@ use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 use rand::Rng;
+use std::cmp::Ordering;
 use std::error::Error;
 use std::f64::consts::PI;
 use std::fs::File;
@@ -93,6 +94,29 @@ pub struct PackedState {
     pub cell: Cell,
     occupied_sites: Vec<OccupiedSite>,
     basis: Vec<StandardBasis>,
+}
+
+impl Eq for PackedState {}
+
+impl PartialEq for PackedState {
+    fn eq(&self, other: &Self) -> bool {
+        self.packing_fraction() == other.packing_fraction()
+    }
+}
+
+impl PartialOrd for PackedState {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.packing_fraction()
+            .partial_cmp(&other.packing_fraction())
+    }
+}
+
+impl Ord for PackedState {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.packing_fraction()
+            .partial_cmp(&other.packing_fraction())
+            .unwrap()
+    }
 }
 
 impl PackedState {
@@ -376,6 +400,7 @@ pub struct MCVars {
     pub max_step_size: f64,
     pub num_start_configs: u64,
     pub steps: u64,
+    pub seed: Option<u64>,
 }
 
 impl Default for MCVars {
@@ -386,6 +411,7 @@ impl Default for MCVars {
             max_step_size: 0.01,
             num_start_configs: 32,
             steps: 100,
+            seed: None,
         }
     }
 }
@@ -401,7 +427,10 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
 }
 
 pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> PackedState {
-    let mut rng = SmallRng::seed_from_u64(0);
+    let mut rng = match vars.seed {
+        Some(x) => SmallRng::seed_from_u64(x),
+        None => SmallRng::from_entropy(),
+    };
     let mut rejections: u64 = 0;
 
     let mut kt: f64 = vars.kt_start;
@@ -444,7 +473,7 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
         kt *= kt_ratio;
     }
     println!(
-        "Packing Fraction: {}, Rejection Percentage: {:.2}%",
+        "Packing Fraction: {:.4}, Rejections: {:.2} %",
         packing_max,
         100. * rejections as f64 / vars.steps as f64,
     );

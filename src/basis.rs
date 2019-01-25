@@ -6,6 +6,7 @@
 extern crate rand;
 
 use rand::Rng;
+use std::sync::{Arc, Mutex};
 
 /// A Value which can be modified in many places
 ///
@@ -15,28 +16,28 @@ use rand::Rng;
 ///
 #[derive(Debug)]
 pub struct SharedValue {
-    value: std::rc::Rc<std::cell::RefCell<f64>>,
+    value: Arc<Mutex<f64>>,
 }
 
 impl Clone for SharedValue {
     fn clone(&self) -> Self {
         Self {
-            value: std::rc::Rc::clone(&self.value),
+            value: Arc::clone(&self.value),
         }
     }
 }
 
 impl SharedValue {
     pub fn get_value(&self) -> f64 {
-        *self.value.borrow()
+        *self.value.lock().unwrap()
     }
     pub fn set_value(&self, value: f64) {
-        *self.value.borrow_mut() = value;
+        *self.value.lock().unwrap() = value;
     }
 
     pub fn new(val: f64) -> Self {
         Self {
-            value: std::rc::Rc::new(std::cell::RefCell::new(val)),
+            value: Arc::new(Mutex::new(val)),
         }
     }
 }
