@@ -33,7 +33,7 @@ pub mod wallpaper;
 
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::cell::{Cell, CrystalFamily};
-pub use crate::shape::RadialShape;
+pub use crate::shape::{RadialShape, ShapeInstance};
 pub use crate::symmetry::SymmetryTransform;
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
@@ -97,7 +97,7 @@ impl PackedState {
     pub fn cartesian_positions(&self) -> Vec<Vec<shape::Line>> {
         let mut positions: Vec<Vec<shape::Line>> = vec![];
         for position in self.relative_positions().iter() {
-            let shape_i = shape::ShapeInstance {
+            let shape_i = ShapeInstance {
                 shape: &self.shape,
                 isometry: self.cell.to_cartesian_isometry(position),
             };
@@ -128,7 +128,7 @@ impl PackedState {
     ///
     pub fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
-            let shape_i1 = shape::ShapeInstance {
+            let shape_i1 = ShapeInstance {
                 shape: &self.shape,
                 isometry: self.cell.to_cartesian_isometry(position1),
             };
@@ -154,7 +154,7 @@ impl PackedState {
                             position2.rotation,
                         );
 
-                        let shape_i2 = shape::ShapeInstance {
+                        let shape_i2 = ShapeInstance {
                             shape: &self.shape,
                             isometry: self.cell.to_cartesian_isometry(&iso),
                         };
@@ -261,7 +261,7 @@ impl PackedState {
                         position.rotation,
                     );
 
-                    let shape_i = shape::ShapeInstance {
+                    let shape_i = ShapeInstance {
                         shape: &self.shape,
                         isometry: self.cell.to_cartesian_isometry(&iso),
                     };
