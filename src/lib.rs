@@ -52,8 +52,9 @@ impl OccupiedSite {
     }
 
     fn from_wyckoff(wyckoff: &WyckoffSite) -> OccupiedSite {
-        let x = SharedValue::new(0.25);
-        let y = SharedValue::new(0.25);
+        let position = -0.5 + 0.5 / wyckoff.multiplicity() as f64;
+        let x = SharedValue::new(position);
+        let y = SharedValue::new(position);
         let angle = SharedValue::new(0.);
 
         OccupiedSite {
