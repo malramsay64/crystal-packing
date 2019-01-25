@@ -10,7 +10,6 @@ extern crate criterion;
 use criterion::{Criterion, ParameterizedBenchmark};
 use nalgebra::{IsometryMatrix2, Vector2};
 use packing;
-use packing::{PackedState, RadialShape, ShapeInstance};
 
 fn create_polygon(sides: usize) -> packing::RadialShape {
     packing::RadialShape {
