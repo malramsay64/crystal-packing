@@ -105,6 +105,7 @@ impl Default for SymmetryTransform {
 #[cfg(test)]
 mod symmetry_transform_tests {
     use super::*;
+    use std::f64::consts::PI;
 
     fn create_identity() -> SymmetryTransform {
         SymmetryTransform {
