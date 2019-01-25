@@ -37,7 +37,7 @@ pub use crate::shape::{RadialShape, ShapeInstance};
 pub use crate::symmetry::SymmetryTransform;
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct OccupiedSite {
     wyckoff: WyckoffSite,
     x: SharedValue,
@@ -84,7 +84,7 @@ impl OccupiedSite {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PackedState {
     pub wallpaper: Wallpaper,
     pub shape: RadialShape,

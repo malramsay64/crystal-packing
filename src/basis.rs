@@ -13,6 +13,7 @@ use rand::Rng;
 /// struct is a wrapper around some of Rust's built in methods of handling this, providing a
 /// nicer interface for that tasks I require.
 ///
+#[derive(Debug)]
 pub struct SharedValue {
     value: std::rc::Rc<std::cell::RefCell<f64>>,
 }
@@ -78,7 +79,7 @@ pub trait Basis {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StandardBasis {
     value: SharedValue,
     old: f64,
