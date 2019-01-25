@@ -376,6 +376,18 @@ pub struct MCVars {
     pub steps: u64,
 }
 
+impl Default for MCVars {
+    fn default() -> MCVars {
+        MCVars {
+            kt_start: 0.1,
+            kt_finish: 0.0005,
+            max_step_size: 0.01,
+            num_start_configs: 32,
+            steps: 100,
+        }
+    }
+}
+
 impl MCVars {
     fn kt_ratio(&self) -> f64 {
         f64::powf(self.kt_finish / self.kt_start, 1.0 / self.steps as f64)
