@@ -14,9 +14,6 @@ extern crate log;
 extern crate nalgebra as na;
 extern crate rand;
 
-pub mod basis;
-pub mod shape;
-
 use nalgebra::{IsometryMatrix2, Matrix2, Point2, Vector2};
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
@@ -28,43 +25,13 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
+pub mod basis;
+pub mod cell;
+pub mod shape;
+
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
+pub use crate::cell::{Cell, CrystalFamily};
 pub use crate::shape::RadialShape;
-
-/// The different crystal families that can be represented
-///
-/// These are all the valid types of crystal symmetries which are valid in a 2D space.
-///
-#[derive(Debug, Clone, PartialEq)]
-pub enum CrystalFamily {
-    Monoclinic,
-    Orthorhombic,
-    Hexagonal,
-    Tetragonal,
-}
-
-#[cfg(test)]
-mod crystal_family_test {
-    use super::*;
-
-    #[test]
-    fn equality() {
-        assert_eq!(CrystalFamily::Monoclinic, CrystalFamily::Monoclinic);
-        assert_eq!(CrystalFamily::Orthorhombic, CrystalFamily::Orthorhombic);
-        assert_eq!(CrystalFamily::Hexagonal, CrystalFamily::Hexagonal);
-        assert_eq!(CrystalFamily::Tetragonal, CrystalFamily::Tetragonal);
-    }
-
-    #[test]
-    fn inequality() {
-        assert_ne!(CrystalFamily::Orthorhombic, CrystalFamily::Monoclinic);
-        assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Monoclinic);
-        assert_ne!(CrystalFamily::Tetragonal, CrystalFamily::Monoclinic);
-        assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Orthorhombic);
-        assert_ne!(CrystalFamily::Tetragonal, CrystalFamily::Orthorhombic);
-        assert_ne!(CrystalFamily::Tetragonal, CrystalFamily::Hexagonal);
-    }
-}
 
 /// Defining one of the Crystallographic wallpaper groups.
 ///
