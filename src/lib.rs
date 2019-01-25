@@ -457,7 +457,7 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
     for _ in 0..vars.steps {
         let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
         if let Some(basis_current) = state.basis.get_mut(basis_index) {
-            basis_current.set_value(basis_current.sample(&mut rng));
+            basis_current.set_value(basis_current.sample(&mut rng, vars.max_step_size));
         }
 
         if state.check_intersection() {

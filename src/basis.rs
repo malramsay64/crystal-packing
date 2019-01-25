@@ -75,7 +75,7 @@ pub trait Basis {
     fn set_value(&mut self, new_value: f64);
     fn get_value(&self) -> f64;
     fn reset_value(&self);
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64;
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64;
 }
 
 #[derive(Clone)]
@@ -119,8 +119,8 @@ impl Basis for StandardBasis {
         self.value.set_value(self.old);
     }
 
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
-        self.get_value() + self.value_range() * rng.gen_range(-0.5, 0.5)
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64 {
+        self.get_value() + step_size * self.value_range() * rng.gen_range(-0.5, 0.5)
     }
 }
 
@@ -168,7 +168,7 @@ mod standard_basis_tests {
         let basis = StandardBasis::new(&value, 0., 1.);
         let mut rng = thread_rng();
         for _ in 0..100 {
-            let val = basis.sample(&mut rng);
+            let val = basis.sample(&mut rng, 1.);
             // Range of values which should be present
             assert!(0.5 <= val && val <= 1.5);
         }

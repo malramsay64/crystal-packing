@@ -44,10 +44,6 @@ fn main() {
 
     let mut state = packing::PackedState::initialise(square, wallpaper, isopointal);
 
-    for position in state.cartesian_positions() {
-        println!("{:?}", position);
-    }
-
     println!("Initial state intersects: {}", state.check_intersection());
 
     println!(
@@ -62,7 +58,7 @@ fn main() {
         kt_finish: 0.001,
         max_step_size: 0.1,
         num_start_configs: 1,
-        steps: 1000,
+        steps: 10000,
     };
 
     let final_state = packing::monte_carlo_best_packing(&vars, &mut state);
