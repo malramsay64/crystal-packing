@@ -56,7 +56,7 @@ fn setup_shapes(shape: &packing::RadialShape) -> (packing::ShapeInstance, packin
 }
 
 fn state_check_intersection(c: &mut Criterion) {
-    let parameters: Vec<usize> = (0..4).map(|x| 2_u64.pow(x) as usize).collect();
+    let parameters: Vec<usize> = (2..6).map(|x| 2_u64.pow(x) as usize).collect();
     let benchmark = ParameterizedBenchmark::new(
         "State Intersection Scaling",
         |b, &param| {
@@ -69,7 +69,7 @@ fn state_check_intersection(c: &mut Criterion) {
 }
 
 fn shape_check_intersection(c: &mut Criterion) {
-    let parameters: Vec<usize> = (0..4).map(|x| 2_u64.pow(x) as usize).collect();
+    let parameters: Vec<usize> = (2..6).map(|x| 2_u64.pow(x) as usize).collect();
 
     let benchmark = ParameterizedBenchmark::new(
         "Shape Intersection Scaling",
