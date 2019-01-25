@@ -352,6 +352,18 @@ pub struct Cell {
     family: CrystalFamily,
 }
 
+impl std::fmt::Debug for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Cell {{ x: {}, y: {}, angle: {} }}",
+            self.x_len.get_value(),
+            self.y_len.get_value(),
+            self.angle.get_value()
+        )
+    }
+}
+
 impl Default for Cell {
     fn default() -> Cell {
         Cell {
