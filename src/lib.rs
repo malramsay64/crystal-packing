@@ -508,8 +508,12 @@ impl PackedState {
     fn relative_positions(&self) -> Vec<IsometryMatrix2<f64>> {
         let mut transforms: Vec<IsometryMatrix2<f64>> = vec![];
         for site in self.occupied_sites.iter() {
+            let position_transform = na::IsometryMatrix2::new(
+                na::Vector2::new(site.x.get_value(), site.y.get_value()),
+                site.angle.get_value(),
+            );
             for symmetry in site.wyckoff.symmetries.iter() {
-                transforms.push(symmetry.clone());
+                transforms.push(symmetry.isometry * position_transform);
             }
         }
         transforms
@@ -544,7 +548,11 @@ impl PackedState {
                         if index1 == index2 && *x_periodic == 0. && *y_periodic == 0. {
                             continue;
                         }
-                        let translation = na::Translation2::new(*x_periodic, *y_periodic);
+                        let iso = IsometryMatrix2::from_parts(
+                            position2.translation * na::Translation2::new(*x_periodic, *y_periodic),
+                            position2.rotation,
+                        );
+
                         let shape_i2 = shape::ShapeInstance {
                             shape: &self.shape,
                             isometry: self.cell.to_cartesian_isometry(&iso),
