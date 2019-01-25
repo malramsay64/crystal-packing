@@ -5,11 +5,12 @@
 //
 
 #[macro_use]
-extern crate bencher;
+extern crate criterion;
 
-use bencher::Bencher;
+use criterion::{Criterion, ParameterizedBenchmark};
 use nalgebra::{IsometryMatrix2, Vector2};
 use packing;
+use packing::{PackedState, RadialShape, ShapeInstance};
 
 fn create_polygon(sides: usize) -> packing::RadialShape {
     packing::RadialShape {
@@ -42,10 +43,7 @@ fn setup_state(points: usize) -> packing::PackedState {
     packing::PackedState::initialise(shape, wallpaper, isopointal)
 }
 
-fn setup_shapes(
-    shape: &packing::RadialShape,
-    points: usize,
-) -> (packing::ShapeInstance, packing::ShapeInstance) {
+fn setup_shapes(shape: &packing::RadialShape) -> (packing::ShapeInstance, packing::ShapeInstance) {
     let si1 = packing::shape::ShapeInstance {
         shape: &shape,
         isometry: IsometryMatrix2::new(Vector2::new(-2., 0.), 0.),
@@ -58,78 +56,37 @@ fn setup_shapes(
     (si1, si2)
 }
 
-fn state_check_intersection_impl(bench: &mut Bencher, points: usize) {
-    let state = setup_state(points);
-    bench.iter(|| state.check_intersection());
+fn state_check_intersection(c: &mut Criterion) {
+    let parameters: Vec<usize> = (0..4).map(|x| 2_u64.pow(x) as usize).collect();
+    let benchmark = ParameterizedBenchmark::new(
+        "State Intersection Scaling",
+        |b, &param| {
+            let state = setup_state(param);
+            b.iter(|| state.check_intersection())
+        },
+        parameters,
+    );
+    c.bench("test_bench_param", benchmark);
 }
 
-fn shape_check_intersection_impl(bench: &mut Bencher, points: usize) {
-    let shape = create_polygon(points);
-    let (shape_i1, shape_i2) = setup_shapes(&shape, points);
-    bench.iter(|| shape_i1.intersects(&shape_i2));
+fn shape_check_intersection(c: &mut Criterion) {
+    let parameters: Vec<usize> = (0..4).map(|x| 2_u64.pow(x) as usize).collect();
+
+    let benchmark = ParameterizedBenchmark::new(
+        "Shape Intersection Scaling",
+        |b, &param| {
+            let shape = create_polygon(param);
+            let (si1, si2) = setup_shapes(&shape);
+            b.iter(|| si1.intersects(&si2))
+        },
+        parameters,
+    );
+    c.bench("test_bench_param", benchmark);
 }
 
-fn state_check_intersection_1(bench: &mut Bencher) {
-    state_check_intersection_impl(bench, 1);
-}
-
-fn state_check_intersection_2(bench: &mut Bencher) {
-    state_check_intersection_impl(bench, 2);
-}
-
-fn state_check_intersection_4(bench: &mut Bencher) {
-    state_check_intersection_impl(bench, 4);
-}
-
-fn state_check_intersection_8(bench: &mut Bencher) {
-    state_check_intersection_impl(bench, 8);
-}
-
-fn state_check_intersection_16(bench: &mut Bencher) {
-    state_check_intersection_impl(bench, 16);
-}
-
-fn state_check_intersection_32(bench: &mut Bencher) {
-    state_check_intersection_impl(bench, 32);
-}
-
-fn shape_check_intersection_1(bench: &mut Bencher) {
-    shape_check_intersection_impl(bench, 1);
-}
-
-fn shape_check_intersection_2(bench: &mut Bencher) {
-    shape_check_intersection_impl(bench, 2);
-}
-
-fn shape_check_intersection_4(bench: &mut Bencher) {
-    shape_check_intersection_impl(bench, 4);
-}
-
-fn shape_check_intersection_8(bench: &mut Bencher) {
-    shape_check_intersection_impl(bench, 8);
-}
-
-fn shape_check_intersection_16(bench: &mut Bencher) {
-    shape_check_intersection_impl(bench, 16);
-}
-
-fn shape_check_intersection_32(bench: &mut Bencher) {
-    shape_check_intersection_impl(bench, 32);
-}
-
-benchmark_group!(
+criterion_group!(
     intersections,
-    state_check_intersection_1,
-    state_check_intersection_2,
-    state_check_intersection_4,
-    state_check_intersection_8,
-    state_check_intersection_16,
-    state_check_intersection_32,
-    shape_check_intersection_1,
-    shape_check_intersection_2,
-    shape_check_intersection_4,
-    shape_check_intersection_8,
-    shape_check_intersection_16,
-    shape_check_intersection_32,
+    shape_check_intersection,
+    state_check_intersection,
 );
-benchmark_main!(intersections);
+criterion_main!(intersections);
