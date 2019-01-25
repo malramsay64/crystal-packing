@@ -74,5 +74,7 @@ fn main() {
     );
     println!("{:?}", state.cell);
 
+    state.to_figure("test.txt");
+
     println!("Final packing fraction: {}", final_state.packing_fraction());
 }

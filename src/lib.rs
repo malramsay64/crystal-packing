@@ -20,7 +20,11 @@ pub mod shape;
 use nalgebra::{IsometryMatrix2, Matrix2, Point2, Vector2};
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
+use std::error::Error;
 use std::f64::consts::PI;
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::Path;
 
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::shape::RadialShape;
@@ -617,6 +621,76 @@ impl PackedState {
             cell,
             occupied_sites,
             basis,
+        }
+    }
+
+    pub fn to_figure(&self, filename: &str) {
+        let path = Path::new(filename);
+        let display = path.display();
+        let mut file = match File::create(&path) {
+            Err(why) => panic!("couldn't create {}: {}", display, why.description()),
+            Ok(file) => file,
+        };
+
+        // Write cell lines to file
+        let pc = na::Translation2::from(-self.cell.center().coords);
+
+        let mut points = vec![
+            Point2::new(0., 0.),
+            Point2::new(1., 0.),
+            Point2::new(1., 1.),
+            Point2::new(0., 1.),
+        ];
+
+        points = points
+            .into_iter()
+            .map(|p| pc * self.cell.to_cartesian_point(p))
+            .collect();
+
+        for (p0, p1) in points.iter().zip(points.iter().cycle().skip(1)) {
+            let colour = 'k';
+
+            writeln!(file, "{} {} {}", p0, p1, colour).unwrap();
+        }
+
+        for position in self.relative_positions().iter() {
+            // The list of periodic images to check. Currently only checking the first shell,
+            // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
+            // nessecary, although this is currently not an issue due to the limiting of the
+            // value of the cell angle.
+            let (x_r, y_r) = (position.translation.vector.x, position.translation.vector.y);
+            let rotation = position.rotation;
+            debug!(
+                "Relative Position: {} {} {}",
+                x_r,
+                y_r,
+                rotation.angle() * 180. / PI
+            );
+            let (x_c, y_c) = self.cell.to_cartesian(x_r, y_r);
+            debug!("Cartesian Position: {} {}", x_c, y_c);
+            let periodic_images: &[f64] = &[-1., 0., 1.];
+            for x_periodic in periodic_images {
+                for y_periodic in periodic_images {
+                    let iso = IsometryMatrix2::from_parts(
+                        position.translation * na::Translation2::new(*x_periodic, *y_periodic),
+                        position.rotation,
+                    );
+
+                    let shape_i = shape::ShapeInstance {
+                        shape: &self.shape,
+                        isometry: self.cell.to_cartesian_isometry(&iso),
+                    };
+
+                    let colour = match () {
+                        // This is the 'original' coordinates so differentiate
+                        _ if *x_periodic == 0. && *y_periodic == 0. => 'b',
+                        _ => 'g',
+                    };
+                    for line in shape_i.lines() {
+                        writeln!(file, "{} {} {}", line.start, line.end, colour).unwrap();
+                    }
+                }
+            }
         }
     }
 }
