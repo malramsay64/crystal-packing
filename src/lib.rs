@@ -10,7 +10,8 @@
 extern crate approx;
 #[macro_use]
 extern crate log;
-
+#[macro_use]
+extern crate clap;
 extern crate nalgebra as na;
 extern crate rand;
 
