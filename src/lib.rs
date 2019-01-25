@@ -200,8 +200,11 @@ impl PackedState {
             .fold(0, |sum, site| sum + site.multiplicity())
     }
 
-    pub fn packing_fraction(&self) -> f64 {
-        (self.shape.area() * self.total_shapes() as f64) / self.cell.area()
+    pub fn packing_fraction(&self) -> Result<f64, &'static str> {
+        match (self.shape.area() * self.total_shapes() as f64) / self.cell.area() {
+            x if 0. < x || x <= 1. => Ok(x),
+            _ => Err("Invalid packing fraction"),
+        }
     }
 
     pub fn initialise(
@@ -377,7 +380,7 @@ mod packed_state_tests {
     #[test]
     fn packing_fraction_p1() {
         let state = init_packed_state("p1");
-        assert_relative_eq!(state.packing_fraction(), 1. / 8.);
+        assert_relative_eq!(state.packing_fraction().unwrap(), 1. / 8.);
     }
 
     #[test]
@@ -389,7 +392,7 @@ mod packed_state_tests {
     #[test]
     fn packing_fraction_p2mg() {
         let state = init_packed_state("p2mg");
-        assert_relative_eq!(state.packing_fraction(), 1. / 32.);
+        assert_relative_eq!(state.packing_fraction().unwrap(), 1. / 32.);
     }
 
 }
@@ -426,7 +429,10 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
     f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> PackedState {
+pub fn monte_carlo_best_packing(
+    vars: &MCVars,
+    state: &mut PackedState,
+) -> Result<PackedState, &'static str> {
     let mut rng = match vars.seed {
         Some(x) => SmallRng::seed_from_u64(x),
         None => SmallRng::from_entropy(),
@@ -438,7 +444,8 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
     let total_shapes: u64 = state.total_shapes() as u64;
     let basis_distribution = Uniform::new(0, state.basis.len() as u64);
 
-    let mut packing: f64 = state.packing_fraction();
+    let mut packing: f64 = state.packing_fraction()?;
+
     let mut packing_prev: f64 = 0.;
     let mut packing_max: f64 = 0.;
 
@@ -455,16 +462,34 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
             rejections += 1;
             state.basis[basis_index].reset_value();
         } else {
-            packing = state.packing_fraction();
-            if rng.gen::<f64>() > mc_temperature(packing_prev, packing, kt, total_shapes) {
-                debug!("Rejected for Increasing packing fraction.");
-                rejections += 1;
-                state.basis[basis_index].reset_value();
-                packing = packing_prev;
-            } else {
-                // Keep current state, so update previous packing
-                packing_prev = packing;
-            }
+            packing = match state.packing_fraction() {
+                Err(_) => {
+                    warn!("Rejected for invalid packing fraction.");
+                    rejections += 1;
+                    state.basis[basis_index].reset_value();
+
+                    // Set packing to it's previous value
+                    packing_prev
+                }
+                Ok(new_packing) => {
+                    if rng.gen::<f64>()
+                        > mc_temperature(packing_prev, new_packing, kt, total_shapes)
+                    {
+                        // Packing fraction was increased too much so reject the step
+                        debug!("Rejected for Increasing packing fraction.");
+                        rejections += 1;
+                        state.basis[basis_index].reset_value();
+
+                        // Set packing to it's previous value
+                        packing_prev
+                    } else {
+                        // This is where we update the packing fraction cause the test was
+                        // successful
+                        packing_prev = new_packing;
+                        new_packing
+                    }
+                }
+            };
         }
         if packing > packing_max {
             best_state = state.clone();
@@ -477,5 +502,5 @@ pub fn monte_carlo_best_packing(vars: &MCVars, state: &mut PackedState) -> Packe
         packing_max,
         100. * rejections as f64 / vars.steps as f64,
     );
-    best_state
+    Ok(best_state)
 }

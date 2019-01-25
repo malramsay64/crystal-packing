@@ -43,7 +43,7 @@ fn cli() -> clap::ArgMatches<'static> {
     matches
 }
 
-fn main() {
+fn main() -> Result<(), &'static str> {
     env_logger::init();
     let matches = cli();
 
@@ -68,7 +68,10 @@ fn main() {
         panic!("Initial state has intersetions...exiting.");
     }
 
-    println!("Init packing fraction: {}", state.packing_fraction());
+    println!(
+        "Init packing fraction: {}",
+        state.packing_fraction().unwrap()
+    );
 
     let mut vars = packing::MCVars::default();
     vars.steps = matches.value_of("steps").unwrap().parse().unwrap();
@@ -93,5 +96,9 @@ fn main() {
 
     state.to_figure("test.txt");
 
-    println!("Final packing fraction: {}", final_state.packing_fraction());
+    println!(
+        "Final packing fraction: {}",
+        final_state?.packing_fraction().unwrap()
+    );
+    Ok(())
 }

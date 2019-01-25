@@ -7,7 +7,7 @@
 use packing;
 
 #[test]
-fn test_packing_improves() {
+fn test_packing_improves() -> Result<(), &'static str> {
     let square = packing::RadialShape {
         name: String::from("Square"),
         radial_points: vec![1., 1., 1., 1.],
@@ -41,11 +41,14 @@ fn test_packing_improves() {
         max_step_size: 0.1,
         num_start_configs: 1,
         steps: 100,
+        seed: Some(0),
     };
 
     let final_state = packing::monte_carlo_best_packing(&vars, &mut state);
 
-    let final_packing = final_state.packing_fraction();
+    let final_packing = final_state?.packing_fraction();
 
     assert!(init_packing < final_packing);
+
+    Ok(())
 }
