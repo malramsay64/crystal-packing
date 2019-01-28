@@ -9,18 +9,13 @@ extern crate criterion;
 
 use criterion::{Criterion, ParameterizedBenchmark};
 use nalgebra::{IsometryMatrix2, Vector2};
-use packing;
+use packing::shape::{LineShape, Shape, ShapeInstance};
 
-fn create_polygon(sides: usize) -> packing::RadialShape {
-    packing::RadialShape {
-        name: String::from("Polygon"),
-        radial_points: vec![1.; sides],
-        rotational_symmetries: sides as u64,
-        mirrors: sides as u64,
-    }
+fn create_polygon(sides: usize) -> LineShape {
+    LineShape::from_radial("Polygon", vec![1.; sides])
 }
 
-fn setup_state(points: usize) -> packing::PackedState {
+fn setup_state(points: usize) -> packing::PackedState<LineShape> {
     let shape = create_polygon(points);
 
     let wallpaper = packing::Wallpaper {
@@ -42,15 +37,12 @@ fn setup_state(points: usize) -> packing::PackedState {
     packing::PackedState::initialise(shape, wallpaper, isopointal)
 }
 
-fn setup_shapes(shape: &packing::RadialShape) -> (packing::ShapeInstance, packing::ShapeInstance) {
-    let si1 = packing::shape::ShapeInstance {
-        shape: &shape,
-        isometry: IsometryMatrix2::new(Vector2::new(-2., 0.), 0.),
-    };
-    let si2 = packing::ShapeInstance {
-        shape: &shape,
-        isometry: IsometryMatrix2::new(Vector2::new(2., 0.), 0.),
-    };
+fn setup_shapes<S>(shape: &S) -> (ShapeInstance<S::Component>, ShapeInstance<S::Component>)
+where
+    S: Shape,
+{
+    let si1 = ShapeInstance::from(shape, &IsometryMatrix2::new(Vector2::new(-2., 0.), 0.));
+    let si2 = ShapeInstance::from(shape, &IsometryMatrix2::new(Vector2::new(2., 0.), 0.));
 
     (si1, si2)
 }

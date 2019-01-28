@@ -13,11 +13,13 @@ extern crate rayon;
 
 use clap::{App, Arg};
 use packing;
+#[allow(unused_imports)]
+use packing::shape::{LineShape, Shape};
 use packing::wallpaper::WallpaperGroups;
 use rayon::prelude::*;
 
 fn cli() -> clap::ArgMatches<'static> {
-    let matches = App::new("packing")
+    App::new("packing")
         .version("0.1.0")
         .author("Malcolm Ramsay <malramsay64@gmail.com")
         .about("Find best tilings of 2d shapes")
@@ -39,8 +41,7 @@ fn cli() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .default_value("100"),
         )
-        .get_matches();
-    matches
+        .get_matches()
 }
 
 fn main() -> Result<(), &'static str> {
@@ -48,12 +49,7 @@ fn main() -> Result<(), &'static str> {
     let matches = cli();
 
     let num_sides: usize = matches.value_of("sides").unwrap().parse().unwrap();
-    let polygon = packing::RadialShape {
-        name: String::from("Polygon"),
-        radial_points: vec![1.; num_sides],
-        rotational_symmetries: num_sides as u64,
-        mirrors: num_sides as u64,
-    };
+    let polygon = LineShape::from_radial("Polygon", vec![1.; num_sides]);
 
     let wg = value_t!(matches.value_of("wallpaper_group"), WallpaperGroups).unwrap();
 

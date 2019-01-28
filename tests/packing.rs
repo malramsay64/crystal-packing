@@ -5,15 +5,12 @@
 //
 
 use packing;
+#[allow(unused_imports)]
+use packing::shape::{LineShape, Shape};
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {
-    let square = packing::RadialShape {
-        name: String::from("Square"),
-        radial_points: vec![1., 1., 1., 1.],
-        rotational_symmetries: 4,
-        mirrors: 4,
-    };
+    let square = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
 
     let wallpaper = packing::Wallpaper {
         name: String::from("p2"),

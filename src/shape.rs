@@ -9,7 +9,12 @@ use nalgebra as na;
 use nalgebra::{IsometryMatrix2, Point2};
 use std::f64::consts::PI;
 
-pub trait Intersect {
+use std::fmt;
+use std::ops;
+use std::slice;
+use std::vec;
+
+pub trait Intersect: ops::Mul<IsometryMatrix2<f64>> {
     fn intersects(&self, other: &Self) -> bool;
 }
 
@@ -82,8 +87,8 @@ impl RelativeEq for Line {
     }
 }
 
-impl std::fmt::Debug for Line {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Debug for Line {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "Line {{ ({:.5}, {:.5}), ({:.5}, {:.5}) }}",
@@ -92,7 +97,7 @@ impl std::fmt::Debug for Line {
     }
 }
 
-impl std::ops::Mul<IsometryMatrix2<f64>> for Line {
+impl ops::Mul<IsometryMatrix2<f64>> for Line {
     type Output = Self;
 
     fn mul(self, rhs: IsometryMatrix2<f64>) -> Self::Output {
@@ -217,6 +222,17 @@ impl Intersect for Atom {
     }
 }
 
+impl ops::Mul<IsometryMatrix2<f64>> for Atom {
+    type Output = Self;
+
+    fn mul(self, rhs: IsometryMatrix2<f64>) -> Self::Output {
+        Self {
+            position: rhs * self.position,
+            radius: self.radius,
+        }
+    }
+}
+
 impl Atom {
     pub fn new(x: f64, y: f64, radius: f64) -> Atom {
         Atom {
@@ -270,11 +286,18 @@ mod atom_tests {
 
 }
 
-pub trait Shape {
-    type I: Intersect;
+pub trait Shape: PartialEq + fmt::Debug + Clone {
+    type Component: Intersect
+        + fmt::Debug
+        + ops::Mul<IsometryMatrix2<f64>, Output = Self::Component>;
 
     fn area(&self) -> f64;
     fn enclosing_radius(&self) -> f64;
+    fn get_items(&self) -> Vec<Self::Component>;
+    fn rotational_symmetries(&self) -> u64 {
+        1
+    }
+    fn iter(&self) -> slice::Iter<'_, Self::Component>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -284,16 +307,24 @@ pub struct LineShape {
     pub rotational_symmetries: u64,
 }
 
+impl<'a> IntoIterator for &'a LineShape {
+    type Item = &'a Line;
+    type IntoIter = slice::Iter<'a, Line>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter()
+    }
+}
+
 impl Shape for LineShape {
-    type I = Line;
+    type Component = Line;
 
     fn area(&self) -> f64 {
         // This is the sine of the angle between each point, this is used for every calculation
         // so pre-calculate here.
         let angle_term: f64 = f64::sin(2. * PI / self.items.len() as f64);
 
-        self.items
-            .iter()
+        self.iter()
             .map(|p| {
                 0.5 * angle_term
                     * na::distance(&Point2::origin(), &p.start)
@@ -303,13 +334,40 @@ impl Shape for LineShape {
     }
 
     fn enclosing_radius(&self) -> f64 {
-        self.items
-            .iter()
+        self.iter()
             .map(|p| na::distance(&Point2::origin(), &p.start))
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
             .fold(std::f64::MIN, f64::max)
+    }
+
+    fn get_items(&self) -> Vec<Self::Component> {
+        self.items.clone()
+    }
+
+    fn iter(&self) -> slice::Iter<'_, Self::Component> {
+        self.into_iter()
+    }
+}
+
+impl LineShape {
+    pub fn from_radial(name: &str, points: Vec<f64>) -> LineShape {
+        let dtheta = 2. * PI / points.len() as f64;
+        let mut items: Vec<Line> = vec![];
+        for (index, (r1, r2)) in points.iter().zip(points.iter().cycle().skip(1)).enumerate() {
+            let angle = index as f64 * dtheta;
+            items.push(Line::new(
+                (r1 * f64::sin(angle), r1 * f64::cos(angle)),
+                (r2 * f64::sin(angle + dtheta), r2 * f64::cos(angle + dtheta)),
+            ))
+        }
+
+        LineShape {
+            name: String::from(name),
+            items,
+            rotational_symmetries: 1,
+        }
     }
 }
 
@@ -321,8 +379,17 @@ pub struct MolecularShape {
     pub mirrors: u64,
 }
 
+impl<'a> IntoIterator for &'a MolecularShape {
+    type Item = &'a Atom;
+    type IntoIter = slice::Iter<'a, Atom>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter()
+    }
+}
+
 impl Shape for MolecularShape {
-    type I = Atom;
+    type Component = Atom;
 
     fn area(&self) -> f64 {
         // TODO Implement an algorithm which takes into account overlap of circles, this naive
@@ -341,83 +408,13 @@ impl Shape for MolecularShape {
             // the NAN and max values.
             .fold(std::f64::MIN, f64::max)
     }
-}
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct RadialShape {
-    pub name: String,
-    pub radial_points: Vec<f64>,
-    pub rotational_symmetries: u64,
-    pub mirrors: u64,
-}
-
-impl<'a> IntoIterator for &'a RadialShape {
-    type Item = (f64, f64);
-    type IntoIter = RadialShapeIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        Self::IntoIter::new(&self)
+    fn get_items(&self) -> Vec<Self::Component> {
+        self.items.clone()
     }
-}
 
-impl RadialShape {
-    pub fn area(&self) -> f64 {
-        // This is the sine of the angle between each point, this is used for every calculation
-        // so pre-calculate here.
-        let angle_term: f64 = f64::sin(2. * PI / self.radial_points.len() as f64);
-
+    fn iter(&self) -> slice::Iter<'_, Self::Component> {
         self.into_iter()
-            .map(|(a, b)| 0.5 * angle_term * a * b)
-            .sum()
-    }
-
-    pub fn max_radius(&self) -> f64 {
-        self.radial_points
-            .iter()
-            .cloned()
-            // The f64 type doesn't have complete ordering because of Nan and Inf, so the
-            // standard min/max comparators don't work. Instead we use the f64::max which ignores
-            // the NAN and max values.
-            .fold(std::f64::MIN, f64::max)
-    }
-
-    pub fn radial_step(&self) -> f64 {
-        2. * PI / self.radial_points.len() as f64
-    }
-}
-
-/// Iterator for the RadialShape class
-///
-/// This iterates over all the line segments comprising a shape.
-pub struct RadialShapeIter<'a> {
-    shape: &'a RadialShape,
-    index: usize,
-    len: usize,
-}
-
-impl<'a> RadialShapeIter<'a> {
-    fn new(shape: &'a RadialShape) -> Self {
-        RadialShapeIter {
-            shape,
-            index: 0,
-            len: shape.radial_points.len(),
-        }
-    }
-}
-
-impl<'a> Iterator for RadialShapeIter<'a> {
-    type Item = (f64, f64);
-
-    fn next(&mut self) -> Option<(f64, f64)> {
-        if self.index >= self.len {
-            return None;
-        }
-        let result = Some((
-            self.shape.radial_points[self.index],
-            self.shape.radial_points[(self.index + 1) % self.len],
-        ));
-        self.index += 1;
-        result
     }
 }
 
@@ -425,22 +422,14 @@ impl<'a> Iterator for RadialShapeIter<'a> {
 mod shape_tests {
     use super::*;
 
-    fn create_square() -> RadialShape {
-        RadialShape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        }
+    fn create_square() -> LineShape {
+        LineShape::from_radial("Square", vec![1., 1., 1., 1.])
     }
 
     #[test]
     fn init() {
         let square = create_square();
         assert_eq!(square.name, "Square");
-        assert_eq!(square.radial_points, vec![1., 1., 1., 1.]);
-        assert_eq!(square.rotational_symmetries, 4);
-        assert_eq!(square.mirrors, 4);
     }
 
     #[test]
@@ -451,71 +440,46 @@ mod shape_tests {
 
     #[test]
     fn max_radius() {
-        let shape = RadialShape {
-            name: String::from("iter_test"),
-            radial_points: vec![1., 2., 3., 4.],
-            rotational_symmetries: 1,
-            mirrors: 0,
-        };
-        assert_abs_diff_eq!(shape.max_radius(), 4.);
-        assert_abs_diff_eq!(shape.max_radius(), 4.);
+        let shape = LineShape::from_radial("iter_test", vec![1., 2., 3., 4.]);
+        assert_abs_diff_eq!(shape.enclosing_radius(), 4.);
+        assert_abs_diff_eq!(shape.enclosing_radius(), 4.);
     }
 
-    #[test]
-    fn iter_values() {
-        let shape = RadialShape {
-            name: String::from("iter_test"),
-            radial_points: vec![1., 2., 3., 4.],
-            rotational_symmetries: 1,
-            mirrors: 0,
-        };
-        let manual = vec![(1., 2.), (2., 3.), (3., 4.), (4., 1.)];
-        assert_eq!(shape.into_iter().collect::<Vec<(f64, f64)>>(), manual);
-    }
 }
 
 /// Puts an abstract shape object in a physical space
 ///
-/// This matches a Shape to a transformation, placing it in 2D space.
+/// This acts as a cache for computed values.
 #[derive(PartialEq)]
-pub struct ShapeInstance<'a> {
-    pub shape: &'a RadialShape,
-    pub isometry: IsometryMatrix2<f64>,
+pub struct ShapeInstance<T>
+where
+    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+{
+    pub items: Vec<T>,
 }
 
-impl<'a> ShapeInstance<'a> {
-    fn radii_to_line(&self, index: usize, radii: (f64, f64)) -> Line {
-        let radial_step = self.shape.radial_step();
-        let angle = index as f64 * radial_step;
-        let (r1, r2) = radii;
-        let start = na::Point2::new(r1 * f64::sin(angle), r1 * f64::cos(angle));
-        let end = na::Point2::new(
-            r2 * f64::sin(angle + radial_step),
-            r2 * f64::cos(angle + radial_step),
-        );
-
-        Line {
-            start: self.isometry * start,
-            end: self.isometry * end,
+impl<T> ShapeInstance<T>
+where
+    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+{
+    pub fn from<S: Shape<Component = T>>(
+        shape: &S,
+        iso: &IsometryMatrix2<f64>,
+    ) -> ShapeInstance<T> {
+        ShapeInstance {
+            items: shape.get_items().into_iter().map(|p| p * *iso).collect(),
         }
     }
+}
 
-    pub fn lines(&self) -> Vec<Line> {
-        self.shape
-            .into_iter()
-            .enumerate()
-            .map(|(index, r)| self.radii_to_line(index, r))
-            .collect()
-    }
-
-    pub fn intersects(&self, other: &ShapeInstance) -> bool {
-        // Same shape and same isometry => they intersect
-        if self == other {
-            return true;
-        }
-        for line_a in self.lines() {
-            for line_b in other.lines() {
-                if line_a.intersects(&line_b) {
+impl<T> ShapeInstance<T>
+where
+    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+{
+    pub fn intersects(&self, other: &ShapeInstance<T>) -> bool {
+        for item_a in self.items.iter() {
+            for item_b in other.items.iter() {
+                if item_a.intersects(&item_b) {
                     return true;
                 }
             }
@@ -524,11 +488,14 @@ impl<'a> ShapeInstance<'a> {
     }
 }
 
-impl<'a> std::fmt::Debug for ShapeInstance<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "ShapeInstance{{ {:?} }}", self.lines())
-    }
-}
+// impl<T> fmt::Debug for ShapeInstance<T>
+// where
+// T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+// {
+// fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+// write!(f, "ShapeInstance{{ {:?} }}", self.items)
+// }
+// }
 
 #[cfg(test)]
 mod shape_instance_tests {
@@ -536,74 +503,33 @@ mod shape_instance_tests {
 
     #[test]
     fn lines() {
-        let shape = RadialShape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        };
-        let shape_i = ShapeInstance {
-            shape: &shape,
-            isometry: IsometryMatrix2::identity(),
-        };
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape_i = ShapeInstance::from(&shape, &IsometryMatrix2::identity());
         let expected_vec = vec![
-            Line {
-                start: Point2::new(0., 1.),
-                end: Point2::new(1., 0.),
-            },
-            Line {
-                start: Point2::new(1., 0.),
-                end: Point2::new(0., -1.),
-            },
-            Line {
-                start: Point2::new(0., -1.),
-                end: Point2::new(-1., 0.),
-            },
-            Line {
-                start: Point2::new(-1., 0.),
-                end: Point2::new(0., 1.),
-            },
+            Line::new((0., 1.), (1., 0.)),
+            Line::new((1., 0.), (0., -1.)),
+            Line::new((0., -1.), (-1., 0.)),
+            Line::new((-1., 0.), (0., 1.)),
         ];
-        for (index, (expected, result)) in
-            shape_i.lines().iter().zip(expected_vec.iter()).enumerate()
+        for (index, (expected, result)) in shape_i.items.iter().zip(expected_vec.iter()).enumerate()
         {
             println!("{}", index);
-            assert_abs_diff_eq!(*expected, *result, epsilon = 1e-8);
+            assert_abs_diff_eq!(expected, result, epsilon = 1e-8);
         }
     }
 
     #[test]
     fn lines_translate() {
-        let shape = RadialShape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        };
-        let shape_i = ShapeInstance {
-            shape: &shape,
-            isometry: IsometryMatrix2::new(na::Vector2::new(-1., 0.), 0.),
-        };
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape_i =
+            ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(-1., 0.), 0.));
         let expected_vec = vec![
-            Line {
-                start: Point2::new(-1., 1.),
-                end: Point2::new(0., 0.),
-            },
-            Line {
-                start: Point2::new(0., 0.),
-                end: Point2::new(-1., -1.),
-            },
-            Line {
-                start: Point2::new(-1., -1.),
-                end: Point2::new(-2., 0.),
-            },
-            Line {
-                start: Point2::new(-2., 0.),
-                end: Point2::new(-1., 1.),
-            },
+            Line::new((-1., 1.), (0., 0.)),
+            Line::new((0., 0.), (-1., -1.)),
+            Line::new((-1., -1.), (-2., 0.)),
+            Line::new((-2., 0.), (-1., 1.)),
         ];
-        for (index, (expected, result)) in
-            shape_i.lines().iter().zip(expected_vec.iter()).enumerate()
+        for (index, (expected, result)) in shape_i.items.iter().zip(expected_vec.iter()).enumerate()
         {
             println!("{}", index);
             assert_abs_diff_eq!(*expected, *result, epsilon = 1e-8);
@@ -612,36 +538,16 @@ mod shape_instance_tests {
 
     #[test]
     fn lines_translate_rotate() {
-        let shape = RadialShape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        };
-        let shape_i = ShapeInstance {
-            shape: &shape,
-            isometry: IsometryMatrix2::new(na::Vector2::new(-1., 0.), PI),
-        };
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape_i =
+            ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(-1., 0.), PI));
         let expected_vec = vec![
-            Line {
-                start: Point2::new(-1., -1.),
-                end: Point2::new(-2., 0.),
-            },
-            Line {
-                start: Point2::new(-2., 0.),
-                end: Point2::new(-1., 1.),
-            },
-            Line {
-                start: Point2::new(-1., 1.),
-                end: Point2::new(0., 0.),
-            },
-            Line {
-                start: Point2::new(0., 0.),
-                end: Point2::new(-1., -1.),
-            },
+            Line::new((-1., -1.), (-2., 0.)),
+            Line::new((-2., 0.), (-1., 1.)),
+            Line::new((-1., 1.), (0., 0.)),
+            Line::new((0., 0.), (-1., -1.)),
         ];
-        for (index, (expected, result)) in
-            shape_i.lines().iter().zip(expected_vec.iter()).enumerate()
+        for (index, (expected, result)) in shape_i.items.iter().zip(expected_vec.iter()).enumerate()
         {
             println!("{}", index);
             assert_abs_diff_eq!(*expected, *result, epsilon = 1e-8);
@@ -668,28 +574,21 @@ mod shape_instance_tests {
     //
     #[test]
     fn intersects() {
-        let shape = RadialShape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        };
-        let shape_i1 = ShapeInstance {
-            shape: &shape,
-            isometry: IsometryMatrix2::new(na::Vector2::new(1., 0.), 0.),
-        };
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape_i1 =
+            ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(1., 0.), 0.));
         assert!(shape_i1.intersects(&shape_i1));
 
-        let shape_i2 = ShapeInstance {
-            shape: &shape,
-            isometry: IsometryMatrix2::new(na::Vector2::new(-1.001, 0.), 0.),
-        };
+        let shape_i2 = ShapeInstance::from(
+            &shape,
+            &IsometryMatrix2::new(na::Vector2::new(-1.001, 0.), 0.),
+        );
         assert!(!shape_i1.intersects(&shape_i2));
 
-        let shape_i3 = ShapeInstance {
-            shape: &shape,
-            isometry: IsometryMatrix2::new(na::Vector2::new(0., 0.), PI / 4.),
-        };
+        let shape_i3 = ShapeInstance::from(
+            &shape,
+            &IsometryMatrix2::new(na::Vector2::new(0., 0.), PI / 4.),
+        );
         assert!(shape_i1.intersects(&shape_i3));
         assert!(shape_i2.intersects(&shape_i3));
     }

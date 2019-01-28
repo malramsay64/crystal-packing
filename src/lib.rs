@@ -35,7 +35,7 @@ pub mod wallpaper;
 
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::cell::{Cell, CrystalFamily};
-pub use crate::shape::{RadialShape, ShapeInstance};
+pub use crate::shape::{LineShape, Shape, ShapeInstance};
 pub use crate::symmetry::SymmetryTransform;
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
@@ -88,30 +88,30 @@ impl OccupiedSite {
 }
 
 #[derive(Clone, Debug)]
-pub struct PackedState {
+pub struct PackedState<T: shape::Shape> {
     pub wallpaper: Wallpaper,
-    pub shape: RadialShape,
+    pub shape: T,
     pub cell: Cell,
     occupied_sites: Vec<OccupiedSite>,
     basis: Vec<StandardBasis>,
 }
 
-impl Eq for PackedState {}
+impl<T: shape::Shape> Eq for PackedState<T> {}
 
-impl PartialEq for PackedState {
+impl<T: shape::Shape> PartialEq for PackedState<T> {
     fn eq(&self, other: &Self) -> bool {
         self.packing_fraction() == other.packing_fraction()
     }
 }
 
-impl PartialOrd for PackedState {
+impl<T: shape::Shape> PartialOrd for PackedState<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.packing_fraction()
             .partial_cmp(&other.packing_fraction())
     }
 }
 
-impl Ord for PackedState {
+impl<T: shape::Shape> Ord for PackedState<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.packing_fraction()
             .partial_cmp(&other.packing_fraction())
@@ -119,15 +119,13 @@ impl Ord for PackedState {
     }
 }
 
-impl PackedState {
-    pub fn cartesian_positions(&self) -> Vec<Vec<shape::Line>> {
-        let mut positions: Vec<Vec<shape::Line>> = vec![];
+impl<T: shape::Shape> PackedState<T> {
+    pub fn cartesian_positions(&self) -> Vec<Vec<T::Component>> {
+        let mut positions: Vec<Vec<T::Component>> = vec![];
         for position in self.relative_positions().iter() {
-            let shape_i = ShapeInstance {
-                shape: &self.shape,
-                isometry: self.cell.to_cartesian_isometry(position),
-            };
-            positions.push(shape_i.lines());
+            let shape_i: ShapeInstance<T::Component> =
+                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position));
+            positions.push(shape_i.items);
         }
         positions
     }
@@ -154,10 +152,8 @@ impl PackedState {
     ///
     pub fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
-            let shape_i1 = ShapeInstance {
-                shape: &self.shape,
-                isometry: self.cell.to_cartesian_isometry(position1),
-            };
+            let shape_i1 =
+                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position1));
             // We only need to check the positions after that of index1, since the previous ones
             // have already been checked, hence `.skip(index1)`
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
@@ -180,10 +176,10 @@ impl PackedState {
                             position2.rotation,
                         );
 
-                        let shape_i2 = ShapeInstance {
-                            shape: &self.shape,
-                            isometry: self.cell.to_cartesian_isometry(&iso),
-                        };
+                        let shape_i2 = ShapeInstance::from(
+                            &self.shape,
+                            &self.cell.to_cartesian_isometry(&iso),
+                        );
                         if shape_i1.intersects(&shape_i2) {
                             return true;
                         }
@@ -208,14 +204,14 @@ impl PackedState {
     }
 
     pub fn initialise(
-        shape: RadialShape,
+        shape: T,
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
-    ) -> PackedState {
+    ) -> PackedState<T> {
         let mut basis: Vec<StandardBasis> = Vec::new();
 
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
-        let max_cell_size = 4. * shape.max_radius() * num_shapes as f64;
+        let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
         let cell = Cell::from_family(&wallpaper.family, max_cell_size);
         basis.append(&mut cell.get_basis());
@@ -225,7 +221,7 @@ impl PackedState {
         let mut occupied_sites: Vec<OccupiedSite> = Vec::new();
         for wyckoff in isopointal.iter() {
             let site = OccupiedSite::from_wyckoff(wyckoff);
-            basis.append(&mut site.get_basis(shape.rotational_symmetries));
+            basis.append(&mut site.get_basis(shape.rotational_symmetries()));
             occupied_sites.push(site);
         }
 
@@ -290,18 +286,16 @@ impl PackedState {
                         position.rotation,
                     );
 
-                    let shape_i = ShapeInstance {
-                        shape: &self.shape,
-                        isometry: self.cell.to_cartesian_isometry(&iso),
-                    };
+                    let shape_i =
+                        ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&iso));
 
                     let colour = match () {
                         // This is the 'original' coordinates so differentiate
                         _ if *x_periodic == 0. && *y_periodic == 0. => 'b',
                         _ => 'g',
                     };
-                    for line in shape_i.lines() {
-                        writeln!(file, "{} {} {}", line.start, line.end, colour).unwrap();
+                    for item in shape_i.items.iter() {
+                        writeln!(file, "{:?} {}", item, colour).unwrap();
                     }
                 }
             }
@@ -313,13 +307,8 @@ impl PackedState {
 mod packed_state_tests {
     use super::*;
 
-    fn create_square() -> RadialShape {
-        RadialShape {
-            name: String::from("Square"),
-            radial_points: vec![1., 1., 1., 1.],
-            rotational_symmetries: 4,
-            mirrors: 4,
-        }
+    fn create_square() -> LineShape {
+        LineShape::from_radial("Square", vec![1., 1., 1., 1.])
     }
 
     fn create_wallpaper_p1() -> (Wallpaper, Vec<WyckoffSite>) {
@@ -359,8 +348,8 @@ mod packed_state_tests {
         (wallpaper, isopointal)
     }
 
-    fn init_packed_state(group: &str) -> PackedState {
-        let square = create_square();
+    fn init_packed_state(group: &str) -> PackedState<shape::LineShape> {
+        let square: shape::LineShape = create_square();
 
         let (wallpaper, isopointal) = (match group {
             "p1" => Some(create_wallpaper_p1()),
@@ -429,10 +418,10 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
     f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-pub fn monte_carlo_best_packing(
+pub fn monte_carlo_best_packing<T: shape::Shape>(
     vars: &MCVars,
-    state: &mut PackedState,
-) -> Result<PackedState, &'static str> {
+    state: &mut PackedState<T>,
+) -> Result<PackedState<T>, &'static str> {
     let mut rng = match vars.seed {
         Some(x) => SmallRng::seed_from_u64(x),
         None => SmallRng::from_entropy(),
