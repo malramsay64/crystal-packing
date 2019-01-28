@@ -202,6 +202,253 @@ mod line_tests {
 
 }
 
+pub struct Atom {
+    pub position: Point2<f64>,
+    pub radius: f64,
+}
+
+impl Intersect for Atom {
+    fn intersects(&self, other: &Self) -> bool {
+        let r_squared = (self.radius + other.radius).powi(2);
+        // We have an intersection when the distance between the particles is less than the
+        // combined radius of the two particles.
+        na::distance_squared(&self.position, &other.position) < r_squared
+    }
+}
+
+impl Atom {
+    pub fn new(x: f64, y: f64, radius: f64) -> Atom {
+        Atom {
+            position: Point2::new(x, y),
+            radius,
+        }
+    }
+}
+
+#[cfg(test)]
+mod atom_tests {
+    use super::*;
+
+    #[test]
+    fn init_test() {
+        let a = Atom::new(0., 0., 1.);
+        assert_abs_diff_eq!(a.position.x, 0.);
+        assert_abs_diff_eq!(a.position.y, 0.);
+        assert_abs_diff_eq!(a.radius, 1.);
+    }
+
+    #[test]
+    fn distance_squared_test() {
+        let a0 = Atom::new(0., 0., 1.);
+        let a1 = Atom::new(0.5, 0., 1.);
+        assert_abs_diff_eq!(na::distance_squared(&a0.position, &a1.position), 0.25);
+        assert!(a0.intersects(&a1));
+    }
+
+    #[test]
+    fn intersection_test() {
+        let a0 = Atom::new(0., 0., 1.);
+        let a1 = Atom::new(1., 0., 1.);
+        let a2 = Atom::new(0.5, 0.5, 1.);
+        let a3 = Atom::new(1.5, 1.5, 1.);
+        assert!(a0.intersects(&a1));
+        assert!(a1.intersects(&a2));
+        assert!(a3.intersects(&a2));
+        assert!(!a0.intersects(&a3));
+    }
+
+    #[test]
+    fn intersection_calculation_test() {
+        let a0 = Atom::new(0., 0., f64::sqrt(2.) / 2.);
+        let a1 = Atom::new(1., 1., f64::sqrt(2.) / 2.);
+        let a2 = Atom::new(1., 1., f64::sqrt(2.) / 2. - 2. * std::f64::EPSILON);
+        println!("Radii: {}", a0.radius * a0.radius + a1.radius * a1.radius);
+        assert!(a0.intersects(&a1));
+        assert!(!a0.intersects(&a2));
+    }
+
+}
+
+pub trait Shape {
+    type Item;
+
+    fn area(&self) -> f64;
+    fn enclosing_radius(&self) -> f64;
+    fn iter(&self) -> Self::Item;
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LineShape {
+    pub name: String,
+    pub lines: Vec<Line>,
+    pub rotational_symmetries: u64,
+}
+
+pub struct LineShapeIter<'a> {
+    pub shape: &'a LineShape,
+    pub index: usize,
+}
+
+impl<'a> LineShapeIter<'a> {
+    fn new(shape: &'a LineShape) -> Self {
+        LineShapeIter { shape, index: 0 }
+    }
+}
+
+impl<'a> Iterator for LineShapeIter<'a> {
+    type Item = &'a Line;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.index < self.shape.lines.len() {
+            true => {
+                self.index += 1;
+                Some(&self.shape.lines[self.index])
+            }
+            false => None,
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a LineShape {
+    type Item = &'a Line;
+    type IntoIter = LineShapeIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter::new(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RadialShape {
+    pub name: String,
+    pub radial_points: Vec<f64>,
+    pub rotational_symmetries: u64,
+    pub mirrors: u64,
+}
+
+impl<'a> IntoIterator for &'a RadialShape {
+    type Item = (f64, f64);
+    type IntoIter = RadialShapeIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter::new(&self)
+    }
+}
+
+impl RadialShape {
+    pub fn area(&self) -> f64 {
+        // This is the sine of the angle between each point, this is used for every calculation
+        // so pre-calculate here.
+        let angle_term: f64 = f64::sin(2. * PI / self.radial_points.len() as f64);
+
+        self.into_iter()
+            .map(|(a, b)| 0.5 * angle_term * a * b)
+            .sum()
+    }
+
+    pub fn max_radius(&self) -> f64 {
+        self.radial_points
+            .iter()
+            .cloned()
+            // The f64 type doesn't have complete ordering because of Nan and Inf, so the
+            // standard min/max comparators don't work. Instead we use the f64::max which ignores
+            // the NAN and max values.
+            .fold(std::f64::MIN, f64::max)
+    }
+
+    pub fn radial_step(&self) -> f64 {
+        2. * PI / self.radial_points.len() as f64
+    }
+}
+
+/// Iterator for the RadialShape class
+///
+/// This iterates over all the line segments comprising a shape.
+pub struct RadialShapeIter<'a> {
+    shape: &'a RadialShape,
+    index: usize,
+    len: usize,
+}
+
+impl<'a> RadialShapeIter<'a> {
+    fn new(shape: &'a RadialShape) -> Self {
+        RadialShapeIter {
+            shape,
+            index: 0,
+            len: shape.radial_points.len(),
+        }
+    }
+}
+
+impl<'a> Iterator for RadialShapeIter<'a> {
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<(f64, f64)> {
+        if self.index >= self.len {
+            return None;
+        }
+        let result = Some((
+            self.shape.radial_points[self.index],
+            self.shape.radial_points[(self.index + 1) % self.len],
+        ));
+        self.index += 1;
+        result
+    }
+}
+
+#[cfg(test)]
+mod shape_tests {
+    use super::*;
+
+    fn create_square() -> RadialShape {
+        RadialShape {
+            name: String::from("Square"),
+            radial_points: vec![1., 1., 1., 1.],
+            rotational_symmetries: 4,
+            mirrors: 4,
+        }
+    }
+
+    #[test]
+    fn init() {
+        let square = create_square();
+        assert_eq!(square.name, "Square");
+        assert_eq!(square.radial_points, vec![1., 1., 1., 1.]);
+        assert_eq!(square.rotational_symmetries, 4);
+        assert_eq!(square.mirrors, 4);
+    }
+
+    #[test]
+    fn area() {
+        let square = create_square();
+        assert_abs_diff_eq!(square.area(), 2.);
+    }
+
+    #[test]
+    fn max_radius() {
+        let shape = RadialShape {
+            name: String::from("iter_test"),
+            radial_points: vec![1., 2., 3., 4.],
+            rotational_symmetries: 1,
+            mirrors: 0,
+        };
+        assert_abs_diff_eq!(shape.max_radius(), 4.);
+        assert_abs_diff_eq!(shape.max_radius(), 4.);
+    }
+
+    #[test]
+    fn iter_values() {
+        let shape = RadialShape {
+            name: String::from("iter_test"),
+            radial_points: vec![1., 2., 3., 4.],
+            rotational_symmetries: 1,
+            mirrors: 0,
+        };
+        let manual = vec![(1., 2.), (2., 3.), (3., 4.), (4., 1.)];
+        assert_eq!(shape.into_iter().collect::<Vec<(f64, f64)>>(), manual);
+    }
+}
+
 /// Puts an abstract shape object in a physical space
 ///
 /// This matches a Shape to a transformation, placing it in 2D space.
