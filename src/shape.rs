@@ -9,7 +9,7 @@ use nalgebra as na;
 use nalgebra::{IsometryMatrix2, Point2};
 use std::f64::consts::PI;
 
-trait Intersect {
+pub trait Intersect {
     fn intersects(&self, other: &Self) -> bool;
 }
 
@@ -202,6 +202,7 @@ mod line_tests {
 
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Atom {
     pub position: Point2<f64>,
     pub radius: f64,
@@ -270,6 +271,8 @@ mod atom_tests {
 }
 
 pub trait Shape {
+    type I: Intersect;
+
     fn area(&self) -> f64;
     fn enclosing_radius(&self) -> f64;
 }
@@ -277,51 +280,20 @@ pub trait Shape {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineShape {
     pub name: String,
-    pub lines: Vec<Line>,
+    pub items: Vec<Line>,
     pub rotational_symmetries: u64,
 }
 
-pub struct LineShapeIter<'a> {
-    pub shape: &'a LineShape,
-    pub index: usize,
-}
-
-impl<'a> LineShapeIter<'a> {
-    fn new(shape: &'a LineShape) -> Self {
-        LineShapeIter { shape, index: 0 }
-    }
-}
-
-impl<'a> Iterator for LineShapeIter<'a> {
-    type Item = &'a Line;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.index < self.shape.lines.len() {
-            true => {
-                self.index += 1;
-                Some(&self.shape.lines[self.index])
-            }
-            false => None,
-        }
-    }
-}
-
-impl<'a> IntoIterator for &'a LineShape {
-    type Item = &'a Line;
-    type IntoIter = LineShapeIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        Self::IntoIter::new(self)
-    }
-}
-
 impl Shape for LineShape {
+    type I = Line;
+
     fn area(&self) -> f64 {
         // This is the sine of the angle between each point, this is used for every calculation
         // so pre-calculate here.
-        let angle_term: f64 = f64::sin(2. * PI / self.lines.len() as f64);
+        let angle_term: f64 = f64::sin(2. * PI / self.items.len() as f64);
 
-        self.into_iter()
+        self.items
+            .iter()
             .map(|p| {
                 0.5 * angle_term
                     * na::distance(&Point2::origin(), &p.start)
@@ -331,7 +303,8 @@ impl Shape for LineShape {
     }
 
     fn enclosing_radius(&self) -> f64 {
-        self.into_iter()
+        self.items
+            .iter()
             .map(|p| na::distance(&Point2::origin(), &p.start))
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
@@ -340,11 +313,34 @@ impl Shape for LineShape {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct MolecularShape {
     pub name: String,
-    pub atoms: Vec<Atom>,
+    pub items: Vec<Atom>,
     pub rotational_symmetries: u64,
     pub mirrors: u64,
+}
+
+impl Shape for MolecularShape {
+    type I = Atom;
+
+    fn area(&self) -> f64 {
+        // TODO Implement an algorithm which takes into account overlap of circles, this naive
+        // implementation is just a temporary measure.
+        self.items
+            .iter()
+            .fold(0., |sum, a| sum + a.radius.powi(2) * PI)
+    }
+
+    fn enclosing_radius(&self) -> f64 {
+        self.items
+            .iter()
+            .map(|p| na::distance(&Point2::origin(), &p.position) + p.radius)
+            // The f64 type doesn't have complete ordering because of Nan and Inf, so the
+            // standard min/max comparators don't work. Instead we use the f64::max which ignores
+            // the NAN and max values.
+            .fold(std::f64::MIN, f64::max)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -697,11 +693,4 @@ mod shape_instance_tests {
         assert!(shape_i1.intersects(&shape_i3));
         assert!(shape_i2.intersects(&shape_i3));
     }
-}
-
-pub struct MolecularShape {
-    pub name: String,
-    pub atoms: Vec<Atom>,
-    pub rotational_symmetries: u64,
-    pub mirrors: u64,
 }
