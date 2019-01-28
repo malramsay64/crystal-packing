@@ -270,11 +270,8 @@ mod atom_tests {
 }
 
 pub trait Shape {
-    type Item;
-
     fn area(&self) -> f64;
     fn enclosing_radius(&self) -> f64;
-    fn iter(&self) -> Self::Item;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -316,6 +313,38 @@ impl<'a> IntoIterator for &'a LineShape {
     fn into_iter(self) -> Self::IntoIter {
         Self::IntoIter::new(self)
     }
+}
+
+impl Shape for LineShape {
+    fn area(&self) -> f64 {
+        // This is the sine of the angle between each point, this is used for every calculation
+        // so pre-calculate here.
+        let angle_term: f64 = f64::sin(2. * PI / self.lines.len() as f64);
+
+        self.into_iter()
+            .map(|p| {
+                0.5 * angle_term
+                    * na::distance(&Point2::origin(), &p.start)
+                    * na::distance(&Point2::origin(), &p.end)
+            })
+            .sum()
+    }
+
+    fn enclosing_radius(&self) -> f64 {
+        self.into_iter()
+            .map(|p| na::distance(&Point2::origin(), &p.start))
+            // The f64 type doesn't have complete ordering because of Nan and Inf, so the
+            // standard min/max comparators don't work. Instead we use the f64::max which ignores
+            // the NAN and max values.
+            .fold(std::f64::MIN, f64::max)
+    }
+}
+
+pub struct MolecularShape {
+    pub name: String,
+    pub atoms: Vec<Atom>,
+    pub rotational_symmetries: u64,
+    pub mirrors: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -668,4 +697,11 @@ mod shape_instance_tests {
         assert!(shape_i1.intersects(&shape_i3));
         assert!(shape_i2.intersects(&shape_i3));
     }
+}
+
+pub struct MolecularShape {
+    pub name: String,
+    pub atoms: Vec<Atom>,
+    pub rotational_symmetries: u64,
+    pub mirrors: u64,
 }
