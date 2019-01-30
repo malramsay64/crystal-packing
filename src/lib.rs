@@ -12,9 +12,12 @@ extern crate approx;
 extern crate log;
 #[macro_use]
 extern crate clap;
+#[macro_use]
+extern crate itertools;
 extern crate nalgebra as na;
 extern crate rand;
 
+use itertools::Itertools;
 use nalgebra::{IsometryMatrix2, Point2};
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
@@ -152,37 +155,34 @@ impl<T: shape::Shape> PackedState<T> {
     ///
     pub fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
-            let shape_i1 =
-                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position1));
             // We only need to check the positions after that of index1, since the previous ones
             // have already been checked, hence `.skip(index1)`
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
-                // The list of periodic images to check. Currently only checking the first shell,
-                // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
-                // nessecary, although this is currently not an issue due to the limiting of the
-                // value of the cell angle.
                 debug!("Checking {} against {}", index1, index2);
-                let periodic_images: &[f64] = &[-1., 0., 1.];
-                for x_periodic in periodic_images {
-                    for y_periodic in periodic_images {
-                        // A shape is always going to intersect with itself. This skips the check
-                        // for a shape intersecting with itself, while still checking the periodic
-                        // copies.
-                        if index1 == index2 && *x_periodic == 0. && *y_periodic == 0. {
-                            continue;
-                        }
-                        let iso = IsometryMatrix2::from_parts(
-                            position2.translation * na::Translation2::new(*x_periodic, *y_periodic),
-                            position2.rotation,
-                        );
 
-                        let shape_i2 = ShapeInstance::from(
-                            &self.shape,
-                            &self.cell.to_cartesian_isometry(&iso),
-                        );
-                        if shape_i1.intersects(&shape_i2) {
-                            return true;
-                        }
+                // The periodic images to check. Checking the first and second shells i.e.
+                // -2..=2, as this is nessecary to ensure no intersections on tilted cells.
+                for (x_periodic, y_periodic) in iproduct!(-2..=2, -2..=2) {
+                    // A shape is always going to intersect with itself. This skips the check for
+                    // a shape intersecting with itself, while still checking the periodic
+                    // copies.
+                    if index1 == index2 && x_periodic == 0 && y_periodic == 0 {
+                        continue;
+                    }
+                    let shape_i1 = ShapeInstance::from(
+                        &self.shape,
+                        &self.cell.to_cartesian_isometry(position1),
+                    );
+                    let iso = IsometryMatrix2::from_parts(
+                        position2.translation
+                            * na::Translation2::new(x_periodic as f64, y_periodic as f64),
+                        position2.rotation,
+                    );
+
+                    let shape_i2 =
+                        ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&iso));
+                    if shape_i1.intersects(&shape_i2) {
+                        return true;
                     }
                 }
             }
@@ -198,7 +198,7 @@ impl<T: shape::Shape> PackedState<T> {
 
     pub fn packing_fraction(&self) -> Result<f64, &'static str> {
         match (self.shape.area() * self.total_shapes() as f64) / self.cell.area() {
-            x if 0. < x || x <= 1. => Ok(x),
+            x if 0. < x && x <= 1. => Ok(x),
             _ => Err("Invalid packing fraction"),
         }
     }
