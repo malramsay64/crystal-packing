@@ -260,7 +260,7 @@ impl<T: shape::Shape> PackedState<T> {
         for (p0, p1) in points.iter().zip(points.iter().cycle().skip(1)) {
             let colour = 'k';
 
-            writeln!(file, "{} {} {}", p0, p1, colour).unwrap();
+            writeln!(file, "{}, {}, {}", p0, p1, colour).unwrap();
         }
 
         for position in self.relative_positions().iter() {
@@ -295,7 +295,7 @@ impl<T: shape::Shape> PackedState<T> {
                         _ => 'g',
                     };
                     for item in shape_i.items.iter() {
-                        writeln!(file, "{:?} {}", item, colour).unwrap();
+                        writeln!(file, "{}, {}", item, colour).unwrap();
                     }
                 }
             }

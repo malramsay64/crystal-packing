@@ -4,11 +4,14 @@
 // Distributed under terms of the MIT license.
 //
 //
+extern crate itertools;
+
 use approx::{AbsDiffEq, RelativeEq};
+use itertools::Itertools;
 use nalgebra as na;
 use nalgebra::{IsometryMatrix2, Point2};
-use std::f64::consts::PI;
 
+use std::f64::consts::PI;
 use std::fmt;
 use std::ops;
 use std::slice;
@@ -92,7 +95,17 @@ impl fmt::Debug for Line {
         write!(
             f,
             "Line {{ ({:.5}, {:.5}), ({:.5}, {:.5}) }}",
-            self.start[0], self.start[1], self.end[0], self.end[1]
+            self.start.x, self.start.y, self.end.x, self.end.y
+        )
+    }
+}
+
+impl fmt::Display for Line {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Line {{ ({:.5}, {:.5}), ({:.5}, {:.5}) }}",
+            self.start.x, self.start.y, self.end.x, self.end.y
         )
     }
 }
@@ -233,6 +246,16 @@ impl ops::Mul<IsometryMatrix2<f64>> for Atom {
     }
 }
 
+impl fmt::Display for Atom {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Atom {{ {}, {}, {} }}",
+            self.position.x, self.position.y, self.radius
+        )
+    }
+}
+
 impl Atom {
     pub fn new(x: f64, y: f64, radius: f64) -> Atom {
         Atom {
@@ -286,9 +309,10 @@ mod atom_tests {
 
 }
 
-pub trait Shape: PartialEq + fmt::Debug + Clone {
+pub trait Shape: PartialEq + fmt::Debug + Clone + fmt::Display {
     type Component: Intersect
         + fmt::Debug
+        + fmt::Display
         + ops::Mul<IsometryMatrix2<f64>, Output = Self::Component>;
 
     fn area(&self) -> f64;
@@ -298,6 +322,16 @@ pub trait Shape: PartialEq + fmt::Debug + Clone {
         1
     }
     fn iter(&self) -> slice::Iter<'_, Self::Component>;
+}
+
+impl fmt::Display for LineShape {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Shape({}) {{ ", self.name);
+        for item in self.items.iter() {
+            write!(f, "{}, ", item);
+        }
+        write!(f, "}}")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -371,55 +405,8 @@ impl LineShape {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct MolecularShape {
-    pub name: String,
-    pub items: Vec<Atom>,
-    pub rotational_symmetries: u64,
-    pub mirrors: u64,
-}
-
-impl<'a> IntoIterator for &'a MolecularShape {
-    type Item = &'a Atom;
-    type IntoIter = slice::Iter<'a, Atom>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.iter()
-    }
-}
-
-impl Shape for MolecularShape {
-    type Component = Atom;
-
-    fn area(&self) -> f64 {
-        // TODO Implement an algorithm which takes into account overlap of circles, this naive
-        // implementation is just a temporary measure.
-        self.items
-            .iter()
-            .fold(0., |sum, a| sum + a.radius.powi(2) * PI)
-    }
-
-    fn enclosing_radius(&self) -> f64 {
-        self.items
-            .iter()
-            .map(|p| na::distance(&Point2::origin(), &p.position) + p.radius)
-            // The f64 type doesn't have complete ordering because of Nan and Inf, so the
-            // standard min/max comparators don't work. Instead we use the f64::max which ignores
-            // the NAN and max values.
-            .fold(std::f64::MIN, f64::max)
-    }
-
-    fn get_items(&self) -> Vec<Self::Component> {
-        self.items.clone()
-    }
-
-    fn iter(&self) -> slice::Iter<'_, Self::Component> {
-        self.into_iter()
-    }
-}
-
 #[cfg(test)]
-mod shape_tests {
+mod line_shape_tests {
     use super::*;
 
     fn create_square() -> LineShape {
@@ -447,6 +434,176 @@ mod shape_tests {
 
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct MolecularShape {
+    pub name: String,
+    pub items: Vec<Atom>,
+}
+
+impl<'a> IntoIterator for &'a MolecularShape {
+    type Item = &'a Atom;
+    type IntoIter = slice::Iter<'a, Atom>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter()
+    }
+}
+
+impl Shape for MolecularShape {
+    type Component = Atom;
+
+    fn area(&self) -> f64 {
+        // TODO Implement an algorithm which takes into account multiple overlaps of circles, this
+        // naive implementation is just a temporary measure.
+        let total_area: f64 = self.items.iter().map(|a| PI * a.radius.powi(2)).sum();
+
+        let naive_overlap: f64 = self
+            .items
+            .iter()
+            .tuple_combinations()
+            .map(|(a1, a2)| Self::circle_overlap(a1, a2))
+            .sum();
+
+        total_area - naive_overlap
+    }
+
+    fn enclosing_radius(&self) -> f64 {
+        self.items
+            .iter()
+            .map(|p| na::distance(&Point2::origin(), &p.position) + p.radius)
+            // The f64 type doesn't have complete ordering because of Nan and Inf, so the
+            // standard min/max comparators don't work. Instead we use the f64::max which ignores
+            // the NAN and max values.
+            .fold(std::f64::MIN, f64::max)
+    }
+
+    fn get_items(&self) -> Vec<Self::Component> {
+        self.items.clone()
+    }
+
+    fn iter(&self) -> slice::Iter<'_, Self::Component> {
+        self.into_iter()
+    }
+}
+
+impl fmt::Display for MolecularShape {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MolShape {{ ");
+        for item in self.items.iter() {
+            write!(f, "{},", item)?
+        }
+        write!(f, " }}")
+    }
+}
+
+impl MolecularShape {
+    fn overlap_area(r: f64, d: f64) -> f64 {
+        r.powi(2) * f64::acos(d / r) - d * f64::sqrt(r.powi(2) - d.powi(2))
+    }
+
+    fn circle_overlap(a1: &Atom, a2: &Atom) -> f64 {
+        let distance = na::distance(&a1.position, &a2.position);
+        match distance < a1.radius + a2.radius {
+            true => {
+                let d1 =
+                    (distance.powi(2) + a1.radius.powi(2) - a2.radius.powi(2)) / (2. * distance);
+                let d2 =
+                    (distance.powi(2) + a2.radius.powi(2) - a1.radius.powi(2)) / (2. * distance);
+                Self::overlap_area(a1.radius, d1) + Self::overlap_area(a2.radius, d2)
+            }
+            false => 0.,
+        }
+    }
+
+    pub fn from_trimer(radius: f64, angle: f64, distance: f64) -> Self {
+        Self {
+            name: String::from("Trimer"),
+            items: vec![
+                Atom::new(0., -2. / 3. * distance * f64::cos(angle / 2.), 1.),
+                Atom::new(
+                    -distance * f64::sin(angle / 2.),
+                    1. / 3. * distance * f64::cos(angle / 2.),
+                    radius,
+                ),
+                Atom::new(
+                    distance * f64::sin(angle / 2.),
+                    1. / 3. * distance * f64::cos(angle / 2.),
+                    radius,
+                ),
+            ],
+        }
+    }
+    pub fn circle() -> Self {
+        Self {
+            name: String::from("circle"),
+            items: vec![Atom::new(0., 0., 1.)],
+        }
+    }
+}
+
+#[cfg(test)]
+mod molecular_shape_tests {
+    use super::*;
+
+    #[test]
+    fn overlap_area_test() {
+        assert_abs_diff_eq!(MolecularShape::overlap_area(1., 1.), 0.);
+        // assert_abs_diff_eq!(MolecularShape::overlap_area(1., 0.2;), PI);
+    }
+
+    #[test]
+    fn circle_overlaps_test() {
+        let a1 = Atom::new(0., 0., 1.);
+        let a2 = Atom::new(2., 0., 1.);
+        assert_abs_diff_eq!(MolecularShape::circle_overlap(&a1, &a2), 0.);
+
+        for i in (0..10) {
+            let distance = (i + 1) as f64 / 10. * 2.;
+            let a1 = Atom::new(0., 0., 1.);
+            let a2 = Atom::new(distance, 0., 1.);
+            let area = 2. * MolecularShape::overlap_area(1., distance / 2.);
+            assert_abs_diff_eq!(
+                MolecularShape::circle_overlap(&a1, &a2),
+                area,
+                epsilon = 1e-7
+            );
+        }
+    }
+
+    #[test]
+    fn from_trimer_test() {
+        let shape = MolecularShape::from_trimer(1., PI, 1.);
+        assert_eq!(shape.items.len(), 3);
+
+        assert_abs_diff_eq!(shape.items[0].position, Point2::new(0., 0.));
+        assert_abs_diff_eq!(shape.items[1].position, Point2::new(-1., 0.));
+        assert_abs_diff_eq!(shape.items[2].position, Point2::new(1., 0.));
+
+        let shape = MolecularShape::from_trimer(0.637556, 2. * PI / 3., 1.);
+        assert_abs_diff_eq!(shape.items[0].position, Point2::new(0., -1. / 3.));
+        assert_abs_diff_eq!(
+            shape.items[1].position,
+            Point2::new(-0.866, 1. / 6.),
+            epsilon = 1e-3,
+        );
+        assert_abs_diff_eq!(
+            shape.items[2].position,
+            Point2::new(0.866, 1. / 6.),
+            epsilon = 1e-3,
+        );
+    }
+
+    #[test]
+    fn area_test() {
+        let shape = MolecularShape::from_trimer(1., PI, 2.);
+        assert_abs_diff_eq!(shape.area(), 3. * PI);
+
+        let shape = MolecularShape::from_trimer(0.637556, 2. * PI / 3., 1.);
+        println!("{}", shape.area());
+        assert!(shape.area() > 0.);
+    }
+}
+
 /// Puts an abstract shape object in a physical space
 ///
 /// This acts as a cache for computed values.
@@ -460,7 +617,7 @@ where
 
 impl<T> ShapeInstance<T>
 where
-    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug + fmt::Display,
 {
     pub fn from<S: Shape<Component = T>>(
         shape: &S,
@@ -477,8 +634,9 @@ where
     T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
 {
     pub fn intersects(&self, other: &ShapeInstance<T>) -> bool {
-        for item_a in self.items.iter() {
-            for item_b in other.items.iter() {
+        // We want to compare every item of the current shape with every item of the other shape.
+        for (index_a, item_a) in self.items.iter().enumerate() {
+            for item_b in other.items.iter().skip(index_a) {
                 if item_a.intersects(&item_b) {
                     return true;
                 }
@@ -488,14 +646,14 @@ where
     }
 }
 
-// impl<T> fmt::Debug for ShapeInstance<T>
-// where
-// T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
-// {
-// fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-// write!(f, "ShapeInstance{{ {:?} }}", self.items)
-// }
-// }
+impl<T> fmt::Debug for ShapeInstance<T>
+where
+    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ShapeInstance{{ {:?} }}", self.items)
+    }
+}
 
 #[cfg(test)]
 mod shape_instance_tests {
