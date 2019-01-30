@@ -7,25 +7,112 @@
 
 #[macro_use]
 extern crate clap;
-extern crate env_logger;
+extern crate simplelog;
+#[macro_use]
 extern crate log;
 extern crate rayon;
 
 use clap::{App, Arg};
 use packing;
 #[allow(unused_imports)]
-use packing::shape::{LineShape, Shape};
-use packing::wallpaper::WallpaperGroups;
+use packing::shape::{Atom, LineShape, MolecularShape, Shape};
+use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
+use packing::PackedState;
 use rayon::prelude::*;
+use simplelog::{Config, LevelFilter, TermLogger};
+use std::f64::consts::PI;
 
-fn cli() -> clap::ArgMatches<'static> {
-    App::new("packing")
+struct CLIOptions {
+    shape: ShapeTypes,
+    group: WallpaperGroup,
+    steps: u64,
+    num_sides: usize,
+    log_level: LevelFilter,
+}
+
+arg_enum! {
+    #[derive(Debug)]
+    pub enum ShapeTypes {
+        polygon,
+        trimer,
+        circle,
+    }
+}
+
+fn get_packed_state<T>(options: CLIOptions, shape: T) -> Result<PackedState<T>, &'static str>
+where
+    T: Shape + Send + Sync,
+{
+    let wallpaper = packing::Wallpaper::new(&options.group);
+    let isopointal = &[packing::WyckoffSite::new(&options.group)];
+
+    let state = PackedState::initialise(shape.clone(), wallpaper.clone(), isopointal);
+    if state.check_intersection() {
+        panic!("Initial state has intersetions...exiting.");
+    }
+
+    info!(
+        "Init packing fraction: {}",
+        state.packing_fraction().unwrap()
+    );
+
+    let mut vars = packing::MCVars::default();
+    vars.steps = options.steps;
+    vars.num_start_configs = 32;
+    // Remove mutability
+    let vars = vars;
+
+    let final_state = (0..vars.num_start_configs)
+        .into_par_iter()
+        .map(|_| {
+            let mut state =
+                packing::PackedState::initialise(shape.clone(), wallpaper.clone(), isopointal);
+            packing::monte_carlo_best_packing(&vars, &mut state)
+        })
+        .max()
+        .unwrap()?;
+
+    info!(
+        "Cell Area: {}, Shape Area: {}, Num Shapes: {}",
+        final_state.cell.area(),
+        shape.area(),
+        final_state.total_shapes(),
+    );
+
+    final_state.to_figure("test.txt");
+
+    info!(
+        "Final packing fraction: {}",
+        final_state.packing_fraction().unwrap()
+    );
+    Ok(final_state)
+}
+
+fn cli() -> CLIOptions {
+    let matches = App::new("packing")
         .version("0.1.0")
         .author("Malcolm Ramsay <malramsay64@gmail.com")
         .about("Find best tilings of 2d shapes")
         .arg(
+            Arg::with_name("verbosity")
+                .short("v")
+                .multiple(true)
+                .long("verbose"),
+        )
+        .arg(
+            Arg::with_name("quiet")
+                .short("q")
+                .multiple(true)
+                .long("quiet"),
+        )
+        .arg(
             Arg::with_name("wallpaper_group")
                 .possible_values(&WallpaperGroups::variants())
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("shape")
+                .possible_values(&ShapeTypes::variants())
                 .required(true),
         )
         .arg(
@@ -41,60 +128,56 @@ fn cli() -> clap::ArgMatches<'static> {
                 .takes_value(true)
                 .default_value("100"),
         )
-        .get_matches()
+        .get_matches();
+
+    let wg = value_t!(matches.value_of("wallpaper_group"), WallpaperGroups).unwrap();
+    println!("Using Wallpaper Group: {}", wg);
+
+    let shape = value_t!(matches.value_of("shape"), ShapeTypes).unwrap();
+    let num_sides = matches.value_of("sides").unwrap().parse().unwrap();
+
+    let group = packing::wallpaper::get_wallpaper_group(wg).unwrap();
+
+    let steps: u64 = matches.value_of("steps").unwrap().parse().unwrap();
+
+    let log_level =
+        match matches.occurrences_of("verbosity") as i64 - matches.occurrences_of("quiet") as i64 {
+            x if x <= -2 => LevelFilter::Error,
+            -1 => LevelFilter::Warn,
+            0 => LevelFilter::Info,
+            1 => LevelFilter::Debug,
+            x if 2 <= x => LevelFilter::Trace,
+            _ => unreachable!(),
+        };
+
+    CLIOptions {
+        shape,
+        group,
+        steps,
+        num_sides,
+        log_level,
+    }
 }
 
 fn main() -> Result<(), &'static str> {
-    env_logger::init();
-    let matches = cli();
+    let options = cli();
 
-    let num_sides: usize = matches.value_of("sides").unwrap().parse().unwrap();
-    let polygon = LineShape::from_radial("Polygon", vec![1.; num_sides]);
+    TermLogger::init(options.log_level, Config::default()).unwrap();
+    debug!("Logging Level: {}", options.log_level);
 
-    let wg = value_t!(matches.value_of("wallpaper_group"), WallpaperGroups).unwrap();
-
-    println!("Using Wallpaper Group: {}", wg);
-    let group = packing::wallpaper::get_wallpaper_group(wg).unwrap();
-
-    let wallpaper = packing::Wallpaper::new(&group);
-    let isopointal = &[packing::WyckoffSite::new(&group)];
-
-    let state = packing::PackedState::initialise(polygon.clone(), wallpaper.clone(), isopointal);
-    if state.check_intersection() {
-        panic!("Initial state has intersetions...exiting.");
-    }
-
-    println!(
-        "Init packing fraction: {}",
-        state.packing_fraction().unwrap()
-    );
-
-    let mut vars = packing::MCVars::default();
-    vars.steps = matches.value_of("steps").unwrap().parse().unwrap();
-    vars.num_start_configs = 32;
-
-    let final_state = (0..vars.num_start_configs)
-        .into_par_iter()
-        .map(|_| {
-            let mut state =
-                packing::PackedState::initialise(polygon.clone(), wallpaper.clone(), isopointal);
-            packing::monte_carlo_best_packing(&vars, &mut state)
-        })
-        .max()
-        .unwrap();
-
-    println!(
-        "Cell Area: {}, Shape Area: {}",
-        state.cell.area(),
-        state.shape.area()
-    );
-    println!("{:?}", state.cell);
-
-    state.to_figure("test.txt");
-
-    println!(
-        "Final packing fraction: {}",
-        final_state?.packing_fraction().unwrap()
-    );
+    match options.shape {
+        ShapeTypes::polygon => {
+            let shape = LineShape::from_radial("Polygon", vec![1.; options.num_sides]);
+            get_packed_state(options, shape).unwrap();
+        }
+        ShapeTypes::trimer => {
+            let shape = MolecularShape::from_trimer(0.637556, 2. * PI / 3., 1.);
+            get_packed_state(options, shape).unwrap();
+        }
+        ShapeTypes::circle => {
+            let shape = MolecularShape::circle();
+            get_packed_state(options, shape).unwrap();
+        }
+    };
     Ok(())
 }
