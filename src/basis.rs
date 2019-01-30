@@ -16,6 +16,13 @@ use std::sync::{Arc, Mutex};
 ///
 #[derive(Debug)]
 pub struct SharedValue {
+    // This uses the Arc/Mutex data structure since this implements the Send trait. While I can
+    // add Send trait to the SharedValue struct, and use the Rc/RefCell data structure there is
+    // only a small performance gain. This small gain is not worth the additional hassles of
+    // managing this manually should something change. This many owners of the data model works
+    // best, since although the Cell and OccupiedSite structs be the primary owners of the data
+    // with the Bases taking mutable references, the Cell struct has the option of having both side
+    // lenths the same which would need to be handled separately.
     value: Arc<Mutex<f64>>,
 }
 
