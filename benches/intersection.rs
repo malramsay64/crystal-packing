@@ -11,12 +11,12 @@ use criterion::{Criterion, ParameterizedBenchmark};
 use nalgebra::{IsometryMatrix2, Vector2};
 use packing::shape::{LineShape, Shape, ShapeInstance};
 
-fn create_polygon(sides: usize) -> LineShape {
+fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])
 }
 
 fn setup_state(points: usize) -> packing::PackedState<LineShape> {
-    let shape = create_polygon(points);
+    let shape = create_polygon(points).unwrap();
 
     let wallpaper = packing::Wallpaper {
         name: String::from("p2"),
@@ -66,7 +66,7 @@ fn shape_check_intersection(c: &mut Criterion) {
     let benchmark = ParameterizedBenchmark::new(
         "Shape Intersection Scaling",
         |b, &param| {
-            let shape = create_polygon(param);
+            let shape = create_polygon(param).unwrap();
             let (si1, si2) = setup_shapes(&shape);
             b.iter(|| si1.intersects(&si2))
         },

@@ -41,16 +41,16 @@ impl SymmetryTransform {
                 '0'...'9' => {
                     let val = c.to_string().parse::<u64>().unwrap() as f64;
                     // Is there an operator defined, i.e. is this the first digit
-                    if let Some(op) = operator {
-                        constant = match op {
+                    constant = match operator {
+                        Some(op) => match op {
                             '/' => sign * constant / val,
                             '*' => sign * constant * val,
                             _ => 0.,
-                        };
-                        operator = None;
-                    } else {
-                        constant = sign * val;
-                    }
+                        },
+                        None => sign * val,
+                    };
+                    // Reset values
+                    operator = None;
                     sign = 1.
                 }
                 // Default is do nothing (shouldn't encounter this at all)

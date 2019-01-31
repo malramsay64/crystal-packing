@@ -167,11 +167,11 @@ fn main() -> Result<(), &'static str> {
 
     match options.shape {
         ShapeTypes::polygon => {
-            let shape = LineShape::from_radial("Polygon", vec![1.; options.num_sides]);
+            let shape = LineShape::from_radial("Polygon", vec![1.; options.num_sides])?;
             get_packed_state(options, shape).unwrap();
         }
         ShapeTypes::trimer => {
-            let shape = MolecularShape::from_trimer(0.637556, 2. * PI / 3., 1.);
+            let shape = MolecularShape::from_trimer(0.637_556, 2. * PI / 3., 1.);
             get_packed_state(options, shape).unwrap();
         }
         ShapeTypes::circle => {

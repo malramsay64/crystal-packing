@@ -17,7 +17,6 @@ extern crate itertools;
 extern crate nalgebra as na;
 extern crate rand;
 
-use itertools::Itertools;
 use nalgebra::{IsometryMatrix2, Point2};
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
@@ -214,7 +213,7 @@ impl<T: shape::Shape> PackedState<T> {
         let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
         let cell = Cell::from_family(&wallpaper.family, max_cell_size);
-        basis.append(&mut cell.get_basis());
+        basis.append(&mut cell.get_degrees_of_freedom());
 
         debug!("Cell: {:?}", cell);
 
@@ -308,7 +307,7 @@ mod packed_state_tests {
     use super::*;
 
     fn create_square() -> LineShape {
-        LineShape::from_radial("Square", vec![1., 1., 1., 1.])
+        LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap()
     }
 
     fn create_wallpaper_p1() -> (Wallpaper, Vec<WyckoffSite>) {
@@ -422,6 +421,8 @@ pub fn monte_carlo_best_packing<T: shape::Shape>(
     vars: &MCVars,
     state: &mut PackedState<T>,
 ) -> Result<PackedState<T>, &'static str> {
+    // When a random seed is provided, use it, otherwise seed the random number generator from the
+    // system entropy.
     let mut rng = match vars.seed {
         Some(x) => SmallRng::seed_from_u64(x),
         None => SmallRng::from_entropy(),
