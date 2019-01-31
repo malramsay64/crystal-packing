@@ -291,9 +291,11 @@ mod atom_tests {
         let a1 = Atom::new(1., 0., 1.);
         let a2 = Atom::new(0.5, 0.5, 1.);
         let a3 = Atom::new(1.5, 1.5, 1.);
+
         assert!(a0.intersects(&a1));
         assert!(a1.intersects(&a2));
         assert!(a3.intersects(&a2));
+
         assert!(!a0.intersects(&a3));
     }
 
@@ -304,6 +306,8 @@ mod atom_tests {
         let a2 = Atom::new(1., 1., f64::sqrt(2.) / 2. - 2. * std::f64::EPSILON);
         println!("Radii: {}", a0.radius * a0.radius + a1.radius * a1.radius);
         assert!(a0.intersects(&a1));
+        assert!(a1.intersects(&a2));
+
         assert!(!a0.intersects(&a2));
     }
 
@@ -326,19 +330,23 @@ pub trait Shape: PartialEq + fmt::Debug + Clone + fmt::Display {
 
 impl fmt::Display for LineShape {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Shape({}) {{ ", self.name);
+        write!(f, "Shape({}) {{ ", self.name)?;
         for item in self.items.iter() {
-            write!(f, "{}, ", item);
+            write!(f, "{}, ", item)?;
         }
         write!(f, "}}")
     }
 }
 
+/// A Shape constructed from a collection of Lines
+///
+/// This defines a collection of lines, from one point to another which define the area enclosed by
+/// a shape. It is assumed that the lines completely enclose an area, and that the enclosed area is
+/// close to the origin.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineShape {
     pub name: String,
     pub items: Vec<Line>,
-    pub rotational_symmetries: u64,
 }
 
 impl<'a> IntoIterator for &'a LineShape {
@@ -357,13 +365,10 @@ impl Shape for LineShape {
         // This is the sine of the angle between each point, this is used for every calculation
         // so pre-calculate here.
         let angle_term: f64 = f64::sin(2. * PI / self.items.len() as f64);
-
+        let zero = Point2::origin();
         self.iter()
-            .map(|p| {
-                0.5 * angle_term
-                    * na::distance(&Point2::origin(), &p.start)
-                    * na::distance(&Point2::origin(), &p.end)
-            })
+            // Calculate the area of the of triangle made by the line and the origin
+            .map(|p| 0.5 * angle_term * na::distance(&zero, &p.start) * na::distance(&zero, &p.end))
             .sum()
     }
 
@@ -386,7 +391,24 @@ impl Shape for LineShape {
 }
 
 impl LineShape {
-    pub fn from_radial(name: &str, points: Vec<f64>) -> LineShape {
+    /// Instantiate a LineShape from a collection of radial points
+    ///
+    /// The input is a Vector of points which are a radial distance from the origin, with the
+    /// points separated by and equal angle. For example to create a Triangle, which is the shape
+    /// with the fewest number of sides, we can run
+    /// ```
+    /// let tri = LineShape::from_radial("Triangle", vec![1., 1., 1.])
+    /// ```
+    /// More generally to create a regular polygon with an arbitrary number of sides
+    /// ```
+    /// let sides = 10;
+    /// let polygon = LineShape::from_radial("Polygon", vec![1.; sides])
+    /// ```
+    ///
+    pub fn from_radial(name: &str, points: Vec<f64>) -> Result<LineShape, &'static str> {
+        if points.len() < 3 {
+            return Err("The number of points provided is too few to create a 2D shape.");
+        }
         let dtheta = 2. * PI / points.len() as f64;
         let mut items: Vec<Line> = vec![];
         for (index, (r1, r2)) in points.iter().zip(points.iter().cycle().skip(1)).enumerate() {
@@ -397,11 +419,10 @@ impl LineShape {
             ))
         }
 
-        LineShape {
+        Ok(LineShape {
             name: String::from(name),
             items,
-            rotational_symmetries: 1,
-        }
+        })
     }
 }
 
@@ -410,7 +431,7 @@ mod line_shape_tests {
     use super::*;
 
     fn create_square() -> LineShape {
-        LineShape::from_radial("Square", vec![1., 1., 1., 1.])
+        LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap()
     }
 
     #[test]
@@ -427,13 +448,16 @@ mod line_shape_tests {
 
     #[test]
     fn max_radius() {
-        let shape = LineShape::from_radial("iter_test", vec![1., 2., 3., 4.]);
+        let shape = LineShape::from_radial("iter_test", vec![1., 2., 3., 4.]).unwrap();
         assert_abs_diff_eq!(shape.enclosing_radius(), 4.);
         assert_abs_diff_eq!(shape.enclosing_radius(), 4.);
     }
 
 }
 
+/// A shape defined by a collection of Atoms
+///
+/// This is a shape comprised of a series of circles which each have a position and radius.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MolecularShape {
     pub name: String,
@@ -488,9 +512,9 @@ impl Shape for MolecularShape {
 
 impl fmt::Display for MolecularShape {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MolShape {{ ");
+        write!(f, "MolShape {{ ")?;
         for item in self.items.iter() {
-            write!(f, "{},", item)?
+            write!(f, "{},", item)?;
         }
         write!(f, " }}")
     }
@@ -503,18 +527,23 @@ impl MolecularShape {
 
     fn circle_overlap(a1: &Atom, a2: &Atom) -> f64 {
         let distance = na::distance(&a1.position, &a2.position);
-        match distance < a1.radius + a2.radius {
-            true => {
-                let d1 =
-                    (distance.powi(2) + a1.radius.powi(2) - a2.radius.powi(2)) / (2. * distance);
-                let d2 =
-                    (distance.powi(2) + a2.radius.powi(2) - a1.radius.powi(2)) / (2. * distance);
-                Self::overlap_area(a1.radius, d1) + Self::overlap_area(a2.radius, d2)
-            }
-            false => 0.,
+        // There is some overlap between the circles which needs to be calculated
+        if distance < a1.radius + a2.radius {
+            let d1 = (distance.powi(2) + a1.radius.powi(2) - a2.radius.powi(2)) / (2. * distance);
+            let d2 = (distance.powi(2) + a2.radius.powi(2) - a1.radius.powi(2)) / (2. * distance);
+            Self::overlap_area(a1.radius, d1) + Self::overlap_area(a2.radius, d2)
+        } else {
+            0.
         }
     }
 
+    /// Create a Trimer molecule instance
+    ///
+    /// A Trimer is a molecule consisting of three particles, a central particle of radius 1 and
+    /// two smaller particles with a radius `radius`, separated by angle `angle` and at a distance
+    /// `distance` from the center of the central particle. This is a class of particle I am
+    /// studying in my research.
+    ///
     pub fn from_trimer(radius: f64, angle: f64, distance: f64) -> Self {
         Self {
             name: String::from("Trimer"),
@@ -533,6 +562,10 @@ impl MolecularShape {
             ],
         }
     }
+
+    /// Create an instance of a Circle
+    ///
+    /// This is the simplest molecular shape, a single circle at the origin with radius of 1.0.
     pub fn circle() -> Self {
         Self {
             name: String::from("circle"),
@@ -548,7 +581,6 @@ mod molecular_shape_tests {
     #[test]
     fn overlap_area_test() {
         assert_abs_diff_eq!(MolecularShape::overlap_area(1., 1.), 0.);
-        // assert_abs_diff_eq!(MolecularShape::overlap_area(1., 0.2;), PI);
     }
 
     #[test]
@@ -557,10 +589,12 @@ mod molecular_shape_tests {
         let a2 = Atom::new(2., 0., 1.);
         assert_abs_diff_eq!(MolecularShape::circle_overlap(&a1, &a2), 0.);
 
-        for i in (0..10) {
+        for i in 0..10 {
             let distance = (i + 1) as f64 / 10. * 2.;
             let a1 = Atom::new(0., 0., 1.);
             let a2 = Atom::new(distance, 0., 1.);
+            // A known algorithm for confirming the area is calculated correctly, as found on
+            // http://mathworld.wolfram.com/Circle-CircleIntersection.html
             let area = 2. * MolecularShape::overlap_area(1., distance / 2.);
             assert_abs_diff_eq!(
                 MolecularShape::circle_overlap(&a1, &a2),
@@ -619,6 +653,13 @@ impl<T> ShapeInstance<T>
 where
     T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug + fmt::Display,
 {
+    /// Create a ShapeInstance from a Shape and a Symmetry operation
+    ///
+    /// This takes the general shape typically centred around the origin, and transforms it into a
+    /// position in the cell. In the simplest case, this is purely a transformation to put the
+    /// shape in the appropriate coordinates. In other cases it performs both translations and
+    /// rotations of the shape to the appropriate positions.
+    ///
     pub fn from<S: Shape<Component = T>>(
         shape: &S,
         iso: &IsometryMatrix2<f64>,
@@ -633,6 +674,13 @@ impl<T> ShapeInstance<T>
 where
     T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
 {
+    /// Check whether this shape intersects with another shape
+    ///
+    /// A ShapeInstance is considered to intersect with another when one of it's components
+    /// intersects with a component of the other shape. For a square, there is an intersection
+    /// when a line from one square crosses the other. Each component item of `self` is
+    /// checked against `other`.
+    ///
     pub fn intersects(&self, other: &ShapeInstance<T>) -> bool {
         // We want to compare every item of the current shape with every item of the other shape.
         for (index_a, item_a) in self.items.iter().enumerate() {
@@ -661,7 +709,7 @@ mod shape_instance_tests {
 
     #[test]
     fn lines() {
-        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
         let shape_i = ShapeInstance::from(&shape, &IsometryMatrix2::identity());
         let expected_vec = vec![
             Line::new((0., 1.), (1., 0.)),
@@ -669,8 +717,7 @@ mod shape_instance_tests {
             Line::new((0., -1.), (-1., 0.)),
             Line::new((-1., 0.), (0., 1.)),
         ];
-        for (index, (expected, result)) in shape_i.items.iter().zip(expected_vec.iter()).enumerate()
-        {
+        for (index, result, expected) in izip!(0.., shape_i.items.iter(), expected_vec.iter()) {
             println!("{}", index);
             assert_abs_diff_eq!(expected, result, epsilon = 1e-8);
         }
@@ -678,7 +725,7 @@ mod shape_instance_tests {
 
     #[test]
     fn lines_translate() {
-        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
         let shape_i =
             ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(-1., 0.), 0.));
         let expected_vec = vec![
@@ -687,8 +734,7 @@ mod shape_instance_tests {
             Line::new((-1., -1.), (-2., 0.)),
             Line::new((-2., 0.), (-1., 1.)),
         ];
-        for (index, (expected, result)) in shape_i.items.iter().zip(expected_vec.iter()).enumerate()
-        {
+        for (index, result, expected) in izip!(0.., shape_i.items.iter(), expected_vec.iter()) {
             println!("{}", index);
             assert_abs_diff_eq!(*expected, *result, epsilon = 1e-8);
         }
@@ -696,7 +742,7 @@ mod shape_instance_tests {
 
     #[test]
     fn lines_translate_rotate() {
-        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
         let shape_i =
             ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(-1., 0.), PI));
         let expected_vec = vec![
@@ -705,8 +751,7 @@ mod shape_instance_tests {
             Line::new((-1., 1.), (0., 0.)),
             Line::new((0., 0.), (-1., -1.)),
         ];
-        for (index, (expected, result)) in shape_i.items.iter().zip(expected_vec.iter()).enumerate()
-        {
+        for (index, result, expected) in izip!(0.., shape_i.items.iter(), expected_vec.iter()) {
             println!("{}", index);
             assert_abs_diff_eq!(*expected, *result, epsilon = 1e-8);
         }
@@ -732,7 +777,7 @@ mod shape_instance_tests {
     //
     #[test]
     fn intersects() {
-        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]);
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
         let shape_i1 =
             ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(1., 0.), 0.));
         assert!(shape_i1.intersects(&shape_i1));
