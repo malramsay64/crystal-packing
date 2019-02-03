@@ -17,7 +17,7 @@ extern crate itertools;
 extern crate nalgebra as na;
 extern crate rand;
 
-use nalgebra::{IsometryMatrix2, Point2};
+use nalgebra::{Point2, Vector2};
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
@@ -52,6 +52,17 @@ struct OccupiedSite {
 impl OccupiedSite {
     fn multiplicity(&self) -> usize {
         self.wyckoff.symmetries.len()
+    }
+
+    pub fn position(&self) -> Point2<f64> {
+        Point2::new(self.x.get_value(), self.y.get_value())
+    }
+
+    pub fn transform(&self) -> SymmetryTransform {
+        SymmetryTransform::new(
+            Vector2::new(self.x.get_value(), self.y.get_value()),
+            self.angle.get_value(),
+        )
     }
 
     fn from_wyckoff(wyckoff: &WyckoffSite) -> OccupiedSite {
@@ -126,21 +137,17 @@ impl<T: shape::Shape> PackedState<T> {
         let mut positions: Vec<Vec<T::Component>> = vec![];
         for position in self.relative_positions().iter() {
             let shape_i: ShapeInstance<T::Component> =
-                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position));
+                ShapeInstance::from(&self.shape, self.cell.to_cartesian_isometry(position));
             positions.push(shape_i.items);
         }
         positions
     }
 
-    fn relative_positions(&self) -> Vec<IsometryMatrix2<f64>> {
-        let mut transforms: Vec<IsometryMatrix2<f64>> = vec![];
+    fn relative_positions(&self) -> Vec<SymmetryTransform> {
+        let mut transforms: Vec<SymmetryTransform> = vec![];
         for site in self.occupied_sites.iter() {
-            let position_transform = na::IsometryMatrix2::new(
-                na::Vector2::new(site.x.get_value(), site.y.get_value()),
-                site.angle.get_value(),
-            );
             for symmetry in site.wyckoff.symmetries.iter() {
-                transforms.push(symmetry.isometry * position_transform);
+                transforms.push(symmetry * site.transform());
             }
         }
         transforms
@@ -156,8 +163,20 @@ impl<T: shape::Shape> PackedState<T> {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
             // We only need to check the positions after that of index1, since the previous ones
             // have already been checked, hence `.skip(index1)`
+            trace!(
+                "Creating shape from: {:?}, results in {:?}",
+                position1,
+                self.cell.to_cartesian_isometry(position1)
+            );
+            let shape_i1 =
+                ShapeInstance::from(&self.shape, self.cell.to_cartesian_isometry(position1));
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
                 debug!("Checking {} against {}", index1, index2);
+                trace!(
+                    "Creating shape from: {:?}, results in {:?}",
+                    position2,
+                    self.cell.to_cartesian_isometry(position2)
+                );
 
                 // The periodic images to check. Checking the first and second shells i.e.
                 // -2..=2, as this is nessecary to ensure no intersections on tilted cells.
@@ -168,18 +187,13 @@ impl<T: shape::Shape> PackedState<T> {
                     if index1 == index2 && x_periodic == 0 && y_periodic == 0 {
                         continue;
                     }
-                    let shape_i1 = ShapeInstance::from(
-                        &self.shape,
-                        &self.cell.to_cartesian_isometry(position1),
-                    );
-                    let iso = IsometryMatrix2::from_parts(
-                        position2.translation
-                            * na::Translation2::new(x_periodic as f64, y_periodic as f64),
-                        position2.rotation,
-                    );
 
-                    let shape_i2 =
-                        ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&iso));
+                    let periodic_position2 =
+                        position2 + Vector2::new(x_periodic as f64, y_periodic as f64);
+                    let shape_i2 = ShapeInstance::from(
+                        &self.shape,
+                        self.cell.to_cartesian_isometry(&periodic_position2),
+                    );
                     if shape_i1.intersects(&shape_i2) {
                         return true;
                     }
@@ -267,35 +281,28 @@ impl<T: shape::Shape> PackedState<T> {
             // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
             // nessecary, although this is currently not an issue due to the limiting of the
             // value of the cell angle.
-            let (x_r, y_r) = (position.translation.vector.x, position.translation.vector.y);
-            let rotation = position.rotation;
+            let (x_r, y_r) = (position.translation.x, position.translation.y);
             debug!(
                 "Relative Position: {} {} {}",
                 x_r,
                 y_r,
-                rotation.angle() * 180. / PI
+                position.angle() * 180. / PI
             );
             let (x_c, y_c) = self.cell.to_cartesian(x_r, y_r);
             debug!("Cartesian Position: {} {}", x_c, y_c);
-            let periodic_images: &[f64] = &[-1., 0., 1.];
-            for x_periodic in periodic_images {
-                for y_periodic in periodic_images {
-                    let iso = IsometryMatrix2::from_parts(
-                        position.translation * na::Translation2::new(*x_periodic, *y_periodic),
-                        position.rotation,
-                    );
+            for (x_periodic, y_periodic) in iproduct!(-1..=1, -1..=1) {
+                let p_position = position + Vector2::new(x_periodic as f64, y_periodic as f64);
 
-                    let shape_i =
-                        ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&iso));
+                let shape_i =
+                    ShapeInstance::from(&self.shape, self.cell.to_cartesian_isometry(&p_position));
 
-                    let colour = match () {
-                        // This is the 'original' coordinates so differentiate
-                        _ if *x_periodic == 0. && *y_periodic == 0. => 'b',
-                        _ => 'g',
-                    };
-                    for item in shape_i.items.iter() {
-                        writeln!(file, "{}, {}", item, colour).unwrap();
-                    }
+                let colour = match () {
+                    // These are the 'original' coordinates so differentiate
+                    _ if x_periodic == 0 && y_periodic == 0 => 'b',
+                    _ => 'g',
+                };
+                for item in shape_i.items.iter() {
+                    writeln!(file, "{}, {}", item, colour).unwrap();
                 }
             }
         }
@@ -317,7 +324,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![SymmetryTransform::new("x,y")],
+            symmetries: vec![SymmetryTransform::from_operations("x,y")],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -334,10 +341,10 @@ mod packed_state_tests {
         let isopointal = vec![WyckoffSite {
             letter: 'd',
             symmetries: vec![
-                SymmetryTransform::new("x,y"),
-                SymmetryTransform::new("-x,-y"),
-                SymmetryTransform::new("-x+1/2,y"),
-                SymmetryTransform::new("x+1/2,-y"),
+                SymmetryTransform::from_operations("x,y"),
+                SymmetryTransform::from_operations("-x,-y"),
+                SymmetryTransform::from_operations("-x+1/2,y"),
+                SymmetryTransform::from_operations("x+1/2,-y"),
             ],
             num_rotations: 1,
             mirror_primary: false,

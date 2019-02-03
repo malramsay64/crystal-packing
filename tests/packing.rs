@@ -4,9 +4,12 @@
 // Distributed under terms of the MIT license.
 //
 
+use nalgebra::Vector2;
+
 use packing;
 #[allow(unused_imports)]
 use packing::shape::{LineShape, Shape};
+use packing::symmetry::SymmetryTransform;
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {
@@ -20,8 +23,8 @@ fn test_packing_improves() -> Result<(), &'static str> {
     let isopointal = &[packing::WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            packing::SymmetryTransform::new("x,y"),
-            packing::SymmetryTransform::new("-x,-y"),
+            SymmetryTransform::from_operations("x,y"),
+            SymmetryTransform::from_operations("-x,-y"),
         ],
         num_rotations: 1,
         mirror_primary: false,

@@ -9,7 +9,7 @@ extern crate itertools;
 use approx::{AbsDiffEq, RelativeEq};
 use itertools::Itertools;
 use nalgebra as na;
-use nalgebra::{IsometryMatrix2, Point2};
+use nalgebra::Point2;
 
 use std::f64::consts::PI;
 use std::fmt;
@@ -17,7 +17,9 @@ use std::ops;
 use std::slice;
 use std::vec;
 
-pub trait Intersect: ops::Mul<IsometryMatrix2<f64>> {
+use crate::symmetry::SymmetryTransform;
+
+pub trait Intersect: ops::Mul<SymmetryTransform> {
     fn intersects(&self, other: &Self) -> bool;
 }
 
@@ -110,10 +112,21 @@ impl fmt::Display for Line {
     }
 }
 
-impl ops::Mul<IsometryMatrix2<f64>> for Line {
+impl ops::Mul<SymmetryTransform> for Line {
     type Output = Self;
 
-    fn mul(self, rhs: IsometryMatrix2<f64>) -> Self::Output {
+    fn mul(self, rhs: SymmetryTransform) -> Self::Output {
+        Self {
+            start: &rhs * self.start,
+            end: &rhs * self.end,
+        }
+    }
+}
+
+impl ops::Mul<&SymmetryTransform> for Line {
+    type Output = Self;
+
+    fn mul(self, rhs: &SymmetryTransform) -> Self::Output {
         Self {
             start: rhs * self.start,
             end: rhs * self.end,
@@ -143,6 +156,7 @@ impl Line {
 #[cfg(test)]
 mod line_tests {
     use super::*;
+    use nalgebra::Vector2;
 
     #[test]
     fn new() {
@@ -178,11 +192,11 @@ mod line_tests {
 
     #[test]
     fn isometry_matrix_mul() {
-        let ident: IsometryMatrix2<f64> = IsometryMatrix2::identity();
+        let ident: SymmetryTransform = SymmetryTransform::identity();
         let line = Line::new((1., 1.), (0., 0.));
         assert_eq!(line * ident, line);
 
-        let trans: IsometryMatrix2<f64> = IsometryMatrix2::new(na::Matrix2x1::new(1., 1.), 0.);
+        let trans: SymmetryTransform = SymmetryTransform::new(Vector2::new(1., 1.), 0.);
         assert_eq!(line * trans, Line::new((2., 2.), (1., 1.)));
     }
 
@@ -235,10 +249,10 @@ impl Intersect for Atom {
     }
 }
 
-impl ops::Mul<IsometryMatrix2<f64>> for Atom {
+impl ops::Mul<SymmetryTransform> for Atom {
     type Output = Self;
 
-    fn mul(self, rhs: IsometryMatrix2<f64>) -> Self::Output {
+    fn mul(self, rhs: SymmetryTransform) -> Self::Output {
         Self {
             position: rhs * self.position,
             radius: self.radius,
@@ -317,7 +331,7 @@ pub trait Shape: PartialEq + fmt::Debug + Clone + fmt::Display {
     type Component: Intersect
         + fmt::Debug
         + fmt::Display
-        + ops::Mul<IsometryMatrix2<f64>, Output = Self::Component>;
+        + ops::Mul<SymmetryTransform, Output = Self::Component>;
 
     fn area(&self) -> f64;
     fn enclosing_radius(&self) -> f64;
@@ -646,14 +660,14 @@ mod molecular_shape_tests {
 #[derive(PartialEq)]
 pub struct ShapeInstance<T>
 where
-    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+    T: Intersect + ops::Mul<SymmetryTransform, Output = T> + fmt::Debug,
 {
     pub items: Vec<T>,
 }
 
 impl<T> ShapeInstance<T>
 where
-    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug + fmt::Display,
+    T: Intersect + ops::Mul<SymmetryTransform, Output = T> + fmt::Debug + fmt::Display,
 {
     /// Create a ShapeInstance from a Shape and a Symmetry operation
     ///
@@ -662,19 +676,21 @@ where
     /// shape in the appropriate coordinates. In other cases it performs both translations and
     /// rotations of the shape to the appropriate positions.
     ///
-    pub fn from<S: Shape<Component = T>>(
-        shape: &S,
-        iso: &IsometryMatrix2<f64>,
-    ) -> ShapeInstance<T> {
+    pub fn from<S: Shape<Component = T>>(shape: &S, iso: SymmetryTransform) -> ShapeInstance<T> {
+        trace!("Shape: {:?}, iso: {:?}", shape, iso);
         ShapeInstance {
-            items: shape.get_items().into_iter().map(|p| p * *iso).collect(),
+            items: shape
+                .get_items()
+                .into_iter()
+                .map(|p| p * iso.clone())
+                .collect(),
         }
     }
 }
 
 impl<T> ShapeInstance<T>
 where
-    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+    T: Intersect + ops::Mul<SymmetryTransform, Output = T> + fmt::Debug,
 {
     /// Check whether this shape intersects with another shape
     ///
@@ -698,7 +714,7 @@ where
 
 impl<T> fmt::Debug for ShapeInstance<T>
 where
-    T: Intersect + ops::Mul<IsometryMatrix2<f64>, Output = T> + fmt::Debug,
+    T: Intersect + ops::Mul<SymmetryTransform, Output = T> + fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ShapeInstance{{ {:?} }}", self.items)
@@ -708,11 +724,12 @@ where
 #[cfg(test)]
 mod shape_instance_tests {
     use super::*;
+    use nalgebra::Vector2;
 
     #[test]
     fn lines() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, &IsometryMatrix2::identity());
+        let shape_i = ShapeInstance::from(&shape, SymmetryTransform::default());
         let expected_vec = vec![
             Line::new((0., 1.), (1., 0.)),
             Line::new((1., 0.), (0., -1.)),
@@ -728,8 +745,10 @@ mod shape_instance_tests {
     #[test]
     fn lines_translate() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i =
-            ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(-1., 0.), 0.));
+        let shape_i = ShapeInstance::from(
+            &shape,
+            SymmetryTransform::new(na::Vector2::new(-1., 0.), 0.),
+        );
         let expected_vec = vec![
             Line::new((-1., 1.), (0., 0.)),
             Line::new((0., 0.), (-1., -1.)),
@@ -743,10 +762,31 @@ mod shape_instance_tests {
     }
 
     #[test]
+    fn lines_rotate_point() {
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
+        let shape_i = ShapeInstance::from(
+            &shape,
+            SymmetryTransform::new(na::Vector2::new(-1., 0.), PI),
+        );
+        let expected_vec = vec![
+            Line::new((-1., -1.), (-2., 0.)),
+            Line::new((-2., 0.), (-1., 1.)),
+            Line::new((-1., 1.), (0., 0.)),
+            Line::new((0., 0.), (-1., -1.)),
+        ];
+        for (index, result, expected) in izip!(0.., shape_i.items.iter(), expected_vec.iter()) {
+            println!("{}", index);
+            assert_abs_diff_eq!(*expected, *result, epsilon = 1e-8);
+        }
+    }
+
+    #[test]
     fn lines_translate_rotate() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i =
-            ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(-1., 0.), PI));
+        let shape_i = ShapeInstance::from(
+            &shape,
+            SymmetryTransform::new(na::Vector2::new(-1., 0.), PI),
+        );
         let expected_vec = vec![
             Line::new((-1., -1.), (-2., 0.)),
             Line::new((-2., 0.), (-1., 1.)),
@@ -781,18 +821,16 @@ mod shape_instance_tests {
     fn intersects() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
         let shape_i1 =
-            ShapeInstance::from(&shape, &IsometryMatrix2::new(na::Vector2::new(1., 0.), 0.));
+            ShapeInstance::from(&shape, SymmetryTransform::new(Vector2::new(1., 0.), 0.));
         assert!(shape_i1.intersects(&shape_i1));
 
-        let shape_i2 = ShapeInstance::from(
-            &shape,
-            &IsometryMatrix2::new(na::Vector2::new(-1.001, 0.), 0.),
-        );
+        let shape_i2 =
+            ShapeInstance::from(&shape, SymmetryTransform::new(Vector2::new(-1.001, 0.), 0.));
         assert!(!shape_i1.intersects(&shape_i2));
 
         let shape_i3 = ShapeInstance::from(
             &shape,
-            &IsometryMatrix2::new(na::Vector2::new(0., 0.), PI / 4.),
+            SymmetryTransform::new(Vector2::new(0., 0.), PI / 4.),
         );
         assert!(shape_i1.intersects(&shape_i3));
         assert!(shape_i2.intersects(&shape_i3));

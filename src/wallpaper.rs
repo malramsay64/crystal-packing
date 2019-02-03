@@ -42,11 +42,11 @@ pub struct WyckoffSite {
 }
 
 impl WyckoffSite {
-    pub fn new(group: &WallpaperGroup) -> WyckoffSite {
+    pub fn new(group: WallpaperGroup) -> WyckoffSite {
         let symmetries: Vec<SymmetryTransform> = group
             .wyckoff_str
-            .iter()
-            .map(|s| SymmetryTransform::new(s))
+            .into_iter()
+            .map(SymmetryTransform::from_operations)
             .collect();
         WyckoffSite {
             letter: 'a',

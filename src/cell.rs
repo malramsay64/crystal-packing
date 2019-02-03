@@ -4,9 +4,12 @@
 // Distributed under terms of the MIT license.
 //
 
-pub use crate::basis::{Basis, SharedValue, StandardBasis};
-use nalgebra::{IsometryMatrix2, Point2};
 use std::f64::consts::PI;
+
+use nalgebra::{Point2, Vector2};
+
+pub use crate::basis::{Basis, SharedValue, StandardBasis};
+pub use crate::symmetry::SymmetryTransform;
 
 /// The different crystal families that can be represented
 ///
@@ -88,12 +91,12 @@ impl Cell {
     /// and converts the values of the fractional coordinates in the translation to real
     /// cartesian coordinates based on the current cell parameters.
     ///
-    pub fn to_cartesian_isometry(&self, transform: &IsometryMatrix2<f64>) -> IsometryMatrix2<f64> {
-        let (x, y) = self.to_cartesian(
-            transform.translation.vector.x,
-            transform.translation.vector.y,
-        );
-        IsometryMatrix2::from_parts(na::Translation2::new(x, y), transform.rotation)
+    pub fn to_cartesian_isometry(&self, transform: &SymmetryTransform) -> SymmetryTransform {
+        let (x, y) = self.to_cartesian(transform.translation.x, transform.translation.y);
+        SymmetryTransform {
+            rotation: transform.rotation,
+            translation: Vector2::new(x, y),
+        }
     }
 
     /// The $x$ component of the cell, also known as $a$
@@ -233,12 +236,12 @@ mod cell_tests {
     #[test]
     fn to_cartesian_test() {
         let cell = Cell::default();
-        let trans = na::IsometryMatrix2::new(na::Vector2::new(0.5, 0.5), 0.);
+        let trans = SymmetryTransform::new(na::Vector2::new(0.5, 0.5), 0.);
 
         assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
         cell.angle.set_value(PI / 4.);
-        let expected = na::IsometryMatrix2::new(
+        let expected = SymmetryTransform::new(
             na::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
             0.,
         );

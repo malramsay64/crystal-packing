@@ -44,7 +44,7 @@ where
     T: Shape + Send + Sync,
 {
     let wallpaper = packing::Wallpaper::new(&options.group);
-    let isopointal = &[packing::WyckoffSite::new(&options.group)];
+    let isopointal = &[packing::WyckoffSite::new(options.group)];
 
     let state = PackedState::initialise(shape.clone(), wallpaper.clone(), isopointal);
     if state.check_intersection() {
