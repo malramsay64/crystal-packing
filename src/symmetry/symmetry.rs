@@ -5,10 +5,9 @@
 //
 //
 
-use std::ops;
-
 use approx;
-use nalgebra::{Matrix2, Point2, Vector2};
+// Re-export these to allow importing along with the SymmetryTransform struct
+pub use nalgebra::{Matrix2, Point2, Vector2};
 
 /// Define the transformations of particle positions
 ///
@@ -36,29 +35,17 @@ impl approx::AbsDiffEq for SymmetryTransform {
     }
 }
 
-impl ops::Add<Vector2<f64>> for SymmetryTransform {
-    type Output = SymmetryTransform;
-
-    fn add(self, other: Vector2<f64>) -> Self::Output {
-        SymmetryTransform {
-            rotation: self.rotation,
-            translation: self.translation + other,
-        }
-    }
-}
-
-impl ops::Add<Vector2<f64>> for &SymmetryTransform {
-    type Output = SymmetryTransform;
-
-    fn add(self, other: Vector2<f64>) -> Self::Output {
-        SymmetryTransform {
-            rotation: self.rotation,
-            translation: self.translation + other,
-        }
-    }
-}
-
 impl SymmetryTransform {
+    /// Instantiate a symmetry transform from a translation vector and angle
+    ///
+    /// This is simpler than specifying an entire rotation matrix, although it doesn't allow for
+    /// the specification of any mirror planes. It can be used as;
+    /// ```
+    /// use packing::symmetry::{SymmetryTransform, Vector2};
+    /// use std::f64::consts::PI;
+    /// let t = SymmetryTransform::new(Vector2::new(1., 1.), PI /2.);
+    /// ```
+    ///
     pub fn new(translation: Vector2<f64>, rotation: f64) -> SymmetryTransform {
         SymmetryTransform {
             // Convert a rotation angle in radians to a rotation matrix.
@@ -72,6 +59,17 @@ impl SymmetryTransform {
         }
     }
 
+    /// Create the identity transform
+    ///
+    /// This is the transform which leaves the transformed vector unchanged.
+    ///
+    /// ```
+    /// use packing::symmetry::{SymmetryTransform, Vector2};
+    /// let t = SymmetryTransform::identity();
+    /// let c = Vector2::new(-1., 1.);
+    /// assert_eq!(t * &c, c);
+    /// ```
+    ///
     pub fn identity() -> Self {
         Self {
             translation: Vector2::zeros(),
@@ -81,7 +79,14 @@ impl SymmetryTransform {
 
     /// Convert the string representation of a symmetry operation to a vector.
     ///
-    /// This converts the string representation of an operation to
+    /// This converts the string representation of an operation to a SymmetryTransform,
+    /// extracting the rotation and translation components.
+    ///
+    /// ```
+    /// use packing::symmetry::SymmetryTransform;
+    /// let t = SymmetryTransform::from_operations("-x, y");
+    /// ```
+    ///
     pub fn from_operations(sym_ops: &str) -> SymmetryTransform {
         let braces: &[_] = &['(', ')'];
         let operations: Vec<&str> = sym_ops
@@ -142,11 +147,11 @@ impl SymmetryTransform {
     }
 
     pub fn transform(&self, position: &Point2<f64>) -> Point2<f64> {
-        self.rotation * position + self.translation
+        self * position
     }
 
     pub fn rotate(&self, vect: &Vector2<f64>) -> Vector2<f64> {
-        self.rotation * vect
+        self * vect
     }
 
     pub fn angle(&self) -> f64 {
@@ -163,79 +168,8 @@ impl Default for SymmetryTransform {
     }
 }
 
-impl ops::Mul<Vector2<f64>> for SymmetryTransform {
-    type Output = Vector2<f64>;
-
-    fn mul(self, other: Vector2<f64>) -> Self::Output {
-        self.rotation * other
-    }
-}
-
-impl ops::Mul<Vector2<f64>> for &SymmetryTransform {
-    type Output = Vector2<f64>;
-
-    fn mul(self, other: Vector2<f64>) -> Self::Output {
-        self.rotation * other
-    }
-}
-
-impl ops::Mul<Point2<f64>> for SymmetryTransform {
-    type Output = Point2<f64>;
-
-    fn mul(self, other: Point2<f64>) -> Self::Output {
-        self.rotation * other + self.translation
-    }
-}
-
-impl ops::Mul<Point2<f64>> for &SymmetryTransform {
-    type Output = Point2<f64>;
-
-    fn mul(self, other: Point2<f64>) -> Self::Output {
-        self.rotation * other + self.translation
-    }
-}
-
-impl ops::Mul<SymmetryTransform> for SymmetryTransform {
-    type Output = SymmetryTransform;
-
-    fn mul(self, other: SymmetryTransform) -> Self::Output {
-        let shift = self.rotate(&other.translation);
-
-        Self {
-            translation: self.translation + shift,
-            rotation: self.rotation * other.rotation,
-        }
-    }
-}
-
-impl ops::Mul<SymmetryTransform> for &SymmetryTransform {
-    type Output = SymmetryTransform;
-
-    fn mul(self, other: SymmetryTransform) -> Self::Output {
-        let shift = self.rotate(&other.translation);
-
-        SymmetryTransform {
-            translation: self.translation + shift,
-            rotation: self.rotation * other.rotation,
-        }
-    }
-}
-
-impl ops::Mul<&SymmetryTransform> for SymmetryTransform {
-    type Output = SymmetryTransform;
-
-    fn mul(self, other: &SymmetryTransform) -> Self::Output {
-        let shift = self.rotate(&other.translation);
-
-        Self {
-            translation: self.translation + shift,
-            rotation: self.rotation * other.rotation,
-        }
-    }
-}
-
 #[cfg(test)]
-mod symmetry_transform_tests {
+mod test {
     use super::*;
     use rand::prelude::*;
     use rand::rngs::SmallRng;
@@ -360,7 +294,7 @@ mod symmetry_transform_tests {
                 na::Rotation2::from_matrix_unchecked(transform2.rotation),
             );
 
-            let result = transform1 * transform2;
+            let result: SymmetryTransform = transform1 * transform2;
             let expected = iso1 * iso2;
 
             assert_abs_diff_eq!(result.translation, expected.translation.vector);
