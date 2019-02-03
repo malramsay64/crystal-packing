@@ -170,11 +170,14 @@ impl Default for Transform {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use std::f64::consts::PI;
+
+    use approx::assert_abs_diff_eq;
     use rand::prelude::*;
     use rand::rngs::SmallRng;
     use rand::Rng;
-    use std::f64::consts::PI;
+
+    use super::*;
 
     #[test]
     fn default() {
@@ -209,7 +212,7 @@ mod test {
         let input = String::from("(x, y)");
         let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
-        assert_relative_eq!(st.transform(&point), Point2::new(0.1, 0.2));
+        assert_abs_diff_eq!(st.transform(&point), Point2::new(0.1, 0.2));
     }
 
     #[test]
@@ -217,7 +220,7 @@ mod test {
         let input = String::from("(-x, x+y)");
         let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
-        assert_relative_eq!(st.transform(&point), Point2::new(-0.1, 0.3));
+        assert_abs_diff_eq!(st.transform(&point), Point2::new(-0.1, 0.3));
     }
 
     #[test]
@@ -225,7 +228,7 @@ mod test {
         let input = String::from("(x+1/2, -y)");
         let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
-        assert_relative_eq!(st.transform(&point), Point2::new(0.6, -0.2));
+        assert_abs_diff_eq!(st.transform(&point), Point2::new(0.6, -0.2));
     }
 
     #[test]
@@ -233,7 +236,7 @@ mod test {
         let input = String::from("(x-1/2, -y)");
         let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
-        assert_relative_eq!(st.transform(&point), Point2::new(-0.4, -0.2));
+        assert_abs_diff_eq!(st.transform(&point), Point2::new(-0.4, -0.2));
     }
 
     #[test]
@@ -241,7 +244,7 @@ mod test {
         let input = String::from("(-y, 0)");
         let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
-        assert_relative_eq!(st.transform(&point), Point2::new(-0.2, 0.));
+        assert_abs_diff_eq!(st.transform(&point), Point2::new(-0.2, 0.));
     }
 
     #[test]

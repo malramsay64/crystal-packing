@@ -5,29 +5,27 @@
 //
 //
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate approx;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate itertools;
-extern crate nalgebra as na;
-extern crate rand;
-
-use nalgebra::{Point2, Vector2};
-use rand::distributions::{Distribution, Uniform};
-use rand::prelude::*;
-use rand::rngs::SmallRng;
-use rand::Rng;
 use std::cmp::Ordering;
 use std::error::Error;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
+
+extern crate approx;
+extern crate clap;
+extern crate itertools;
+extern crate log;
+extern crate nalgebra as na;
+extern crate rand;
+
+use itertools::iproduct;
+use log::{debug, trace, warn};
+use nalgebra::{Point2, Vector2};
+use rand::distributions::{Distribution, Uniform};
+use rand::prelude::*;
+use rand::rngs::SmallRng;
+use rand::Rng;
 
 pub mod basis;
 pub mod cell;
@@ -309,6 +307,7 @@ impl<T: shape::Shape> PackedState<T> {
 #[cfg(test)]
 mod packed_state_tests {
     use super::*;
+    use approx::assert_abs_diff_eq;
 
     fn create_square() -> LineShape {
         LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap()
@@ -372,7 +371,7 @@ mod packed_state_tests {
     #[test]
     fn packing_fraction_p1() {
         let state = init_packed_state("p1");
-        assert_relative_eq!(state.packing_fraction().unwrap(), 1. / 8.);
+        assert_abs_diff_eq!(state.packing_fraction().unwrap(), 1. / 8.);
     }
 
     #[test]
@@ -384,7 +383,7 @@ mod packed_state_tests {
     #[test]
     fn packing_fraction_p2mg() {
         let state = init_packed_state("p2mg");
-        assert_relative_eq!(state.packing_fraction().unwrap(), 1. / 32.);
+        assert_abs_diff_eq!(state.packing_fraction().unwrap(), 1. / 32.);
     }
 
 }

@@ -8,22 +8,23 @@
 // This is for the clap::arg_enum macro
 #![allow(deprecated)]
 
-#[macro_use]
 extern crate clap;
-extern crate simplelog;
-#[macro_use]
 extern crate log;
 extern crate rayon;
+extern crate simplelog;
 
-use clap::{App, Arg};
+use std::f64::consts::PI;
+
+use clap::{arg_enum, App, Arg, _clap_count_exprs, value_t};
+use log::{debug, info};
+use rayon::prelude::*;
+use simplelog::{Config, LevelFilter, TermLogger};
+
 use packing;
 #[allow(unused_imports)]
 use packing::shape::{Atom, LineShape, MolecularShape, Shape};
 use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
 use packing::PackedState;
-use rayon::prelude::*;
-use simplelog::{Config, LevelFilter, TermLogger};
-use std::f64::consts::PI;
 
 struct CLIOptions {
     shape: ShapeTypes,

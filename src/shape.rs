@@ -4,18 +4,18 @@
 // Distributed under terms of the MIT license.
 //
 //
-extern crate itertools;
-
-use approx::{AbsDiffEq, RelativeEq};
-use itertools::Itertools;
-use nalgebra as na;
-use nalgebra::Point2;
 
 use std::f64::consts::PI;
 use std::fmt;
 use std::ops;
 use std::slice;
 use std::vec;
+
+use approx::{AbsDiffEq, RelativeEq};
+use itertools::Itertools;
+use log::trace;
+use nalgebra as na;
+use nalgebra::Point2;
 
 use crate::symmetry::Transform;
 
@@ -155,8 +155,9 @@ impl Line {
 
 #[cfg(test)]
 mod line_tests {
-    use super::*;
     use nalgebra::Vector2;
+
+    use super::*;
 
     #[test]
     fn new() {
@@ -281,6 +282,8 @@ impl Atom {
 
 #[cfg(test)]
 mod atom_tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
 
     #[test]
@@ -444,6 +447,8 @@ impl LineShape {
 
 #[cfg(test)]
 mod line_shape_tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
 
     fn create_square() -> LineShape {
@@ -592,6 +597,8 @@ impl MolecularShape {
 
 #[cfg(test)]
 mod molecular_shape_tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
 
     #[test]
@@ -723,8 +730,11 @@ where
 
 #[cfg(test)]
 mod shape_instance_tests {
-    use super::*;
+    use approx::assert_abs_diff_eq;
+    use itertools::izip;
     use nalgebra::Vector2;
+
+    use super::*;
 
     #[test]
     fn lines() {

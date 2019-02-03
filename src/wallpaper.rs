@@ -7,6 +7,8 @@
 // This is for the arg_enum macro
 #![allow(deprecated)]
 
+use clap::{_clap_count_exprs, arg_enum};
+
 use crate::cell::CrystalFamily;
 use crate::symmetry::Transform;
 

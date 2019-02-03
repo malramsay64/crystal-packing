@@ -227,6 +227,8 @@ impl Cell {
 
 #[cfg(test)]
 mod cell_tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
 
     // TODO Cell area test

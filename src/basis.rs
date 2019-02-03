@@ -51,6 +51,8 @@ impl SharedValue {
 
 #[cfg(test)]
 mod shared_value_tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
 
     #[test]
@@ -135,8 +137,10 @@ impl Basis for StandardBasis {
 
 #[cfg(test)]
 mod standard_basis_tests {
-    use super::*;
+    use approx::assert_abs_diff_eq;
     use rand::thread_rng;
+
+    use super::*;
 
     #[test]
     fn get_value() {
