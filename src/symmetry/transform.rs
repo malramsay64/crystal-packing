@@ -6,7 +6,7 @@
 //
 
 use approx;
-// Re-export these to allow importing along with the SymmetryTransform struct
+// Re-export these to allow importing along with the Transform struct
 pub use nalgebra::{Matrix2, Point2, Vector2};
 
 /// Define the transformations of particle positions
@@ -17,12 +17,12 @@ pub use nalgebra::{Matrix2, Point2, Vector2};
 /// component is represented as a vector, being applied after the rotation.
 ///
 #[derive(Debug, Clone, PartialEq)]
-pub struct SymmetryTransform {
+pub struct Transform {
     pub rotation: Matrix2<f64>,
     pub translation: Vector2<f64>,
 }
 
-impl approx::AbsDiffEq for SymmetryTransform {
+impl approx::AbsDiffEq for Transform {
     type Epsilon = f64;
 
     fn default_epsilon() -> Self::Epsilon {
@@ -35,19 +35,19 @@ impl approx::AbsDiffEq for SymmetryTransform {
     }
 }
 
-impl SymmetryTransform {
+impl Transform {
     /// Instantiate a symmetry transform from a translation vector and angle
     ///
     /// This is simpler than specifying an entire rotation matrix, although it doesn't allow for
     /// the specification of any mirror planes. It can be used as;
     /// ```
-    /// use packing::symmetry::{SymmetryTransform, Vector2};
+    /// use packing::symmetry::{Transform, Vector2};
     /// use std::f64::consts::PI;
-    /// let t = SymmetryTransform::new(Vector2::new(1., 1.), PI /2.);
+    /// let t = Transform::new(Vector2::new(1., 1.), PI /2.);
     /// ```
     ///
-    pub fn new(translation: Vector2<f64>, rotation: f64) -> SymmetryTransform {
-        SymmetryTransform {
+    pub fn new(translation: Vector2<f64>, rotation: f64) -> Transform {
+        Transform {
             // Convert a rotation angle in radians to a rotation matrix.
             rotation: Matrix2::new(
                 rotation.cos(),
@@ -64,8 +64,8 @@ impl SymmetryTransform {
     /// This is the transform which leaves the transformed vector unchanged.
     ///
     /// ```
-    /// use packing::symmetry::{SymmetryTransform, Vector2};
-    /// let t = SymmetryTransform::identity();
+    /// use packing::symmetry::{Transform, Vector2};
+    /// let t = Transform::identity();
     /// let c = Vector2::new(-1., 1.);
     /// assert_eq!(t * &c, c);
     /// ```
@@ -79,15 +79,15 @@ impl SymmetryTransform {
 
     /// Convert the string representation of a symmetry operation to a vector.
     ///
-    /// This converts the string representation of an operation to a SymmetryTransform,
+    /// This converts the string representation of an operation to a Transform,
     /// extracting the rotation and translation components.
     ///
     /// ```
-    /// use packing::symmetry::SymmetryTransform;
-    /// let t = SymmetryTransform::from_operations("-x, y");
+    /// use packing::symmetry::Transform;
+    /// let t = Transform::from_operations("-x, y");
     /// ```
     ///
-    pub fn from_operations(sym_ops: &str) -> SymmetryTransform {
+    pub fn from_operations(sym_ops: &str) -> Transform {
         let braces: &[_] = &['(', ')'];
         let operations: Vec<&str> = sym_ops
             // Remove braces from front and back
@@ -140,7 +140,7 @@ impl SymmetryTransform {
             }
             trans[index] = constant;
         }
-        SymmetryTransform {
+        Transform {
             rotation: rot,
             translation: trans,
         }
@@ -159,7 +159,7 @@ impl SymmetryTransform {
     }
 }
 
-impl Default for SymmetryTransform {
+impl Default for Transform {
     fn default() -> Self {
         Self {
             rotation: Matrix2::identity(),
@@ -179,13 +179,13 @@ mod test {
     #[test]
     fn default() {
         let point = Point2::new(0.2, 0.2);
-        let transform = SymmetryTransform::default();
+        let transform = Transform::default();
         assert_eq!(transform.transform(&point), point);
     }
 
     #[test]
     fn identity_transform() {
-        let identity = SymmetryTransform::default();
+        let identity = Transform::default();
         let point = Point2::new(0.2, 0.2);
         assert_eq!(identity.transform(&point), point);
 
@@ -195,7 +195,7 @@ mod test {
 
     #[test]
     fn transform() {
-        let isometry = SymmetryTransform::new(Vector2::new(1., 1.), PI / 2.);
+        let isometry = Transform::new(Vector2::new(1., 1.), PI / 2.);
 
         let point = Point2::new(0.2, 0.2);
         assert_eq!(isometry.transform(&point), Point2::new(0.8, 1.2));
@@ -207,7 +207,7 @@ mod test {
     #[test]
     fn parse_operation_default() {
         let input = String::from("(x, y)");
-        let st = SymmetryTransform::from_operations(&input);
+        let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
         assert_relative_eq!(st.transform(&point), Point2::new(0.1, 0.2));
     }
@@ -215,7 +215,7 @@ mod test {
     #[test]
     fn parse_operation_xy() {
         let input = String::from("(-x, x+y)");
-        let st = SymmetryTransform::from_operations(&input);
+        let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
         assert_relative_eq!(st.transform(&point), Point2::new(-0.1, 0.3));
     }
@@ -223,7 +223,7 @@ mod test {
     #[test]
     fn parse_operation_consts() {
         let input = String::from("(x+1/2, -y)");
-        let st = SymmetryTransform::from_operations(&input);
+        let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
         assert_relative_eq!(st.transform(&point), Point2::new(0.6, -0.2));
     }
@@ -231,7 +231,7 @@ mod test {
     #[test]
     fn parse_operation_neg_consts() {
         let input = String::from("(x-1/2, -y)");
-        let st = SymmetryTransform::from_operations(&input);
+        let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
         assert_relative_eq!(st.transform(&point), Point2::new(-0.4, -0.2));
     }
@@ -239,14 +239,14 @@ mod test {
     #[test]
     fn parse_operation_zero_const() {
         let input = String::from("(-y, 0)");
-        let st = SymmetryTransform::from_operations(&input);
+        let st = Transform::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
         assert_relative_eq!(st.transform(&point), Point2::new(-0.2, 0.));
     }
 
     #[test]
     fn add_translation_test() {
-        let ident = SymmetryTransform::identity();
+        let ident = Transform::identity();
         let trans = Vector2::new(1., 1.);
         assert_abs_diff_eq!((&ident + trans).translation, trans);
 
@@ -257,9 +257,9 @@ mod test {
     #[test]
     fn mult_symmetry_transform_rotations() {
         for i in 0..10 {
-            let ident = SymmetryTransform::identity();
+            let ident = Transform::identity();
             let angle = f64::from(i) * PI / f64::from(10);
-            let trans = SymmetryTransform::new(Vector2::zeros(), angle);
+            let trans = Transform::new(Vector2::zeros(), angle);
             assert_abs_diff_eq!((ident * &trans), trans);
         }
     }
@@ -267,14 +267,14 @@ mod test {
     #[test]
     fn mult_symmetry_transform_translations() {
         for i in 0..10 {
-            let ident = SymmetryTransform::identity();
-            let trans = SymmetryTransform::new(Vector2::new(f64::from(i), f64::from(i)), 0.);
+            let ident = Transform::identity();
+            let trans = Transform::new(Vector2::new(f64::from(i), f64::from(i)), 0.);
             assert_abs_diff_eq!((ident * &trans), trans);
         }
     }
 
-    fn rand_transform<R: Rng + ?Sized>(rng: &mut R) -> SymmetryTransform {
-        SymmetryTransform::new(Vector2::new(rng.gen(), rng.gen()), rng.gen_range(0., PI))
+    fn rand_transform<R: Rng + ?Sized>(rng: &mut R) -> Transform {
+        Transform::new(Vector2::new(rng.gen(), rng.gen()), rng.gen_range(0., PI))
     }
 
     #[test]
@@ -294,7 +294,7 @@ mod test {
                 na::Rotation2::from_matrix_unchecked(transform2.rotation),
             );
 
-            let result: SymmetryTransform = transform1 * transform2;
+            let result: Transform = transform1 * transform2;
             let expected = iso1 * iso2;
 
             assert_abs_diff_eq!(result.translation, expected.translation.vector);

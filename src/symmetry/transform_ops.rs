@@ -9,7 +9,7 @@ use std::ops::{Add, Mul};
 
 use nalgebra::{Point2, Vector2};
 
-use crate::symmetry::SymmetryTransform;
+use crate::symmetry::Transform;
 
 /// Implement a binary operation
 ///
@@ -72,28 +72,28 @@ macro_rules! symmetry_binop_impl_all(
     }
 );
 
-// SymmetryTransform + Vector
+// Transform + Vector
 symmetry_binop_impl_all!(
     Add, add;
-    self: SymmetryTransform, rhs: Vector2<f64>, Output = SymmetryTransform;
+    self: Transform, rhs: Vector2<f64>, Output = Transform;
     // It is always safe to take a reference, so reduce all instances to a reference * reference
     // then have a single implementation.
     [val val] => &self + &rhs;
     [ref val] => self + &rhs;
     [val ref] => &self + rhs;
     [ref ref] => {
-        SymmetryTransform {
+        Transform {
             rotation: self.rotation,
             translation: self.translation + rhs,
         }
     };
 );
 
-// SymmetryTransform * Vector
+// Transform * Vector
 // Multiplying by a vector doesn't apply the translational component, only the rotation.
 symmetry_binop_impl_all!(
     Mul, mul;
-    self: SymmetryTransform, rhs: Vector2<f64>, Output = Vector2<f64>;
+    self: Transform, rhs: Vector2<f64>, Output = Vector2<f64>;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;
@@ -102,10 +102,10 @@ symmetry_binop_impl_all!(
     };
 );
 
-// SymmetryTransform * Point
+// Transform * Point
 symmetry_binop_impl_all!(
     Mul, mul;
-    self: SymmetryTransform, rhs: Point2<f64>, Output = Point2<f64>;
+    self: Transform, rhs: Point2<f64>, Output = Point2<f64>;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;
@@ -114,17 +114,17 @@ symmetry_binop_impl_all!(
     };
 );
 
-// SymmetryTransform * SymmetryTransform
+// Transform * Transform
 symmetry_binop_impl_all!(
     Mul, mul;
-    self: SymmetryTransform, rhs: SymmetryTransform, Output = SymmetryTransform;
+    self: Transform, rhs: Transform, Output = Transform;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;
     [ref ref] => {
         let shift = self.rotate(&rhs.translation);
 
-        SymmetryTransform {
+        Transform {
             translation: self.translation + shift,
             rotation: self.rotation * rhs.rotation,
         }

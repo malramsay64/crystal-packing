@@ -38,7 +38,7 @@ pub mod wallpaper;
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::cell::{Cell, CrystalFamily};
 pub use crate::shape::{LineShape, Shape, ShapeInstance};
-pub use crate::symmetry::SymmetryTransform;
+pub use crate::symmetry::Transform;
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
 #[derive(Clone, Debug)]
@@ -54,8 +54,8 @@ impl OccupiedSite {
         self.wyckoff.symmetries.len()
     }
 
-    pub fn transform(&self) -> SymmetryTransform {
-        SymmetryTransform::new(
+    pub fn transform(&self) -> Transform {
+        Transform::new(
             Vector2::new(self.x.get_value(), self.y.get_value()),
             self.angle.get_value(),
         )
@@ -139,8 +139,8 @@ impl<T: shape::Shape> PackedState<T> {
         positions
     }
 
-    fn relative_positions(&self) -> Vec<SymmetryTransform> {
-        let mut transforms: Vec<SymmetryTransform> = vec![];
+    fn relative_positions(&self) -> Vec<Transform> {
+        let mut transforms: Vec<Transform> = vec![];
         for site in self.occupied_sites.iter() {
             for symmetry in site.wyckoff.symmetries.iter() {
                 transforms.push(symmetry * site.transform());
@@ -321,7 +321,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![SymmetryTransform::from_operations("x,y")],
+            symmetries: vec![Transform::from_operations("x,y")],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -338,10 +338,10 @@ mod packed_state_tests {
         let isopointal = vec![WyckoffSite {
             letter: 'd',
             symmetries: vec![
-                SymmetryTransform::from_operations("x,y"),
-                SymmetryTransform::from_operations("-x,-y"),
-                SymmetryTransform::from_operations("-x+1/2,y"),
-                SymmetryTransform::from_operations("x+1/2,-y"),
+                Transform::from_operations("x,y"),
+                Transform::from_operations("-x,-y"),
+                Transform::from_operations("-x+1/2,y"),
+                Transform::from_operations("x+1/2,-y"),
             ],
             num_rotations: 1,
             mirror_primary: false,

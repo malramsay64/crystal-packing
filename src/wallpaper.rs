@@ -5,7 +5,7 @@
 //
 
 use crate::cell::CrystalFamily;
-use crate::symmetry::SymmetryTransform;
+use crate::symmetry::Transform;
 
 pub struct WallpaperGroup {
     pub name: &'static str,
@@ -35,7 +35,7 @@ impl Wallpaper {
 #[derive(Debug, Clone)]
 pub struct WyckoffSite {
     pub letter: char,
-    pub symmetries: Vec<SymmetryTransform>,
+    pub symmetries: Vec<Transform>,
     pub num_rotations: u64,
     pub mirror_primary: bool,
     pub mirror_secondary: bool,
@@ -43,10 +43,10 @@ pub struct WyckoffSite {
 
 impl WyckoffSite {
     pub fn new(group: WallpaperGroup) -> WyckoffSite {
-        let symmetries: Vec<SymmetryTransform> = group
+        let symmetries: Vec<Transform> = group
             .wyckoff_str
             .into_iter()
-            .map(SymmetryTransform::from_operations)
+            .map(Transform::from_operations)
             .collect();
         WyckoffSite {
             letter: 'a',
@@ -64,7 +64,7 @@ impl WyckoffSite {
         // TODO implement -> This is only required for the non-general wyckoff sites since all the
         // general sites have 3 degrees-of-freedom.
         //
-        // This will be checked as a method of the SymmetryTransform struct.
+        // This will be checked as a method of the Transform struct.
         &[true, true, true]
     }
 }
@@ -129,7 +129,7 @@ mod wyckoff_site_tests {
     pub fn create_wyckoff() -> WyckoffSite {
         WyckoffSite {
             letter: 'a',
-            symmetries: vec![SymmetryTransform::default()],
+            symmetries: vec![Transform::default()],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,

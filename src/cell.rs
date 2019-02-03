@@ -9,7 +9,7 @@ use std::f64::consts::PI;
 use nalgebra::{Point2, Vector2};
 
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
-pub use crate::symmetry::SymmetryTransform;
+pub use crate::symmetry::Transform;
 
 /// The different crystal families that can be represented
 ///
@@ -91,9 +91,9 @@ impl Cell {
     /// and converts the values of the fractional coordinates in the translation to real
     /// cartesian coordinates based on the current cell parameters.
     ///
-    pub fn to_cartesian_isometry(&self, transform: &SymmetryTransform) -> SymmetryTransform {
+    pub fn to_cartesian_isometry(&self, transform: &Transform) -> Transform {
         let (x, y) = self.to_cartesian(transform.translation.x, transform.translation.y);
-        SymmetryTransform {
+        Transform {
             rotation: transform.rotation,
             translation: Vector2::new(x, y),
         }
@@ -236,12 +236,12 @@ mod cell_tests {
     #[test]
     fn to_cartesian_test() {
         let cell = Cell::default();
-        let trans = SymmetryTransform::new(na::Vector2::new(0.5, 0.5), 0.);
+        let trans = Transform::new(na::Vector2::new(0.5, 0.5), 0.);
 
         assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
         cell.angle.set_value(PI / 4.);
-        let expected = SymmetryTransform::new(
+        let expected = Transform::new(
             na::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
             0.,
         );

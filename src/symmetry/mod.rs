@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-mod symmetry;
-mod symmetry_ops;
+mod transform;
+mod transform_ops;
 
-pub use self::symmetry::*;
+pub use transform::*;
