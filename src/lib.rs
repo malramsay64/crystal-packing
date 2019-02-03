@@ -151,8 +151,8 @@ impl<T: shape::Shape> PackedState<T> {
     ///
     pub fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
-            // We only need to check the positions after that of index1, since the previous ones
-            // have already been checked, hence `.skip(index1)`
+            // We only need to check the positions after that of index, since the previous ones
+            // have already been checked, hence `.skip(index)`
             trace!(
                 "Creating shape from: {:?}, results in {:?}",
                 position1,
@@ -169,7 +169,7 @@ impl<T: shape::Shape> PackedState<T> {
                 );
 
                 // The periodic images to check. Checking the first and second shells i.e.
-                // -2..=2, as this is nessecary to ensure no intersections on tilted cells.
+                // -2..=2, as this is necessary to ensure no intersections on tilted cells.
                 for (x_periodic, y_periodic) in iproduct!(-2..=2, -2..=2) {
                     // A shape is always going to intersect with itself. This skips the check for
                     // a shape intersecting with itself, while still checking the periodic
@@ -273,7 +273,7 @@ impl<T: shape::Shape> PackedState<T> {
         for position in self.relative_positions().iter() {
             // The list of periodic images to check. Currently only checking the first shell,
             // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
-            // nessecary, although this is currently not an issue due to the limiting of the
+            // necessary, although this is currently not an issue due to the limiting of the
             // value of the cell angle.
             let (x_r, y_r) = (position.translation.x, position.translation.y);
             debug!(

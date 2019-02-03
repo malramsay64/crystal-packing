@@ -52,7 +52,7 @@ mod crystal_family_test {
 /// addition to the contained angles. Each cell belongs to one of the Crystal Families which
 /// dictate the degrees of freedom the cell can take.
 ///
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Cell {
     x_len: f64,
     y_len: Option<f64>,
@@ -60,7 +60,7 @@ pub struct Cell {
     family: CrystalFamily,
 }
 
-impl std::fmt::Debug for Cell {
+impl std::fmt::Display for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,

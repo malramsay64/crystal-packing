@@ -23,7 +23,7 @@ pub trait Intersect: ops::Mul<Transform> {
     fn intersects(&self, other: &Self) -> bool;
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Line {
     pub start: Point2<f64>,
     pub end: Point2<f64>,
@@ -89,16 +89,6 @@ impl RelativeEq for Line {
     ) -> bool {
         self.start.relative_eq(&other.start, epsilon, max_relative)
             && self.end.relative_eq(&other.end, epsilon, max_relative)
-    }
-}
-
-impl fmt::Debug for Line {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Line {{ ({:.5}, {:.5}), ({:.5}, {:.5}) }}",
-            self.start.x, self.start.y, self.end.x, self.end.y
-        )
     }
 }
 
