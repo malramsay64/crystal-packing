@@ -42,9 +42,9 @@ pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 #[derive(Clone, Debug)]
 struct OccupiedSite {
     wyckoff: WyckoffSite,
-    x: SharedValue,
-    y: SharedValue,
-    angle: SharedValue,
+    x: f64,
+    y: f64,
+    angle: f64,
 }
 
 impl OccupiedSite {
@@ -53,17 +53,14 @@ impl OccupiedSite {
     }
 
     pub fn transform(&self) -> Transform {
-        Transform::new(
-            Vector2::new(self.x.get_value(), self.y.get_value()),
-            self.angle.get_value(),
-        )
+        Transform::new(Vector2::new(self.x, self.y), self.angle)
     }
 
     fn from_wyckoff(wyckoff: &WyckoffSite) -> OccupiedSite {
         let position = -0.5 + 0.5 / wyckoff.multiplicity() as f64;
-        let x = SharedValue::new(position);
-        let y = SharedValue::new(position);
-        let angle = SharedValue::new(0.);
+        let x = position;
+        let y = position;
+        let angle = 0.;
 
         OccupiedSite {
             wyckoff: wyckoff.clone(),
@@ -73,19 +70,19 @@ impl OccupiedSite {
         }
     }
 
-    fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
+    fn get_basis(&mut self, rot_symmetry: u64) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
         let dof = self.wyckoff.degrees_of_freedom();
 
         if dof[0] {
-            basis.push(StandardBasis::new(&self.x, -0.5, 0.5));
+            basis.push(StandardBasis::new(SharedValue::new(&mut self.x), -0.5, 0.5));
         }
         if dof[1] {
-            basis.push(StandardBasis::new(&self.y, -0.5, 0.5));
+            basis.push(StandardBasis::new(SharedValue::new(&mut self.y), -0.5, 0.5));
         }
         if dof[2] {
             basis.push(StandardBasis::new(
-                &self.angle,
+                SharedValue::new(&mut self.angle),
                 0.,
                 2. * PI / rot_symmetry as f64,
             ));
@@ -235,10 +232,10 @@ impl<T: shape::Shape> PackedState<T> {
         }
     }
 
-    fn generate_basis(&self) -> Vec<StandardBasis> {
+    fn generate_basis(&mut self) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
         basis.append(&mut self.cell.get_degrees_of_freedom());
-        for site in self.occupied_sites.iter() {
+        for site in self.occupied_sites.iter_mut() {
             basis.append(&mut site.get_basis(1));
         }
         basis
@@ -425,7 +422,7 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
 
 pub fn monte_carlo_best_packing<T: shape::Shape>(
     vars: &MCVars,
-    state: &mut PackedState<T>,
+    mut state: PackedState<T>,
 ) -> Result<PackedState<T>, &'static str> {
     // When a random seed is provided, use it, otherwise seed the random number generator from the
     // system entropy.

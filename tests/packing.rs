@@ -29,7 +29,7 @@ fn test_packing_improves() -> Result<(), &'static str> {
         mirror_secondary: false,
     }];
 
-    let mut state = packing::PackedState::initialise(square, wallpaper, isopointal);
+    let state = packing::PackedState::initialise(square, wallpaper, isopointal);
 
     let init_packing = state.packing_fraction();
 
@@ -42,7 +42,7 @@ fn test_packing_improves() -> Result<(), &'static str> {
         seed: Some(0),
     };
 
-    let final_state = packing::monte_carlo_best_packing(&vars, &mut state);
+    let final_state = packing::monte_carlo_best_packing(&vars, state);
 
     let final_packing = final_state?.packing_fraction();
 

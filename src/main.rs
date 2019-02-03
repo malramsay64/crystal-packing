@@ -69,9 +69,9 @@ where
     let final_state = (0..vars.num_start_configs)
         .into_par_iter()
         .map(|_| {
-            let mut state =
+            let state =
                 packing::PackedState::initialise(shape.clone(), wallpaper.clone(), isopointal);
-            packing::monte_carlo_best_packing(&vars, &mut state)
+            packing::monte_carlo_best_packing(&vars, state)
         })
         .max()
         .unwrap()?;
