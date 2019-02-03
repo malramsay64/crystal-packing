@@ -5,6 +5,9 @@
 //
 //
 
+// This is for the clap::arg_enum macro
+#![allow(deprecated)]
+
 #[macro_use]
 extern crate clap;
 extern crate simplelog;

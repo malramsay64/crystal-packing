@@ -130,11 +130,3 @@ symmetry_binop_impl_all!(
         }
     };
 );
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {}
-}

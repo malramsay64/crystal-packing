@@ -4,6 +4,9 @@
 // Distributed under terms of the MIT license.
 //
 
+// This is for the arg_enum macro
+#![allow(deprecated)]
+
 use crate::cell::CrystalFamily;
 use crate::symmetry::Transform;
 
