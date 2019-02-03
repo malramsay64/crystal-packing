@@ -8,8 +8,9 @@
 extern crate criterion;
 
 use criterion::{Criterion, ParameterizedBenchmark};
-use nalgebra::{IsometryMatrix2, Vector2};
+use nalgebra::Vector2;
 use packing::shape::{LineShape, Shape, ShapeInstance};
+use packing::symmetry::SymmetryTransform;
 
 fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])
@@ -26,8 +27,8 @@ fn setup_state(points: usize) -> packing::PackedState<LineShape> {
     let isopointal = &[packing::WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            packing::SymmetryTransform::new("x,y"),
-            packing::SymmetryTransform::new("-x,-y"),
+            SymmetryTransform::from_operations("x,y"),
+            SymmetryTransform::from_operations("-x,-y"),
         ],
         num_rotations: 1,
         mirror_primary: false,
@@ -41,8 +42,8 @@ fn setup_shapes<S>(shape: &S) -> (ShapeInstance<S::Component>, ShapeInstance<S::
 where
     S: Shape,
 {
-    let si1 = ShapeInstance::from(shape, &IsometryMatrix2::new(Vector2::new(-2., 0.), 0.));
-    let si2 = ShapeInstance::from(shape, &IsometryMatrix2::new(Vector2::new(2., 0.), 0.));
+    let si1 = ShapeInstance::from(shape, SymmetryTransform::new(Vector2::new(-2., 0.), 0.));
+    let si2 = ShapeInstance::from(shape, SymmetryTransform::new(Vector2::new(2., 0.), 0.));
 
     (si1, si2)
 }
