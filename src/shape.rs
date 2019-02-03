@@ -606,7 +606,7 @@ mod molecular_shape_tests {
         assert_abs_diff_eq!(MolecularShape::circle_overlap(&a1, &a2), 0.);
 
         for i in 0..10 {
-            let distance = (i + 1) as f64 / 10. * 2.;
+            let distance = f64::from(i + 1) / 10. * 2.;
             let a1 = Atom::new(0., 0., 1.);
             let a2 = Atom::new(distance, 0., 1.);
             // A known algorithm for confirming the area is calculated correctly, as found on
@@ -629,7 +629,7 @@ mod molecular_shape_tests {
         assert_abs_diff_eq!(shape.items[1].position, Point2::new(-1., 0.));
         assert_abs_diff_eq!(shape.items[2].position, Point2::new(1., 0.));
 
-        let shape = MolecularShape::from_trimer(0.637556, 2. * PI / 3., 1.);
+        let shape = MolecularShape::from_trimer(0.637_556, 2. * PI / 3., 1.);
         assert_abs_diff_eq!(shape.items[0].position, Point2::new(0., -1. / 3.));
         assert_abs_diff_eq!(
             shape.items[1].position,
@@ -648,7 +648,7 @@ mod molecular_shape_tests {
         let shape = MolecularShape::from_trimer(1., PI, 2.);
         assert_abs_diff_eq!(shape.area(), 3. * PI);
 
-        let shape = MolecularShape::from_trimer(0.637556, 2. * PI / 3., 1.);
+        let shape = MolecularShape::from_trimer(0.637_556, 2. * PI / 3., 1.);
         println!("{}", shape.area());
         assert!(shape.area() > 0.);
     }

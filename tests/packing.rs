@@ -4,8 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-use nalgebra::Vector2;
-
 use packing;
 #[allow(unused_imports)]
 use packing::shape::{LineShape, Shape};

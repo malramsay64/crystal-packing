@@ -258,7 +258,7 @@ mod test {
     fn mult_symmetry_transform_rotations() {
         for i in 0..10 {
             let ident = SymmetryTransform::identity();
-            let angle = i as f64 * PI / 10 as f64;
+            let angle = f64::from(i) * PI / f64::from(10);
             let trans = SymmetryTransform::new(Vector2::zeros(), angle);
             assert_abs_diff_eq!((ident * &trans), trans);
         }
@@ -268,7 +268,7 @@ mod test {
     fn mult_symmetry_transform_translations() {
         for i in 0..10 {
             let ident = SymmetryTransform::identity();
-            let trans = SymmetryTransform::new(Vector2::new(i as f64, i as f64), 0.);
+            let trans = SymmetryTransform::new(Vector2::new(f64::from(i), f64::from(i)), 0.);
             assert_abs_diff_eq!((ident * &trans), trans);
         }
     }

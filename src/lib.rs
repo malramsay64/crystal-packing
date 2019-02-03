@@ -54,10 +54,6 @@ impl OccupiedSite {
         self.wyckoff.symmetries.len()
     }
 
-    pub fn position(&self) -> Point2<f64> {
-        Point2::new(self.x.get_value(), self.y.get_value())
-    }
-
     pub fn transform(&self) -> SymmetryTransform {
         SymmetryTransform::new(
             Vector2::new(self.x.get_value(), self.y.get_value()),
@@ -189,7 +185,7 @@ impl<T: shape::Shape> PackedState<T> {
                     }
 
                     let periodic_position2 =
-                        position2 + Vector2::new(x_periodic as f64, y_periodic as f64);
+                        position2 + Vector2::new(f64::from(x_periodic), f64::from(y_periodic));
                     let shape_i2 = ShapeInstance::from(
                         &self.shape,
                         self.cell.to_cartesian_isometry(&periodic_position2),
@@ -291,7 +287,8 @@ impl<T: shape::Shape> PackedState<T> {
             let (x_c, y_c) = self.cell.to_cartesian(x_r, y_r);
             debug!("Cartesian Position: {} {}", x_c, y_c);
             for (x_periodic, y_periodic) in iproduct!(-1..=1, -1..=1) {
-                let p_position = position + Vector2::new(x_periodic as f64, y_periodic as f64);
+                let p_position =
+                    position + Vector2::new(f64::from(x_periodic), f64::from(y_periodic));
 
                 let shape_i =
                     ShapeInstance::from(&self.shape, self.cell.to_cartesian_isometry(&p_position));

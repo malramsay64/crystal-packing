@@ -4,6 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 #![allow(clippy::suspicious_arithmetic_impl)]
+#![allow(clippy::op_ref)]
 use std::ops::{Add, Mul};
 
 use nalgebra::{Point2, Vector2};
