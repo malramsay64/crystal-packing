@@ -100,7 +100,6 @@ pub struct PackedState<T: shape::Shape> {
     pub shape: T,
     pub cell: Cell,
     occupied_sites: Vec<OccupiedSite>,
-    basis: Vec<StandardBasis>,
 }
 
 impl<T: shape::Shape> Eq for PackedState<T> {}
@@ -215,20 +214,16 @@ impl<T: shape::Shape> PackedState<T> {
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
     ) -> PackedState<T> {
-        let mut basis: Vec<StandardBasis> = Vec::new();
-
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
         let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
         let cell = Cell::from_family(&wallpaper.family, max_cell_size);
-        basis.append(&mut cell.get_degrees_of_freedom());
 
         debug!("Cell: {:?}", cell);
 
         let mut occupied_sites: Vec<OccupiedSite> = Vec::new();
         for wyckoff in isopointal.iter() {
             let site = OccupiedSite::from_wyckoff(wyckoff);
-            basis.append(&mut site.get_basis(shape.rotational_symmetries()));
             occupied_sites.push(site);
         }
 
@@ -237,8 +232,16 @@ impl<T: shape::Shape> PackedState<T> {
             shape,
             cell,
             occupied_sites,
-            basis,
         }
+    }
+
+    fn generate_basis(&self) -> Vec<StandardBasis> {
+        let mut basis: Vec<StandardBasis> = vec![];
+        basis.append(&mut self.cell.get_degrees_of_freedom());
+        for site in self.occupied_sites.iter() {
+            basis.append(&mut site.get_basis(1));
+        }
+        basis
     }
 
     pub fn to_figure(&self, filename: &str) {
@@ -435,7 +438,9 @@ pub fn monte_carlo_best_packing<T: shape::Shape>(
     let mut kt: f64 = vars.kt_start;
     let kt_ratio: f64 = vars.kt_ratio();
     let total_shapes: u64 = state.total_shapes() as u64;
-    let basis_distribution = Uniform::new(0, state.basis.len() as u64);
+
+    let mut basis = state.generate_basis();
+    let basis_distribution = Uniform::new(0, basis.len() as u64);
 
     let mut packing: f64 = state.packing_fraction()?;
 
@@ -446,20 +451,20 @@ pub fn monte_carlo_best_packing<T: shape::Shape>(
 
     for _ in 0..vars.steps {
         let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
-        if let Some(basis_current) = state.basis.get_mut(basis_index) {
+        if let Some(basis_current) = basis.get_mut(basis_index) {
             basis_current.set_value(basis_current.sample(&mut rng, vars.max_step_size));
         }
 
         if state.check_intersection() {
             debug!("Rejected for intersection.");
             rejections += 1;
-            state.basis[basis_index].reset_value();
+            basis[basis_index].reset_value();
         } else {
             packing = match state.packing_fraction() {
                 Err(_) => {
                     warn!("Rejected for invalid packing fraction.");
                     rejections += 1;
-                    state.basis[basis_index].reset_value();
+                    basis[basis_index].reset_value();
 
                     // Set packing to it's previous value
                     packing_prev
@@ -471,7 +476,7 @@ pub fn monte_carlo_best_packing<T: shape::Shape>(
                         // Packing fraction was increased too much so reject the step
                         debug!("Rejected for Increasing packing fraction.");
                         rejections += 1;
-                        state.basis[basis_index].reset_value();
+                        basis[basis_index].reset_value();
 
                         // Set packing to it's previous value
                         packing_prev
