@@ -52,7 +52,7 @@ where
 
     let state = PackedState::initialise(shape.clone(), wallpaper.clone(), isopointal);
     if state.check_intersection() {
-        panic!("Initial state has intersetions...exiting.");
+        panic!("Initial state has intersections...exiting.");
     }
 
     info!(

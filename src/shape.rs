@@ -44,7 +44,7 @@ impl Intersect for Line {
         //
         let u_b = other.dy() * self.dx() - other.dx() * self.dy();
         // Where u_b == 0 the two lines are parallel. In this case we don't need any further checks
-        // since we are only concerned with lines that cross, parralel is fine.
+        // since we are only concerned with lines that cross, parallel is fine.
         if u_b == 0. {
             return false;
         }
@@ -142,12 +142,12 @@ impl Line {
         }
     }
 
-    /// The diffence in the x values over the line.
+    /// The difference in the x values over the line.
     pub fn dx(&self) -> f64 {
         self.end.x - self.start.x
     }
 
-    /// The diffence in the y values over the line.
+    /// The difference in the y values over the line.
     pub fn dy(&self) -> f64 {
         self.end.y - self.start.y
     }

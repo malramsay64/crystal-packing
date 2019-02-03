@@ -66,7 +66,7 @@ impl WyckoffSite {
     }
 
     pub fn degrees_of_freedom(&self) -> &[bool] {
-        // TODO implement -> This is only required for the non-general wyckoff sites since all the
+        // TODO implement -> This is only required for the non-general Wyckoff sites since all the
         // general sites have 3 degrees-of-freedom.
         //
         // This will be checked as a method of the Transform struct.

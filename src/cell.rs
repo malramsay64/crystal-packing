@@ -64,7 +64,7 @@ impl std::fmt::Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "Cell {{ x: {}, y: {}, angle: {} }}",
+            "Cell {{ x: {}, a: {}, angle: {} }}",
             self.x(),
             self.y(),
             self.angle
@@ -84,12 +84,12 @@ impl Default for Cell {
 }
 
 impl Cell {
-    /// Convert a transformation into cartesion coorsinates
+    /// Convert a transformation into Cartesian coordinates
     ///
     /// The positions of particles are stored in fractional coordinates, making changes to the
     /// unit cell simple. This function takes transformation to apply to a collection of points
     /// and converts the values of the fractional coordinates in the translation to real
-    /// cartesian coordinates based on the current cell parameters.
+    /// Cartesian coordinates based on the current cell parameters.
     ///
     pub fn to_cartesian_isometry(&self, transform: &Transform) -> Transform {
         let (x, y) = self.to_cartesian(transform.translation.x, transform.translation.y);
