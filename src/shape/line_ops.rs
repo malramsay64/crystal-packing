@@ -8,11 +8,11 @@
 use std::ops::Mul;
 
 use crate::shape::Line;
-use crate::symmetry::Transform;
+use crate::symmetry::Transform2;
 
 binop_impl_all!(
     Mul, mul;
-    self: Transform, rhs: Line, Output = Line;
+    self: Transform2, rhs: Line, Output = Line;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;
@@ -26,7 +26,7 @@ binop_impl_all!(
 
 binop_impl_all!(
     Mul, mul;
-    self: Line, rhs: Transform, Output = Line;
+    self: Line, rhs: Transform2, Output = Line;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;

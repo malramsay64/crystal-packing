@@ -10,7 +10,7 @@
 use clap::{_clap_count_exprs, arg_enum};
 
 use crate::cell::CrystalFamily;
-use crate::symmetry::Transform;
+use crate::symmetry::Transform2;
 
 pub struct WallpaperGroup {
     pub name: &'static str,
@@ -40,7 +40,7 @@ impl Wallpaper {
 #[derive(Debug, Clone)]
 pub struct WyckoffSite {
     pub letter: char,
-    pub symmetries: Vec<Transform>,
+    pub symmetries: Vec<Transform2>,
     pub num_rotations: u64,
     pub mirror_primary: bool,
     pub mirror_secondary: bool,
@@ -48,10 +48,10 @@ pub struct WyckoffSite {
 
 impl WyckoffSite {
     pub fn new(group: WallpaperGroup) -> WyckoffSite {
-        let symmetries: Vec<Transform> = group
+        let symmetries: Vec<Transform2> = group
             .wyckoff_str
             .into_iter()
-            .map(Transform::from_operations)
+            .map(Transform2::from_operations)
             .collect();
         WyckoffSite {
             letter: 'a',
@@ -134,7 +134,7 @@ mod wyckoff_site_tests {
     pub fn create_wyckoff() -> WyckoffSite {
         WyckoffSite {
             letter: 'a',
-            symmetries: vec![Transform::default()],
+            symmetries: vec![Transform2::default()],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,

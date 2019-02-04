@@ -38,7 +38,7 @@ pub mod wallpaper;
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::cell::{Cell, CrystalFamily};
 pub use crate::shape::{LineShape, Shape, ShapeInstance};
-pub use crate::symmetry::Transform;
+pub use crate::symmetry::Transform2;
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
 #[derive(Clone, Debug)]
@@ -54,8 +54,8 @@ impl OccupiedSite {
         self.wyckoff.symmetries.len()
     }
 
-    pub fn transform(&self) -> Transform {
-        Transform::new(Vector2::new(self.x, self.y), self.angle)
+    pub fn transform(&self) -> Transform2 {
+        Transform2::new(Vector2::new(self.x, self.y), self.angle)
     }
 
     fn from_wyckoff(wyckoff: &WyckoffSite) -> OccupiedSite {
@@ -97,9 +97,9 @@ impl OccupiedSite {
 pub struct PackedState<T: shape::Shape>
 where
     T: Shape,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
     pub wallpaper: Wallpaper,
     pub shape: T,
@@ -110,18 +110,18 @@ where
 impl<T: shape::Shape> Eq for PackedState<T>
 where
     T: Shape,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
 }
 
 impl<T: shape::Shape> PartialEq for PackedState<T>
 where
     T: Shape,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.packing_fraction() == other.packing_fraction()
@@ -131,9 +131,9 @@ where
 impl<T: shape::Shape> PartialOrd for PackedState<T>
 where
     T: Shape,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.packing_fraction()
@@ -144,9 +144,9 @@ where
 impl<T: shape::Shape> Ord for PackedState<T>
 where
     T: Shape,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.packing_fraction()
@@ -158,9 +158,9 @@ where
 impl<T: shape::Shape> PackedState<T>
 where
     T: Shape,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
     pub fn cartesian_positions(&self) -> Vec<Vec<T::Component>> {
         let mut positions: Vec<Vec<T::Component>> = vec![];
@@ -172,8 +172,8 @@ where
         positions
     }
 
-    fn relative_positions(&self) -> Vec<Transform> {
-        let mut transforms: Vec<Transform> = vec![];
+    fn relative_positions(&self) -> Vec<Transform2> {
+        let mut transforms: Vec<Transform2> = vec![];
         for site in self.occupied_sites.iter() {
             for symmetry in site.wyckoff.symmetries.iter() {
                 transforms.push(symmetry * site.transform());
@@ -359,7 +359,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![Transform::from_operations("x,y")],
+            symmetries: vec![Transform2::from_operations("x,y")],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -376,10 +376,10 @@ mod packed_state_tests {
         let isopointal = vec![WyckoffSite {
             letter: 'd',
             symmetries: vec![
-                Transform::from_operations("x,y"),
-                Transform::from_operations("-x,-y"),
-                Transform::from_operations("-x+1/2,y"),
-                Transform::from_operations("x+1/2,-y"),
+                Transform2::from_operations("x,y"),
+                Transform2::from_operations("-x,-y"),
+                Transform2::from_operations("-x+1/2,y"),
+                Transform2::from_operations("x+1/2,-y"),
             ],
             num_rotations: 1,
             mirror_primary: false,
@@ -465,9 +465,9 @@ pub fn monte_carlo_best_packing<T>(
 ) -> Result<PackedState<T>, &'static str>
 where
     T: Shape,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
     // When a random seed is provided, use it, otherwise seed the random number generator from the
     // system entropy.

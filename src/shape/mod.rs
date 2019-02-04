@@ -9,22 +9,22 @@ use std::fmt;
 use std::ops::Mul;
 use std::slice;
 
-use crate::symmetry::Transform;
+use crate::symmetry::Transform2;
 
-pub trait Intersect: Sized + Mul<Transform, Output = Self>
+pub trait Intersect: Sized + Mul<Transform2, Output = Self>
 where
-    for<'a> Self: Mul<&'a Transform, Output = Self>,
-    for<'a, 'b> &'a Self: Mul<&'b Transform, Output = Self>,
-    for<'a> &'a Self: Mul<Transform, Output = Self>,
+    for<'a> Self: Mul<&'a Transform2, Output = Self>,
+    for<'a, 'b> &'a Self: Mul<&'b Transform2, Output = Self>,
+    for<'a> &'a Self: Mul<Transform2, Output = Self>,
 {
     fn intersects(&self, other: &Self) -> bool;
 }
 
 pub trait Shape: PartialEq + fmt::Debug + Clone + fmt::Display
 where
-    for<'a> Self::Component: Mul<&'a Transform, Output = Self::Component>,
-    for<'a, 'b> &'a Self::Component: Mul<&'b Transform, Output = Self::Component>,
-    for<'a> &'a Self::Component: Mul<Transform, Output = Self::Component>,
+    for<'a> Self::Component: Mul<&'a Transform2, Output = Self::Component>,
+    for<'a, 'b> &'a Self::Component: Mul<&'b Transform2, Output = Self::Component>,
+    for<'a> &'a Self::Component: Mul<Transform2, Output = Self::Component>,
 {
     type Component: Intersect + fmt::Debug + fmt::Display;
 
