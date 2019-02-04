@@ -41,13 +41,13 @@ where
     /// shape in the appropriate coordinates. In other cases it performs both translations and
     /// rotations of the shape to the appropriate positions.
     ///
-    pub fn from<S>(shape: &S, iso: Transform) -> ShapeInstance<I>
+    pub fn from<S>(shape: &S, iso: &Transform) -> ShapeInstance<I>
     where
         S: Shape<Component = I>,
     {
         trace!("Shape: {:?}, iso: {:?}", shape, iso);
         ShapeInstance {
-            items: shape.iter().map(|p| p * &iso).collect(),
+            items: shape.iter().map(|p| p * iso).collect(),
         }
     }
 }
@@ -106,7 +106,7 @@ mod test {
     #[test]
     fn lines() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, Transform::default());
+        let shape_i = ShapeInstance::from(&shape, &Transform::default());
         let expected_vec = vec![
             Line::new((0., 1.), (1., 0.)),
             Line::new((1., 0.), (0., -1.)),
@@ -122,7 +122,7 @@ mod test {
     #[test]
     fn lines_translate() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, Transform::new(na::Vector2::new(-1., 0.), 0.));
+        let shape_i = ShapeInstance::from(&shape, &Transform::new(na::Vector2::new(-1., 0.), 0.));
         let expected_vec = vec![
             Line::new((-1., 1.), (0., 0.)),
             Line::new((0., 0.), (-1., -1.)),
@@ -138,7 +138,7 @@ mod test {
     #[test]
     fn lines_rotate_point() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, Transform::new(na::Vector2::new(-1., 0.), PI));
+        let shape_i = ShapeInstance::from(&shape, &Transform::new(na::Vector2::new(-1., 0.), PI));
         let expected_vec = vec![
             Line::new((-1., -1.), (-2., 0.)),
             Line::new((-2., 0.), (-1., 1.)),
@@ -154,7 +154,7 @@ mod test {
     #[test]
     fn lines_translate_rotate() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, Transform::new(na::Vector2::new(-1., 0.), PI));
+        let shape_i = ShapeInstance::from(&shape, &Transform::new(na::Vector2::new(-1., 0.), PI));
         let expected_vec = vec![
             Line::new((-1., -1.), (-2., 0.)),
             Line::new((-2., 0.), (-1., 1.)),
@@ -188,13 +188,13 @@ mod test {
     #[test]
     fn intersects() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i1 = ShapeInstance::from(&shape, Transform::new(Vector2::new(1., 0.), 0.));
+        let shape_i1 = ShapeInstance::from(&shape, &Transform::new(Vector2::new(1., 0.), 0.));
         assert!(shape_i1.intersects(&shape_i1));
 
-        let shape_i2 = ShapeInstance::from(&shape, Transform::new(Vector2::new(-1.001, 0.), 0.));
+        let shape_i2 = ShapeInstance::from(&shape, &Transform::new(Vector2::new(-1.001, 0.), 0.));
         assert!(!shape_i1.intersects(&shape_i2));
 
-        let shape_i3 = ShapeInstance::from(&shape, Transform::new(Vector2::new(0., 0.), PI / 4.));
+        let shape_i3 = ShapeInstance::from(&shape, &Transform::new(Vector2::new(0., 0.), PI / 4.));
         assert!(shape_i1.intersects(&shape_i3));
         assert!(shape_i2.intersects(&shape_i3));
     }

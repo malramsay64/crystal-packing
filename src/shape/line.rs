@@ -113,6 +113,8 @@ impl Line {
 mod test {
     use nalgebra::Vector2;
 
+    use crate::symmetry::Transform;
+
     use super::*;
 
     #[test]

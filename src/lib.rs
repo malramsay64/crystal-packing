@@ -166,7 +166,7 @@ where
         let mut positions: Vec<Vec<T::Component>> = vec![];
         for position in self.relative_positions().iter() {
             let shape_i: ShapeInstance<T::Component> =
-                ShapeInstance::from(&self.shape, self.cell.to_cartesian_isometry(position));
+                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position));
             positions.push(shape_i.items);
         }
         positions
@@ -198,7 +198,7 @@ where
                 self.cell.to_cartesian_isometry(position1)
             );
             let shape_i1 =
-                ShapeInstance::from(&self.shape, self.cell.to_cartesian_isometry(position1));
+                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position1));
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
                 debug!("Checking {} against {}", index1, index2);
                 trace!(
@@ -221,7 +221,7 @@ where
                         position2 + Vector2::new(f64::from(x_periodic), f64::from(y_periodic));
                     let shape_i2 = ShapeInstance::from(
                         &self.shape,
-                        self.cell.to_cartesian_isometry(&periodic_position2),
+                        &self.cell.to_cartesian_isometry(&periodic_position2),
                     );
                     if shape_i1.intersects(&shape_i2) {
                         return true;
@@ -328,7 +328,7 @@ where
                     position + Vector2::new(f64::from(x_periodic), f64::from(y_periodic));
 
                 let shape_i =
-                    ShapeInstance::from(&self.shape, self.cell.to_cartesian_isometry(&p_position));
+                    ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&p_position));
 
                 let colour = match () {
                     // These are the 'original' coordinates so differentiate
