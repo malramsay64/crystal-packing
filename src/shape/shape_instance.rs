@@ -11,7 +11,7 @@ use std::ops::Mul;
 use log::trace;
 
 use crate::shape::{Intersect, Shape};
-use crate::symmetry::Transform;
+use crate::symmetry::Transform2;
 
 /// Puts an abstract shape object in a physical space
 ///
@@ -19,20 +19,20 @@ use crate::symmetry::Transform;
 #[derive(PartialEq)]
 pub struct ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
-    for<'a> I: Mul<&'a Transform, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
-    for<'a> &'a I: Mul<Transform, Output = I>,
+    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
+    for<'a> I: Mul<&'a Transform2, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
+    for<'a> &'a I: Mul<Transform2, Output = I>,
 {
     pub items: Vec<I>,
 }
 
 impl<I> ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
-    for<'a> I: Mul<&'a Transform, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
-    for<'a> &'a I: Mul<Transform, Output = I>,
+    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
+    for<'a> I: Mul<&'a Transform2, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
+    for<'a> &'a I: Mul<Transform2, Output = I>,
 {
     /// Create a ShapeInstance from a Shape and a Symmetry operation
     ///
@@ -41,7 +41,7 @@ where
     /// shape in the appropriate coordinates. In other cases it performs both translations and
     /// rotations of the shape to the appropriate positions.
     ///
-    pub fn from<S>(shape: &S, iso: &Transform) -> ShapeInstance<I>
+    pub fn from<S>(shape: &S, iso: &Transform2) -> ShapeInstance<I>
     where
         S: Shape<Component = I>,
     {
@@ -54,10 +54,10 @@ where
 
 impl<I> ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
-    for<'a> I: Mul<&'a Transform, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
-    for<'a> &'a I: Mul<Transform, Output = I>,
+    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
+    for<'a> I: Mul<&'a Transform2, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
+    for<'a> &'a I: Mul<Transform2, Output = I>,
 {
     /// Check whether this shape intersects with another shape
     ///
@@ -81,10 +81,10 @@ where
 
 impl<I> Debug for ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
-    for<'a> I: Mul<&'a Transform, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
-    for<'a> &'a I: Mul<Transform, Output = I>,
+    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
+    for<'a> I: Mul<&'a Transform2, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
+    for<'a> &'a I: Mul<Transform2, Output = I>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ShapeInstance{{ {:?} }}", self.items)
@@ -106,7 +106,7 @@ mod test {
     #[test]
     fn lines() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, &Transform::default());
+        let shape_i = ShapeInstance::from(&shape, &Transform2::default());
         let expected_vec = vec![
             Line::new((0., 1.), (1., 0.)),
             Line::new((1., 0.), (0., -1.)),
@@ -122,7 +122,7 @@ mod test {
     #[test]
     fn lines_translate() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, &Transform::new(na::Vector2::new(-1., 0.), 0.));
+        let shape_i = ShapeInstance::from(&shape, &Transform2::new(na::Vector2::new(-1., 0.), 0.));
         let expected_vec = vec![
             Line::new((-1., 1.), (0., 0.)),
             Line::new((0., 0.), (-1., -1.)),
@@ -138,7 +138,7 @@ mod test {
     #[test]
     fn lines_rotate_point() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, &Transform::new(na::Vector2::new(-1., 0.), PI));
+        let shape_i = ShapeInstance::from(&shape, &Transform2::new(na::Vector2::new(-1., 0.), PI));
         let expected_vec = vec![
             Line::new((-1., -1.), (-2., 0.)),
             Line::new((-2., 0.), (-1., 1.)),
@@ -154,7 +154,7 @@ mod test {
     #[test]
     fn lines_translate_rotate() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, &Transform::new(na::Vector2::new(-1., 0.), PI));
+        let shape_i = ShapeInstance::from(&shape, &Transform2::new(na::Vector2::new(-1., 0.), PI));
         let expected_vec = vec![
             Line::new((-1., -1.), (-2., 0.)),
             Line::new((-2., 0.), (-1., 1.)),
@@ -188,13 +188,13 @@ mod test {
     #[test]
     fn intersects() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i1 = ShapeInstance::from(&shape, &Transform::new(Vector2::new(1., 0.), 0.));
+        let shape_i1 = ShapeInstance::from(&shape, &Transform2::new(Vector2::new(1., 0.), 0.));
         assert!(shape_i1.intersects(&shape_i1));
 
-        let shape_i2 = ShapeInstance::from(&shape, &Transform::new(Vector2::new(-1.001, 0.), 0.));
+        let shape_i2 = ShapeInstance::from(&shape, &Transform2::new(Vector2::new(-1.001, 0.), 0.));
         assert!(!shape_i1.intersects(&shape_i2));
 
-        let shape_i3 = ShapeInstance::from(&shape, &Transform::new(Vector2::new(0., 0.), PI / 4.));
+        let shape_i3 = ShapeInstance::from(&shape, &Transform2::new(Vector2::new(0., 0.), PI / 4.));
         assert!(shape_i1.intersects(&shape_i3));
         assert!(shape_i2.intersects(&shape_i3));
     }

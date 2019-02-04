@@ -9,11 +9,11 @@
 use std::ops::Mul;
 
 use crate::shape::Atom;
-use crate::symmetry::Transform;
+use crate::symmetry::Transform2;
 
 binop_impl_all!(
     Mul, mul;
-    self: Transform, rhs: Atom, Output = Atom;
+    self: Transform2, rhs: Atom, Output = Atom;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;
@@ -27,7 +27,7 @@ binop_impl_all!(
 
 binop_impl_all!(
     Mul, mul;
-    self: Atom, rhs: Transform, Output = Atom;
+    self: Atom, rhs: Transform2, Output = Atom;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;

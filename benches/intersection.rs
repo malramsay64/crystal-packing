@@ -14,7 +14,7 @@ use criterion::{Criterion, ParameterizedBenchmark};
 use nalgebra::Vector2;
 
 use packing::shape::{LineShape, Shape, ShapeInstance};
-use packing::symmetry::Transform;
+use packing::symmetry::Transform2;
 
 fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])
@@ -31,8 +31,8 @@ fn setup_state(points: usize) -> packing::PackedState<LineShape> {
     let isopointal = &[packing::WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform::from_operations("x,y"),
-            Transform::from_operations("-x,-y"),
+            Transform2::from_operations("x,y"),
+            Transform2::from_operations("-x,-y"),
         ],
         num_rotations: 1,
         mirror_primary: false,
@@ -45,14 +45,14 @@ fn setup_state(points: usize) -> packing::PackedState<LineShape> {
 fn setup_shapes<S>(shape: &S) -> (ShapeInstance<S::Component>, ShapeInstance<S::Component>)
 where
     S: Shape,
-    for<'a> S::Component: Mul<&'a Transform, Output = S::Component>,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform2, Output = S::Component>,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform2, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform2, Output = S::Component>,
 {
     // These two shapes don't intersect so there is no shortcut out of the checking for
     // intersection
-    let si1 = ShapeInstance::from(shape, &Transform::new(Vector2::new(-2., 0.), 0.));
-    let si2 = ShapeInstance::from(shape, &Transform::new(Vector2::new(2., 0.), 0.));
+    let si1 = ShapeInstance::from(shape, &Transform2::new(Vector2::new(-2., 0.), 0.));
+    let si2 = ShapeInstance::from(shape, &Transform2::new(Vector2::new(2., 0.), 0.));
 
     (si1, si2)
 }
@@ -92,7 +92,7 @@ fn create_shape_instance(c: &mut Criterion) {
         "Creation of ShapeInstance",
         |b, &param| {
             let shape = create_polygon(param).unwrap();
-            let trans = Transform::new(Vector2::new(0.2, -5.3), PI / 3.);
+            let trans = Transform2::new(Vector2::new(0.2, -5.3), PI / 3.);
             b.iter(|| ShapeInstance::from(&shape, &trans))
         },
         parameters,
