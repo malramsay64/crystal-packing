@@ -7,7 +7,7 @@
 
 use approx;
 // Re-export these to allow importing along with the Transform struct
-pub use nalgebra::{Matrix2, Point2, Vector2};
+pub use nalgebra::{DimName, MatrixN, Point, VectorN, U2, U3};
 
 /// Define the transformations of particle positions
 ///
@@ -17,12 +17,18 @@ pub use nalgebra::{Matrix2, Point2, Vector2};
 /// component is represented as a vector, being applied after the rotation.
 ///
 #[derive(Debug, Clone, PartialEq)]
-pub struct Transform {
-    pub rotation: Matrix2<f64>,
-    pub translation: Vector2<f64>,
+pub struct Transform<D>
+where
+    D: DimName,
+{
+    pub rotation: MatrixN<f64, D>,
+    pub translation: VectorN<f64, D>,
 }
 
-impl approx::AbsDiffEq for Transform {
+impl<D> approx::AbsDiffEq for Transform<D>
+where
+    D: DimName,
+{
     type Epsilon = f64;
 
     fn default_epsilon() -> Self::Epsilon {
@@ -35,21 +41,21 @@ impl approx::AbsDiffEq for Transform {
     }
 }
 
-impl Transform {
+impl Transform<U2> {
     /// Instantiate a symmetry transform from a translation vector and angle
     ///
     /// This is simpler than specifying an entire rotation matrix, although it doesn't allow for
     /// the specification of any mirror planes. It can be used as;
     /// ```
-    /// use packing::symmetry::{Transform, Vector2};
+    /// use packing::symmetry::{Transform2, Vector2};
     /// use std::f64::consts::PI;
-    /// let t = Transform::new(Vector2::new(1., 1.), PI /2.);
+    /// let t = Transform2::new(Vector2::new(1., 1.), PI /2.);
     /// ```
     ///
-    pub fn new(translation: Vector2<f64>, rotation: f64) -> Transform {
+    pub fn new(translation: VectorN<f64, U2>, rotation: f64) -> Transform<U2> {
         Transform {
             // Convert a rotation angle in radians to a rotation matrix.
-            rotation: Matrix2::new(
+            rotation: MatrixN::<f64, U2>::new(
                 rotation.cos(),
                 -rotation.sin(),
                 rotation.sin(),
@@ -58,7 +64,32 @@ impl Transform {
             translation,
         }
     }
+}
 
+impl Transform<U3> {
+    /// Instantiate a symmetry transform from a translation vector and angle
+    ///
+    /// This is simpler than specifying an entire rotation matrix, although it doesn't allow for
+    /// the specification of any mirror planes. It can be used as;
+    /// ```
+    /// use packing::symmetry::{Transform3, Vector3};
+    /// use std::f64::consts::PI;
+    /// let t = Transform::new(Vector3::new(1., 1., 1.), Vector3::new(PI /2., PI/2., 0.));
+    /// ```
+    ///
+    pub fn new(translation: VectorN<f64, U3>, rotation: VectorN<f64, U3>) -> Transform<U3> {
+        Transform {
+            // Convert a rotation angle in radians to a rotation matrix.
+            rotation: na::Rotation3::new(rotation).matrix().clone(),
+            translation,
+        }
+    }
+}
+
+impl<D> Transform<D>
+where
+    D: DimName,
+{
     /// Create the identity transform
     ///
     /// This is the transform which leaves the transformed vector unchanged.
@@ -72,8 +103,8 @@ impl Transform {
     ///
     pub fn identity() -> Self {
         Self {
-            translation: Vector2::zeros(),
-            rotation: Matrix2::identity(),
+            translation: VectorN::<f64, D>::zeros(),
+            rotation: MatrixN::<f64, D>::identity(),
         }
     }
 
@@ -87,7 +118,7 @@ impl Transform {
     /// let t = Transform::from_operations("-x, y");
     /// ```
     ///
-    pub fn from_operations(sym_ops: &str) -> Transform {
+    pub fn from_operations(sym_ops: &str) -> Transform<D> {
         let braces: &[_] = &['(', ')'];
         let operations: Vec<&str> = sym_ops
             // Remove braces from front and back
@@ -95,8 +126,8 @@ impl Transform {
             // Split at the comma
             .split_terminator(',')
             .collect();
-        let mut trans = Vector2::zeros();
-        let mut rot: Matrix2<f64> = Matrix2::zeros();
+        let mut trans: VectorN<f64, D> = VectorN::<f64, D>::zeros();
+        let mut rot: MatrixN<f64, D> = MatrixN::<f64, D>::zeros();
 
         for (index, op) in operations.iter().enumerate() {
             let mut sign = 1.;
@@ -110,6 +141,10 @@ impl Transform {
                     }
                     'y' => {
                         rot[(index, 1)] = sign;
+                        sign = 1.;
+                    }
+                    'z' => {
+                        rot[(index, 2)] = sign;
                         sign = 1.;
                     }
                     '*' | '/' => {
@@ -146,24 +181,27 @@ impl Transform {
         }
     }
 
-    pub fn transform(&self, position: &Point2<f64>) -> Point2<f64> {
+    pub fn transform(&self, position: &Point<f64, D>) -> Point<f64, D> {
         self * position
     }
 
-    pub fn rotate(&self, vect: &Vector2<f64>) -> Vector2<f64> {
+    pub fn rotate(&self, vect: &VectorN<f64, D>) -> VectorN<f64, D> {
         self * vect
     }
 
     pub fn angle(&self) -> f64 {
-        na::Rotation2::from_matrix_unchecked(self.rotation).angle()
+        na::Rotation::from_matrix_unchecked(self.rotation).angle()
     }
 }
 
-impl Default for Transform {
+impl<D> Default for Transform<D>
+where
+    D: DimName,
+{
     fn default() -> Self {
         Self {
-            rotation: Matrix2::identity(),
-            translation: Vector2::zeros(),
+            rotation: MatrixN::identity(),
+            translation: VectorN::zeros(),
         }
     }
 }
@@ -173,6 +211,7 @@ mod test {
     use std::f64::consts::PI;
 
     use approx::assert_abs_diff_eq;
+    use nalgebra::{Point2, Vector2};
     use rand::prelude::*;
     use rand::rngs::SmallRng;
     use rand::Rng;
@@ -182,7 +221,7 @@ mod test {
     #[test]
     fn default() {
         let point = Point2::new(0.2, 0.2);
-        let transform = Transform::default();
+        let transform: Transform<U2> = Transform::default();
         assert_eq!(transform.transform(&point), point);
     }
 

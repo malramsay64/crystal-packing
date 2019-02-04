@@ -8,3 +8,6 @@ mod transform;
 mod transform_ops;
 
 pub use transform::*;
+
+pub type Transform2 = Transform<U2>;
+pub type Transform3 = Transform<U3>;
