@@ -1,25 +1,32 @@
+//
 // shape.rs
 //
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
-//
 
 use std::fmt;
-use std::ops;
+use std::ops::Mul;
 use std::slice;
 
 use crate::symmetry::Transform;
 
-pub trait Intersect: ops::Mul<Transform> {
+pub trait Intersect: Sized + Mul<Transform, Output = Self>
+where
+    for<'a> Self: Mul<&'a Transform, Output = Self>,
+    for<'a, 'b> &'a Self: Mul<&'b Transform, Output = Self>,
+    for<'a> &'a Self: Mul<Transform, Output = Self>,
+{
     fn intersects(&self, other: &Self) -> bool;
 }
 
-pub trait Shape: PartialEq + fmt::Debug + Clone + fmt::Display {
-    type Component: Intersect
-        + fmt::Debug
-        + fmt::Display
-        + ops::Mul<Transform, Output = Self::Component>;
+pub trait Shape: PartialEq + fmt::Debug + Clone + fmt::Display
+where
+    for<'a> Self::Component: Mul<&'a Transform, Output = Self::Component>,
+    for<'a, 'b> &'a Self::Component: Mul<&'b Transform, Output = Self::Component>,
+    for<'a> &'a Self::Component: Mul<Transform, Output = Self::Component>,
+{
+    type Component: Intersect + fmt::Debug + fmt::Display;
 
     fn area(&self) -> f64;
     fn enclosing_radius(&self) -> f64;

@@ -48,6 +48,9 @@ arg_enum! {
 fn get_packed_state<T>(options: CLIOptions, shape: T) -> Result<PackedState<T>, &'static str>
 where
     T: Shape + Send + Sync,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
 {
     let wallpaper = packing::Wallpaper::new(&options.group);
     let isopointal = &[packing::WyckoffSite::new(options.group)];

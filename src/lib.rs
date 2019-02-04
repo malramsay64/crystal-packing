@@ -10,6 +10,7 @@ use std::error::Error;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::io::prelude::*;
+use std::ops::Mul;
 use std::path::Path;
 
 extern crate approx;
@@ -93,29 +94,60 @@ impl OccupiedSite {
 }
 
 #[derive(Clone, Debug)]
-pub struct PackedState<T: shape::Shape> {
+pub struct PackedState<T: shape::Shape>
+where
+    T: Shape,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+{
     pub wallpaper: Wallpaper,
     pub shape: T,
     pub cell: Cell,
     occupied_sites: Vec<OccupiedSite>,
 }
 
-impl<T: shape::Shape> Eq for PackedState<T> {}
+impl<T: shape::Shape> Eq for PackedState<T>
+where
+    T: Shape,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+{
+}
 
-impl<T: shape::Shape> PartialEq for PackedState<T> {
+impl<T: shape::Shape> PartialEq for PackedState<T>
+where
+    T: Shape,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+{
     fn eq(&self, other: &Self) -> bool {
         self.packing_fraction() == other.packing_fraction()
     }
 }
 
-impl<T: shape::Shape> PartialOrd for PackedState<T> {
+impl<T: shape::Shape> PartialOrd for PackedState<T>
+where
+    T: Shape,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.packing_fraction()
             .partial_cmp(&other.packing_fraction())
     }
 }
 
-impl<T: shape::Shape> Ord for PackedState<T> {
+impl<T: shape::Shape> Ord for PackedState<T>
+where
+    T: Shape,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+{
     fn cmp(&self, other: &Self) -> Ordering {
         self.packing_fraction()
             .partial_cmp(&other.packing_fraction())
@@ -123,7 +155,13 @@ impl<T: shape::Shape> Ord for PackedState<T> {
     }
 }
 
-impl<T: shape::Shape> PackedState<T> {
+impl<T: shape::Shape> PackedState<T>
+where
+    T: Shape,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+{
     pub fn cartesian_positions(&self) -> Vec<Vec<T::Component>> {
         let mut positions: Vec<Vec<T::Component>> = vec![];
         for position in self.relative_positions().iter() {
@@ -421,10 +459,16 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
     f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-pub fn monte_carlo_best_packing<T: shape::Shape>(
+pub fn monte_carlo_best_packing<T>(
     vars: &MCVars,
     mut state: PackedState<T>,
-) -> Result<PackedState<T>, &'static str> {
+) -> Result<PackedState<T>, &'static str>
+where
+    T: Shape,
+    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+{
     // When a random seed is provided, use it, otherwise seed the random number generator from the
     // system entropy.
     let mut rng = match vars.seed {

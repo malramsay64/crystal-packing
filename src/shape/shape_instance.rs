@@ -17,16 +17,22 @@ use crate::symmetry::Transform;
 ///
 /// This acts as a cache for computed values.
 #[derive(PartialEq)]
-pub struct ShapeInstance<T>
+pub struct ShapeInstance<I>
 where
-    T: Intersect + ops::Mul<Transform, Output = T> + fmt::Debug,
+    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
+    for<'a> I: Mul<&'a Transform, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
+    for<'a> &'a I: Mul<Transform, Output = I>,
 {
-    pub items: Vec<T>,
+    pub items: Vec<I>,
 }
 
-impl<T> ShapeInstance<T>
+impl<I> ShapeInstance<I>
 where
-    T: Intersect + ops::Mul<Transform, Output = T> + fmt::Debug + fmt::Display,
+    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
+    for<'a> I: Mul<&'a Transform, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
+    for<'a> &'a I: Mul<Transform, Output = I>,
 {
     /// Create a ShapeInstance from a Shape and a Symmetry operation
     ///
@@ -35,21 +41,23 @@ where
     /// shape in the appropriate coordinates. In other cases it performs both translations and
     /// rotations of the shape to the appropriate positions.
     ///
-    pub fn from<S: Shape<Component = T>>(shape: &S, iso: Transform) -> ShapeInstance<T> {
+    pub fn from<S>(shape: &S, iso: Transform) -> ShapeInstance<I>
+    where
+        S: Shape<Component = I>,
+    {
         trace!("Shape: {:?}, iso: {:?}", shape, iso);
         ShapeInstance {
-            items: shape
-                .get_items()
-                .into_iter()
-                .map(|p| p * iso.clone())
-                .collect(),
+            items: shape.iter().map(|p| p * &iso).collect(),
         }
     }
 }
 
-impl<T> ShapeInstance<T>
+impl<I> ShapeInstance<I>
 where
-    T: Intersect + ops::Mul<Transform, Output = T> + fmt::Debug,
+    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
+    for<'a> I: Mul<&'a Transform, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
+    for<'a> &'a I: Mul<Transform, Output = I>,
 {
     /// Check whether this shape intersects with another shape
     ///
@@ -58,7 +66,7 @@ where
     /// when a line from one square crosses the other. Each component item of `self` is
     /// checked against `other`.
     ///
-    pub fn intersects(&self, other: &ShapeInstance<T>) -> bool {
+    pub fn intersects(&self, other: &ShapeInstance<I>) -> bool {
         // We want to compare every item of the current shape with every item of the other shape.
         for (index_a, item_a) in self.items.iter().enumerate() {
             for item_b in other.items.iter().skip(index_a) {
@@ -71,9 +79,12 @@ where
     }
 }
 
-impl<T> fmt::Debug for ShapeInstance<T>
+impl<I> Debug for ShapeInstance<I>
 where
-    T: Intersect + ops::Mul<Transform, Output = T> + fmt::Debug,
+    I: Intersect + Debug + Display + Mul<Transform, Output = I>,
+    for<'a> I: Mul<&'a Transform, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform, Output = I>,
+    for<'a> &'a I: Mul<Transform, Output = I>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ShapeInstance{{ {:?} }}", self.items)
