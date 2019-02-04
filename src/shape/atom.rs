@@ -5,13 +5,11 @@
 //
 
 use std::fmt;
-use std::ops;
 
 use nalgebra as na;
 use nalgebra::Point2;
 
 use crate::shape::Intersect;
-use crate::symmetry::Transform;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Atom {
@@ -25,17 +23,6 @@ impl Intersect for Atom {
         // We have an intersection when the distance between the particles is less than the
         // combined radius of the two particles.
         na::distance_squared(&self.position, &other.position) < r_squared
-    }
-}
-
-impl ops::Mul<Transform> for Atom {
-    type Output = Self;
-
-    fn mul(self, rhs: Transform) -> Self::Output {
-        Self {
-            position: rhs * self.position,
-            radius: self.radius,
-        }
     }
 }
 

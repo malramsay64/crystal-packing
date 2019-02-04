@@ -29,6 +29,7 @@ use rand::Rng;
 
 pub mod basis;
 pub mod cell;
+pub mod ops_macros;
 pub mod shape;
 pub mod symmetry;
 pub mod wallpaper;

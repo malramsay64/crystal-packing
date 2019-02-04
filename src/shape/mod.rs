@@ -41,7 +41,11 @@ impl fmt::Display for LineShape {
 }
 
 mod atom;
+mod atom_ops;
+
 mod line;
+mod line_ops;
+
 mod line_shape;
 mod molecular_shape;
 mod shape_instance;

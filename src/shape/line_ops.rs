@@ -1,0 +1,39 @@
+//
+// line_ops.rs
+// Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
+// Distributed under terms of the MIT license.
+//
+
+#![allow(clippy::op_ref)]
+use std::ops::Mul;
+
+use crate::shape::Line;
+use crate::symmetry::Transform;
+
+binop_impl_all!(
+    Mul, mul;
+    self: Transform, rhs: Line, Output = Line;
+    [val val] => &self * &rhs;
+    [ref val] => self * &rhs;
+    [val ref] => &self * rhs;
+    [ref ref] => {
+        Line {
+            start: self * rhs.start,
+            end: self * rhs.end,
+        }
+    };
+);
+
+binop_impl_all!(
+    Mul, mul;
+    self: Line, rhs: Transform, Output = Line;
+    [val val] => &self * &rhs;
+    [ref val] => self * &rhs;
+    [val ref] => &self * rhs;
+    [ref ref] => {
+        Line {
+            start: rhs * self.start,
+            end: rhs * self.end,
+        }
+    };
+);

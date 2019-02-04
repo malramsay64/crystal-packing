@@ -14,6 +14,7 @@ extern crate rayon;
 extern crate simplelog;
 
 use std::f64::consts::PI;
+use std::ops::Mul;
 
 use clap::{arg_enum, App, Arg, _clap_count_exprs, value_t};
 use log::{debug, info};
@@ -23,6 +24,7 @@ use simplelog::{Config, LevelFilter, TermLogger};
 use packing;
 #[allow(unused_imports)]
 use packing::shape::{Atom, LineShape, MolecularShape, Shape};
+use packing::symmetry::Transform;
 use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
 use packing::PackedState;
 

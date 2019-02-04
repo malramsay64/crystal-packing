@@ -5,13 +5,11 @@
 //
 
 use std::fmt;
-use std::ops;
 
 use approx::{AbsDiffEq, RelativeEq};
 use nalgebra::Point2;
 
 use crate::shape::Intersect;
-use crate::symmetry::Transform;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Line {
@@ -89,28 +87,6 @@ impl fmt::Display for Line {
             "Line {{ ({:.5}, {:.5}), ({:.5}, {:.5}) }}",
             self.start.x, self.start.y, self.end.x, self.end.y
         )
-    }
-}
-
-impl ops::Mul<Transform> for Line {
-    type Output = Self;
-
-    fn mul(self, rhs: Transform) -> Self::Output {
-        Self {
-            start: &rhs * self.start,
-            end: &rhs * self.end,
-        }
-    }
-}
-
-impl ops::Mul<&Transform> for Line {
-    type Output = Self;
-
-    fn mul(self, rhs: &Transform) -> Self::Output {
-        Self {
-            start: rhs * self.start,
-            end: rhs * self.end,
-        }
     }
 }
 
