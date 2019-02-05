@@ -6,7 +6,7 @@
 
 use std::f64::consts::PI;
 
-use nalgebra::{Point2, Vector2};
+use nalgebra::{Point2, Translation2};
 
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::symmetry::Transform2;
@@ -92,11 +92,11 @@ impl Cell {
     /// Cartesian coordinates based on the current cell parameters.
     ///
     pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
-        let (x, y) = self.to_cartesian(transform.translation.x, transform.translation.y);
-        Transform2 {
-            rotation: transform.rotation,
-            translation: Vector2::new(x, y),
-        }
+        let (x, y) = self.to_cartesian(
+            transform.translation.vector.x,
+            transform.translation.vector.y,
+        );
+        Transform2::from_parts(Translation2::new(x, y), transform.rotation)
     }
 
     /// The $x$ component of the cell, also known as $a$

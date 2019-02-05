@@ -113,7 +113,7 @@ impl Line {
 mod test {
     use nalgebra::Vector2;
 
-    use crate::symmetry::Transform;
+    use crate::symmetry::Transform2;
 
     use super::*;
 
@@ -151,11 +151,11 @@ mod test {
 
     #[test]
     fn isometry_matrix_mul() {
-        let ident: Transform = Transform::identity();
+        let ident: Transform2 = Transform2::identity();
         let line = Line::new((1., 1.), (0., 0.));
         assert_eq!(line * ident, line);
 
-        let trans: Transform = Transform::new(Vector2::new(1., 1.), 0.);
+        let trans: Transform2 = Transform2::new(Vector2::new(1., 1.), 0.);
         assert_eq!(line * trans, Line::new((2., 2.), (1., 1.)));
     }
 

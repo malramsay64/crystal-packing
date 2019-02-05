@@ -14,7 +14,7 @@ use criterion::{Criterion, ParameterizedBenchmark};
 use nalgebra::Vector2;
 
 use packing::shape::{LineShape, Shape, ShapeInstance};
-use packing::symmetry::Transform2;
+use packing::symmetry::{transform_from_operations, Transform2};
 
 fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])
@@ -31,8 +31,8 @@ fn setup_state(points: usize) -> packing::PackedState<LineShape> {
     let isopointal = &[packing::WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform2::from_operations("x,y"),
-            Transform2::from_operations("-x,-y"),
+            transform_from_operations("x,y"),
+            transform_from_operations("-x,-y"),
         ],
         num_rotations: 1,
         mirror_primary: false,

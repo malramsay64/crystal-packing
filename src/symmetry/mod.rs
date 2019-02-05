@@ -5,6 +5,5 @@
 //
 
 mod transform;
-mod transform_ops;
 
 pub use transform::*;

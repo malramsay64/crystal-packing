@@ -75,11 +75,3 @@ macro_rules! binop_impl_all(
             $action_ref_ref; 'a, 'b);
     }
 );
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {}
-}

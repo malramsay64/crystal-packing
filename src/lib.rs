@@ -22,7 +22,7 @@ extern crate rand;
 
 use itertools::iproduct;
 use log::{debug, trace, warn};
-use nalgebra::{Point2, Vector2};
+use nalgebra::{Point2, Translation2, Vector2};
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
@@ -38,7 +38,7 @@ pub mod wallpaper;
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::cell::{Cell, CrystalFamily};
 pub use crate::shape::{LineShape, Shape, ShapeInstance};
-pub use crate::symmetry::Transform2;
+pub use crate::symmetry::{transform_from_operations, Transform2};
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
 #[derive(Clone, Debug)]
@@ -217,11 +217,13 @@ where
                         continue;
                     }
 
-                    let periodic_position2 =
-                        position2 + Vector2::new(f64::from(x_periodic), f64::from(y_periodic));
+                    let mut p_position2 = *position2;
+                    p_position2.translation *=
+                        Translation2::new(f64::from(x_periodic), f64::from(y_periodic));
+
                     let shape_i2 = ShapeInstance::from(
                         &self.shape,
-                        &self.cell.to_cartesian_isometry(&periodic_position2),
+                        &self.cell.to_cartesian_isometry(&p_position2),
                     );
                     if shape_i1.intersects(&shape_i2) {
                         return true;
@@ -314,18 +316,10 @@ where
             // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
             // necessary, although this is currently not an issue due to the limiting of the
             // value of the cell angle.
-            let (x_r, y_r) = (position.translation.x, position.translation.y);
-            debug!(
-                "Relative Position: {} {} {}",
-                x_r,
-                y_r,
-                position.angle() * 180. / PI
-            );
-            let (x_c, y_c) = self.cell.to_cartesian(x_r, y_r);
-            debug!("Cartesian Position: {} {}", x_c, y_c);
             for (x_periodic, y_periodic) in iproduct!(-1..=1, -1..=1) {
-                let p_position =
-                    position + Vector2::new(f64::from(x_periodic), f64::from(y_periodic));
+                let mut p_position = *position;
+                p_position.translation *=
+                    Translation2::new(f64::from(x_periodic), f64::from(y_periodic));
 
                 let shape_i =
                     ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&p_position));
@@ -359,7 +353,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![Transform2::from_operations("x,y")],
+            symmetries: vec![transform_from_operations("x,y")],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -376,10 +370,10 @@ mod packed_state_tests {
         let isopointal = vec![WyckoffSite {
             letter: 'd',
             symmetries: vec![
-                Transform2::from_operations("x,y"),
-                Transform2::from_operations("-x,-y"),
-                Transform2::from_operations("-x+1/2,y"),
-                Transform2::from_operations("x+1/2,-y"),
+                transform_from_operations("x,y"),
+                transform_from_operations("-x,-y"),
+                transform_from_operations("-x+1/2,y"),
+                transform_from_operations("x+1/2,-y"),
             ],
             num_rotations: 1,
             mirror_primary: false,

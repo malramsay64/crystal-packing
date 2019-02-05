@@ -106,7 +106,7 @@ mod test {
     #[test]
     fn lines() {
         let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
-        let shape_i = ShapeInstance::from(&shape, &Transform2::default());
+        let shape_i = ShapeInstance::from(&shape, &Transform2::identity());
         let expected_vec = vec![
             Line::new((0., 1.), (1., 0.)),
             Line::new((1., 0.), (0., -1.)),

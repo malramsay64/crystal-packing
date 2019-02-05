@@ -24,7 +24,7 @@ use simplelog::{Config, LevelFilter, TermLogger};
 use packing;
 #[allow(unused_imports)]
 use packing::shape::{Atom, LineShape, MolecularShape, Shape};
-use packing::symmetry::Transform;
+use packing::symmetry::Transform2;
 use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
 use packing::PackedState;
 
@@ -48,9 +48,9 @@ arg_enum! {
 fn get_packed_state<T>(options: CLIOptions, shape: T) -> Result<PackedState<T>, &'static str>
 where
     T: Shape + Send + Sync,
-    for<'a> T::Component: Mul<&'a Transform, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform, Output = T::Component>,
+    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
+    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
+    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
 {
     let wallpaper = packing::Wallpaper::new(&options.group);
     let isopointal = &[packing::WyckoffSite::new(options.group)];

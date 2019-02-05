@@ -7,7 +7,7 @@
 use packing;
 #[allow(unused_imports)]
 use packing::shape::{LineShape, Shape};
-use packing::symmetry::Transform;
+use packing::symmetry::transform_from_operations;
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {
@@ -21,8 +21,8 @@ fn test_packing_improves() -> Result<(), &'static str> {
     let isopointal = &[packing::WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform::from_operations("x,y"),
-            Transform::from_operations("-x,-y"),
+            transform_from_operations("x,y"),
+            transform_from_operations("-x,-y"),
         ],
         num_rotations: 1,
         mirror_primary: false,
