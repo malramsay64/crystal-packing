@@ -18,13 +18,15 @@ use std::ops::Mul;
 
 use clap::{arg_enum, App, Arg, _clap_count_exprs, value_t};
 use log::{debug, info};
+use nalgebra::allocator::Allocator;
+use nalgebra::{DefaultAllocator, U2};
 use rayon::prelude::*;
 use simplelog::{Config, LevelFilter, TermLogger};
 
 use packing;
 #[allow(unused_imports)]
 use packing::shape::{Atom, LineShape, MolecularShape, Shape};
-use packing::symmetry::Transform2;
+use packing::symmetry::Transform;
 use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
 use packing::PackedState;
 
@@ -45,17 +47,19 @@ arg_enum! {
     }
 }
 
-fn get_packed_state<T>(options: CLIOptions, shape: T) -> Result<PackedState<T>, &'static str>
+fn get_packed_state<S>(options: CLIOptions, shape: S) -> Result<PackedState<S>, &'static str>
 where
-    T: Shape + Send + Sync,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Send + Sync,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     let wallpaper = packing::Wallpaper::new(&options.group);
     let isopointal = &[packing::WyckoffSite::new(options.group)];
 
-    let state = PackedState::initialise(shape.clone(), wallpaper.clone(), isopointal);
+    let state = PackedState::<S>::initialise(shape.clone(), wallpaper.clone(), isopointal);
     if state.check_intersection() {
         panic!("Initial state has intersections...exiting.");
     }
@@ -75,7 +79,7 @@ where
         .into_par_iter()
         .map(|_| {
             let state =
-                packing::PackedState::initialise(shape.clone(), wallpaper.clone(), isopointal);
+                packing::PackedState::<S>::initialise(shape.clone(), wallpaper.clone(), isopointal);
             packing::monte_carlo_best_packing(&vars, state)
         })
         .max()

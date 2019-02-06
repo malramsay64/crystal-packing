@@ -9,24 +9,35 @@ use std::fmt;
 use std::ops::Mul;
 use std::slice;
 
-use crate::symmetry::Transform2;
+use nalgebra::allocator::Allocator;
+use nalgebra::{DefaultAllocator, DimName};
 
-pub trait Intersect: Sized + Mul<Transform2, Output = Self>
+use crate::symmetry::Transform;
+
+pub trait U2: DimName {}
+
+impl U2 for na::U2 {}
+
+pub trait Intersect<D: DimName>: Sized + Mul<Transform<D>, Output = Self>
 where
-    for<'a> Self: Mul<&'a Transform2, Output = Self>,
-    for<'a, 'b> &'a Self: Mul<&'b Transform2, Output = Self>,
-    for<'a> &'a Self: Mul<Transform2, Output = Self>,
+    for<'a> Self: Mul<&'a Transform<D>, Output = Self>,
+    for<'a, 'b> &'a Self: Mul<&'b Transform<D>, Output = Self>,
+    for<'a> &'a Self: Mul<Transform<D>, Output = Self>,
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
 {
     fn intersects(&self, other: &Self) -> bool;
 }
 
-pub trait Shape: PartialEq + fmt::Debug + Clone + fmt::Display
+pub trait Shape<D: DimName>: PartialEq + fmt::Debug + Clone + fmt::Display
 where
-    for<'a> Self::Component: Mul<&'a Transform2, Output = Self::Component>,
-    for<'a, 'b> &'a Self::Component: Mul<&'b Transform2, Output = Self::Component>,
-    for<'a> &'a Self::Component: Mul<Transform2, Output = Self::Component>,
+    for<'a> Self::Component: Mul<&'a Transform<D>, Output = Self::Component>,
+    for<'a, 'b> &'a Self::Component: Mul<&'b Transform<D>, Output = Self::Component>,
+    for<'a> &'a Self::Component: Mul<Transform<D>, Output = Self::Component>,
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
 {
-    type Component: Intersect + fmt::Debug + fmt::Display;
+    type Component: Intersect<D> + fmt::Debug + fmt::Display;
 
     fn area(&self) -> f64;
     fn enclosing_radius(&self) -> f64;

@@ -6,10 +6,12 @@
 
 use std::f64::consts::PI;
 
-use nalgebra::{Point2, Translation2};
+use nalgebra::base::allocator::Allocator;
+use nalgebra::{DefaultAllocator, Point, Translation, VectorN};
 
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
-pub use crate::symmetry::Transform2;
+use crate::shape::U2;
+pub use crate::symmetry::Transform;
 
 /// The different crystal families that can be represented
 ///
@@ -53,37 +55,39 @@ mod crystal_family_test {
 /// dictate the degrees of freedom the cell can take.
 ///
 #[derive(Clone, Debug)]
-pub struct Cell {
-    x_len: f64,
-    y_len: Option<f64>,
-    angle: f64,
+pub struct Cell<D: U2>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    points: VectorN<f64, D>,
+    angles: VectorN<f64, D>,
     family: CrystalFamily,
 }
 
-impl std::fmt::Display for Cell {
+impl std::fmt::Display for Cell<na::U2> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
             "Cell {{ x: {}, a: {}, angle: {} }}",
             self.x(),
             self.y(),
-            self.angle
+            self.angle()
         )
     }
 }
 
-impl Default for Cell {
-    fn default() -> Cell {
-        Cell {
-            x_len: 1.,
-            y_len: Some(1.),
-            angle: PI / 2.,
+impl Default for Cell<na::U2> {
+    fn default() -> Self {
+        Self {
+            points: VectorN::<f64, na::U2>::new(1., 1.),
+            angles: VectorN::<f64, na::U2>::new(PI / 2., 0.),
             family: CrystalFamily::Monoclinic,
         }
     }
 }
 
-impl Cell {
+impl Cell<na::U2> {
     /// Convert a transformation into Cartesian coordinates
     ///
     /// The positions of particles are stored in fractional coordinates, making changes to the
@@ -91,12 +95,12 @@ impl Cell {
     /// and converts the values of the fractional coordinates in the translation to real
     /// Cartesian coordinates based on the current cell parameters.
     ///
-    pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
+    pub fn to_cartesian_isometry(&self, transform: &Transform<na::U2>) -> Transform<na::U2> {
         let (x, y) = self.to_cartesian(
             transform.translation.vector.x,
             transform.translation.vector.y,
         );
-        Transform2::from_parts(Translation2::new(x, y), transform.rotation)
+        Transform::<na::U2>::from_parts(Translation::<f64, na::U2>::new(x, y), transform.rotation)
     }
 
     /// The $x$ component of the cell, also known as $a$
@@ -104,7 +108,7 @@ impl Cell {
     /// This is the interface for accessing the length of the first crystallographic dimension of
     /// the unit cell.
     pub fn x(&self) -> f64 {
-        self.x_len
+        self.points.x
     }
 
     /// The $y$ component of the cell, also known as $a$
@@ -112,23 +116,23 @@ impl Cell {
     /// This is the interface for accessing the length of the first crystallographic dimension of
     /// the unit cell.
     pub fn y(&self) -> f64 {
-        match self.y_len {
-            Some(y) => y,
-            None => self.x_len,
+        if self.points.y == 0. {
+            return self.points.x;
         }
+        self.points.y
     }
 
     /// The angle between the $x$ and $y$ components of the cell
     ///
     /// This is typically labelled $\theta$.
     pub fn angle(&self) -> f64 {
-        self.angle
+        self.angles.x
     }
 
     /// Convert a point in relative coordinates to real coordinates
-    pub fn to_cartesian_point(&self, point: Point2<f64>) -> Point2<f64> {
+    pub fn to_cartesian_point(&self, point: Point<f64, na::U2>) -> Point<f64, na::U2> {
         let (x, y) = self.to_cartesian(point.x, point.y);
-        Point2::new(x, y)
+        Point::<f64, na::U2>::new(x, y)
     }
 
     /// Convert two values in relative coordinates to real coordinates
@@ -145,22 +149,21 @@ impl Cell {
     /// crystal family impose upon the unit cell. This includes ensuring both sides of the unit
     /// cell are the same length, or restricting the angle to a specific value.
     ///
-    pub fn from_family(family: &CrystalFamily, length: f64) -> Cell {
+    pub fn from_family(family: &CrystalFamily, length: f64) -> Cell<na::U2> {
         let (x_len, y_len, angle) = match family {
             // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
-            CrystalFamily::Hexagonal => (length, None, PI / 3.),
+            CrystalFamily::Hexagonal => (length, 0., PI / 3.),
             // The Tetragonal Crystal has both sides equal with a fixed angle of 90 degrees.
-            CrystalFamily::Tetragonal => (length, None, PI / 2.),
+            CrystalFamily::Tetragonal => (length, 0., PI / 2.),
             // The Orthorhombic crystal has two variable sides with a fixed angle of 90 degrees.
-            CrystalFamily::Orthorhombic => (length, Some(length), PI / 2.),
+            CrystalFamily::Orthorhombic => (length, length, PI / 2.),
             // The Monoclinic cell has two variable sides and a variable angle initialised to 90
             // degrees
-            CrystalFamily::Monoclinic => (length, Some(length), PI / 2.),
+            CrystalFamily::Monoclinic => (length, length, PI / 2.),
         };
         Cell {
-            x_len,
-            y_len,
-            angle,
+            points: VectorN::<f64, na::U2>::new(x_len, y_len),
+            angles: VectorN::<f64, na::U2>::new(angle, 0.),
             family: family.clone(),
         }
     }
@@ -175,25 +178,25 @@ impl Cell {
 
         // All cells have at least a single variable cell length
         basis.push(StandardBasis::new(
-            SharedValue::new(&mut self.x_len),
+            SharedValue::new(&mut self.points.x),
             0.01,
-            self.x_len,
+            self.x(),
         ));
 
         // Both the Orthorhombic and Monoclinic cells have a second variable cell length. This is
         // indicated by the presence of the optional value.
-        if let Some(y) = self.y_len {
+        if self.points.y != 0. {
             basis.push(StandardBasis::new(
-                SharedValue::new(&mut self.y_len.unwrap()),
+                SharedValue::new(&mut self.points.y),
                 0.01,
-                y,
+                self.y(),
             ));
         }
 
         // The Monoclinic family is the only one to have a variable cell angle.
         if self.family == CrystalFamily::Monoclinic {
             basis.push(StandardBasis::new(
-                SharedValue::new(&mut self.angle),
+                SharedValue::new(&mut self.angles.x),
                 PI / 4.,
                 3. * PI / 4.,
             ));
@@ -210,9 +213,9 @@ impl Cell {
     /// calculations that this is required, when trying to plot the unit cell it should be plotted
     /// with the center at the appropriate position.
     ///
-    pub fn center(&self) -> Point2<f64> {
+    pub fn center(&self) -> Point<f64, na::U2> {
         let (x, y) = self.to_cartesian(0.5, 0.5);
-        Point2::new(x, y)
+        Point::<f64, na::U2>::new(x, y)
     }
 
     /// Calculates the area of the cell
@@ -229,6 +232,8 @@ mod cell_tests {
 
     use super::*;
 
+    use crate::Transform2;
+
     // TODO Cell area test
 
     // TODO center test
@@ -240,7 +245,7 @@ mod cell_tests {
 
         assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
-        cell.angle = PI / 4.;
+        cell.angles.x = PI / 4.;
         let expected = Transform2::new(
             na::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
             0.,

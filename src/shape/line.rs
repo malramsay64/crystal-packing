@@ -7,7 +7,7 @@
 use std::fmt;
 
 use approx::{AbsDiffEq, RelativeEq};
-use nalgebra::Point2;
+use nalgebra::{Point2, U2};
 
 use crate::shape::Intersect;
 
@@ -17,7 +17,7 @@ pub struct Line {
     pub end: Point2<f64>,
 }
 
-impl Intersect for Line {
+impl Intersect<U2> for Line {
     /// Determine whether two line segments intersect
     ///
     /// This calculates whether two lines intersect at a point contained within each line segment

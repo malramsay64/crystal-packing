@@ -8,33 +8,59 @@
 
 use std::ops::Mul;
 
+use nalgebra::base::allocator::Allocator;
+use nalgebra::{DefaultAllocator, DimName};
+
 use crate::shape::Atom;
-use crate::symmetry::Transform2;
+use crate::symmetry::Transform;
 
-binop_impl_all!(
-    Mul, mul;
-    self: Transform2, rhs: Atom, Output = Atom;
-    [val val] => &self * &rhs;
-    [ref val] => self * &rhs;
-    [val ref] => &self * rhs;
-    [ref ref] => {
-        Atom {
-            position: self * rhs.position,
-            radius: rhs.radius,
-        }
-    };
-);
+impl<'a, 'b, D: DimName> Mul<&'b Transform<D>> for &'a Atom<D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Atom<D>;
 
-binop_impl_all!(
-    Mul, mul;
-    self: Atom, rhs: Transform2, Output = Atom;
-    [val val] => &self * &rhs;
-    [ref val] => self * &rhs;
-    [val ref] => &self * rhs;
-    [ref ref] => {
+    fn mul(self, rhs: &Transform<D>) -> Self::Output {
         Atom {
-            position: rhs * self.position,
+            position: rhs * self.position.clone(),
             radius: self.radius,
         }
-    };
-);
+    }
+}
+
+impl<'a, D: DimName> Mul<Transform<D>> for &'a Atom<D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Atom<D>;
+
+    fn mul(self, rhs: Transform<D>) -> Self::Output {
+        self * &rhs
+    }
+}
+
+impl<'a, D: DimName> Mul<&'a Transform<D>> for Atom<D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Atom<D>;
+
+    fn mul(self, rhs: &Transform<D>) -> Self::Output {
+        &self * rhs
+    }
+}
+
+impl<D: DimName> Mul<Transform<D>> for Atom<D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Atom<D>;
+
+    fn mul(self, rhs: Transform<D>) -> Self::Output {
+        &self * &rhs
+    }
+}

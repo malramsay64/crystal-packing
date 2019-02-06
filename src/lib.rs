@@ -8,6 +8,7 @@
 use std::cmp::Ordering;
 use std::error::Error;
 use std::f64::consts::PI;
+use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Mul;
@@ -22,7 +23,8 @@ extern crate rand;
 
 use itertools::iproduct;
 use log::{debug, trace, warn};
-use nalgebra::{Point2, Translation2, Vector2};
+use nalgebra::base::allocator::Allocator;
+use nalgebra::{DefaultAllocator, Point2, Translation, Vector2, U2};
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
@@ -38,7 +40,7 @@ pub mod wallpaper;
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::cell::{Cell, CrystalFamily};
 pub use crate::shape::{LineShape, Shape, ShapeInstance};
-pub use crate::symmetry::{FromSymmetry, Transform2};
+pub use crate::symmetry::{FromSymmetry, Transform, Transform2};
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
 #[derive(Clone, Debug)]
@@ -94,46 +96,54 @@ impl OccupiedSite {
 }
 
 #[derive(Clone, Debug)]
-pub struct PackedState<T: shape::Shape>
+pub struct PackedState<S>
 where
-    T: Shape,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Debug + Display,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     pub wallpaper: Wallpaper,
-    pub shape: T,
-    pub cell: Cell,
+    pub shape: S,
+    pub cell: Cell<U2>,
     occupied_sites: Vec<OccupiedSite>,
 }
 
-impl<T: shape::Shape> Eq for PackedState<T>
+impl<S> Eq for PackedState<S>
 where
-    T: Shape,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Debug + Display,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
 }
 
-impl<T: shape::Shape> PartialEq for PackedState<T>
+impl<S> PartialEq for PackedState<S>
 where
-    T: Shape,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Debug + Display,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.packing_fraction() == other.packing_fraction()
     }
 }
 
-impl<T: shape::Shape> PartialOrd for PackedState<T>
+impl<S> PartialOrd for PackedState<S>
 where
-    T: Shape,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Debug + Display,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.packing_fraction()
@@ -141,12 +151,14 @@ where
     }
 }
 
-impl<T: shape::Shape> Ord for PackedState<T>
+impl<S> Ord for PackedState<S>
 where
-    T: Shape,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Debug + Display,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.packing_fraction()
@@ -155,25 +167,27 @@ where
     }
 }
 
-impl<T: shape::Shape> PackedState<T>
+impl<S> PackedState<S>
 where
-    T: Shape,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Debug + Display,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
-    pub fn cartesian_positions(&self) -> Vec<Vec<T::Component>> {
-        let mut positions: Vec<Vec<T::Component>> = vec![];
+    pub fn cartesian_positions(&self) -> Vec<Vec<S::Component>> {
+        let mut positions: Vec<Vec<S::Component>> = vec![];
         for position in self.relative_positions().iter() {
-            let shape_i: ShapeInstance<T::Component> =
+            let shape_i: ShapeInstance<S::Component> =
                 ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position));
             positions.push(shape_i.items);
         }
         positions
     }
 
-    fn relative_positions(&self) -> Vec<Transform2> {
-        let mut transforms: Vec<Transform2> = vec![];
+    fn relative_positions(&self) -> Vec<Transform<U2>> {
+        let mut transforms: Vec<Transform<U2>> = vec![];
         for site in self.occupied_sites.iter() {
             for symmetry in site.wyckoff.symmetries.iter() {
                 transforms.push(symmetry * site.transform());
@@ -219,7 +233,7 @@ where
 
                     let mut p_position2 = *position2;
                     p_position2.translation *=
-                        Translation2::new(f64::from(x_periodic), f64::from(y_periodic));
+                        Translation::<f64, U2>::new(f64::from(x_periodic), f64::from(y_periodic));
 
                     let shape_i2 = ShapeInstance::from(
                         &self.shape,
@@ -248,10 +262,10 @@ where
     }
 
     pub fn initialise(
-        shape: T,
+        shape: S,
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
-    ) -> PackedState<T> {
+    ) -> PackedState<S> {
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
         let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
@@ -291,7 +305,7 @@ where
         };
 
         // Write cell lines to file
-        let pc = na::Translation2::from(-self.cell.center().coords);
+        let pc = na::Translation::<f64, U2>::from(-self.cell.center().coords);
 
         let mut points = vec![
             Point2::new(0., 0.),
@@ -319,7 +333,7 @@ where
             for (x_periodic, y_periodic) in iproduct!(-1..=1, -1..=1) {
                 let mut p_position = *position;
                 p_position.translation *=
-                    Translation2::new(f64::from(x_periodic), f64::from(y_periodic));
+                    Translation::<f64, U2>::new(f64::from(x_periodic), f64::from(y_periodic));
 
                 let shape_i =
                     ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&p_position));
@@ -453,15 +467,17 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
     f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-pub fn monte_carlo_best_packing<T>(
+pub fn monte_carlo_best_packing<S>(
     vars: &MCVars,
-    mut state: PackedState<T>,
-) -> Result<PackedState<T>, &'static str>
+    mut state: PackedState<S>,
+) -> Result<PackedState<S>, &'static str>
 where
-    T: Shape,
-    for<'a> T::Component: Mul<&'a Transform2, Output = T::Component>,
-    for<'a, 'b> &'a T::Component: Mul<&'b Transform2, Output = T::Component>,
-    for<'a> &'a T::Component: Mul<Transform2, Output = T::Component>,
+    S: Shape<U2> + Debug + Display,
+    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
+    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
+    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     // When a random seed is provided, use it, otherwise seed the random number generator from the
     // system entropy.

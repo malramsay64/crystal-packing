@@ -9,7 +9,7 @@ use std::slice;
 use std::vec;
 
 use nalgebra as na;
-use nalgebra::Point2;
+use nalgebra::{Point2, U2};
 
 use crate::shape::{Line, Shape};
 
@@ -33,7 +33,7 @@ impl<'a> IntoIterator for &'a LineShape {
     }
 }
 
-impl Shape for LineShape {
+impl Shape<U2> for LineShape {
     type Component = Line;
 
     fn area(&self) -> f64 {

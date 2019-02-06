@@ -9,9 +9,11 @@ use std::fmt::{Debug, Display};
 use std::ops::Mul;
 
 use log::trace;
+use nalgebra::base::allocator::Allocator;
+use nalgebra::{DefaultAllocator, U2};
 
 use crate::shape::{Intersect, Shape};
-use crate::symmetry::Transform2;
+use crate::symmetry::Transform;
 
 /// Puts an abstract shape object in a physical space
 ///
@@ -19,20 +21,24 @@ use crate::symmetry::Transform2;
 #[derive(PartialEq)]
 pub struct ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
-    for<'a> I: Mul<&'a Transform2, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
-    for<'a> &'a I: Mul<Transform2, Output = I>,
+    I: Intersect<U2> + Debug + Display + Mul<Transform<U2>, Output = I>,
+    for<'a> I: Mul<&'a Transform<U2>, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform<U2>, Output = I>,
+    for<'a> &'a I: Mul<Transform<U2>, Output = I>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     pub items: Vec<I>,
 }
 
 impl<I> ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
-    for<'a> I: Mul<&'a Transform2, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
-    for<'a> &'a I: Mul<Transform2, Output = I>,
+    I: Intersect<U2> + Debug + Display + Mul<Transform<U2>, Output = I>,
+    for<'a> I: Mul<&'a Transform<U2>, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform<U2>, Output = I>,
+    for<'a> &'a I: Mul<Transform<U2>, Output = I>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     /// Create a ShapeInstance from a Shape and a Symmetry operation
     ///
@@ -41,9 +47,9 @@ where
     /// shape in the appropriate coordinates. In other cases it performs both translations and
     /// rotations of the shape to the appropriate positions.
     ///
-    pub fn from<S>(shape: &S, iso: &Transform2) -> ShapeInstance<I>
+    pub fn from<S>(shape: &S, iso: &Transform<U2>) -> ShapeInstance<I>
     where
-        S: Shape<Component = I>,
+        S: Shape<U2, Component = I>,
     {
         trace!("Shape: {:?}, iso: {:?}", shape, iso);
         ShapeInstance {
@@ -54,10 +60,12 @@ where
 
 impl<I> ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
-    for<'a> I: Mul<&'a Transform2, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
-    for<'a> &'a I: Mul<Transform2, Output = I>,
+    I: Intersect<U2> + Debug + Display + Mul<Transform<U2>, Output = I>,
+    for<'a> I: Mul<&'a Transform<U2>, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform<U2>, Output = I>,
+    for<'a> &'a I: Mul<Transform<U2>, Output = I>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     /// Check whether this shape intersects with another shape
     ///
@@ -81,10 +89,12 @@ where
 
 impl<I> Debug for ShapeInstance<I>
 where
-    I: Intersect + Debug + Display + Mul<Transform2, Output = I>,
-    for<'a> I: Mul<&'a Transform2, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform2, Output = I>,
-    for<'a> &'a I: Mul<Transform2, Output = I>,
+    I: Intersect<U2> + Debug + Display + Mul<Transform<U2>, Output = I>,
+    for<'a> I: Mul<&'a Transform<U2>, Output = I>,
+    for<'a, 'b> &'a I: Mul<&'b Transform<U2>, Output = I>,
+    for<'a> &'a I: Mul<Transform<U2>, Output = I>,
+    DefaultAllocator: Allocator<f64, U2>,
+    DefaultAllocator: Allocator<f64, U2, U2>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ShapeInstance{{ {:?} }}", self.items)
@@ -100,6 +110,7 @@ mod test {
     use nalgebra::Vector2;
 
     use crate::shape::{Line, LineShape};
+    use crate::symmetry::Transform2;
 
     use super::*;
 
