@@ -38,6 +38,15 @@ where
     /// let t3 = Transform3::from_operations("-x, y, z+1/2");
     /// ```
     ///
+    /// Where a z dimension, or 3 dimensions worth of values are passed into this function, it
+    /// handles the 'error' condition by ignoring those values. That is:
+    /// ```
+    /// use packing::symmetry::{Transform2, FromSymmetry};
+    /// use nalgebra::Point2;
+    /// let t = Transform2::from_operations("-x+z, y, z");
+    /// assert_eq!(t * Point2::new(1., 1.), Point2::new(-1., 1.));
+    /// ```
+    /// This should generate a warning, however will still work fine, ignoring the third dimension.
     fn from_operations(sym_ops: &str) -> Transform<D> {
         let braces: &[_] = &['(', ')'];
         let operations: Vec<&str> = sym_ops
@@ -49,7 +58,8 @@ where
         let mut trans = VectorN::<f64, D>::zeros();
         let mut rot = MatrixN::<f64, D>::zeros();
 
-        for (index, op) in operations.iter().enumerate() {
+        // We are using the <D>::dim() to constrain the iterator to the right number of dimensions
+        for (index, op) in operations.iter().enumerate().take(<D>::dim()) {
             let mut sign = 1.;
             let mut constant = 0.;
             let mut operator: Option<char> = None;
@@ -112,7 +122,7 @@ mod test {
     use std::f64::consts::PI;
 
     use approx::assert_abs_diff_eq;
-    use nalgebra::{Point2, Vector2};
+    use nalgebra::{Point2, Point3, Vector2};
 
     use super::*;
 
@@ -182,6 +192,30 @@ mod test {
         let st = Transform2::from_operations(&input);
         let point = Point2::new(0.1, 0.2);
         assert_abs_diff_eq!(st * point, Point2::new(-0.2, 0.));
+    }
+
+    #[test]
+    fn parse_operation_2d_from_3d() {
+        let input = String::from("(x, y, z)");
+        let st = Transform2::from_operations(&input);
+        let point = Point2::new(0.1, 0.2);
+        assert_abs_diff_eq!(st * point, Point2::new(0.1, 0.2));
+    }
+
+    #[test]
+    fn parse_operation_3d() {
+        let input = String::from("(x, y, z)");
+        let st = Transform3::from_operations(&input);
+        let point = Point3::new(0.1, 0.2, 0.3);
+        assert_abs_diff_eq!(st * point, Point3::new(0.1, 0.2, 0.3));
+    }
+
+    #[test]
+    fn parse_operation_from_3d_complex() {
+        let input = String::from("(x+z, y-x, -z+y+1/2)");
+        let st = Transform3::from_operations(&input);
+        let point = Point3::new(0.1, 0.2, 0.3);
+        assert_abs_diff_eq!(st * point, Point3::new(0.4, 0.1, 0.4));
     }
 
     #[test]
