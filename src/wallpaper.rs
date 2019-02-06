@@ -10,7 +10,8 @@
 use clap::{_clap_count_exprs, arg_enum};
 
 use crate::cell::CrystalFamily;
-use crate::symmetry::{transform_from_operations, Transform2};
+use crate::symmetry::FromSymmetry;
+use crate::Transform2;
 
 pub struct WallpaperGroup {
     pub name: &'static str,
@@ -51,7 +52,7 @@ impl WyckoffSite {
         let symmetries: Vec<Transform2> = group
             .wyckoff_str
             .into_iter()
-            .map(transform_from_operations)
+            .map(Transform2::from_operations)
             .collect();
         WyckoffSite {
             letter: 'a',

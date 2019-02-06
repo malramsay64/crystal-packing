@@ -38,7 +38,7 @@ pub mod wallpaper;
 pub use crate::basis::{Basis, SharedValue, StandardBasis};
 pub use crate::cell::{Cell, CrystalFamily};
 pub use crate::shape::{LineShape, Shape, ShapeInstance};
-pub use crate::symmetry::{transform_from_operations, Transform2};
+pub use crate::symmetry::{FromSymmetry, Transform2};
 pub use crate::wallpaper::{Wallpaper, WyckoffSite};
 
 #[derive(Clone, Debug)]
@@ -353,7 +353,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![transform_from_operations("x,y")],
+            symmetries: vec![Transform2::from_operations("x,y")],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -370,10 +370,10 @@ mod packed_state_tests {
         let isopointal = vec![WyckoffSite {
             letter: 'd',
             symmetries: vec![
-                transform_from_operations("x,y"),
-                transform_from_operations("-x,-y"),
-                transform_from_operations("-x+1/2,y"),
-                transform_from_operations("x+1/2,-y"),
+                Transform2::from_operations("x,y"),
+                Transform2::from_operations("-x,-y"),
+                Transform2::from_operations("-x+1/2,y"),
+                Transform2::from_operations("x+1/2,-y"),
             ],
             num_rotations: 1,
             mirror_primary: false,
