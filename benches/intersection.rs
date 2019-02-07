@@ -11,10 +11,10 @@ use std::ops::Mul;
 extern crate criterion;
 
 use criterion::{Criterion, ParameterizedBenchmark};
-use nalgebra::Vector2;
+use nalgebra::{Vector2, U2};
 
 use packing::shape::{LineShape, Shape, ShapeInstance};
-use packing::symmetry::{transform_from_operations, Transform2};
+use packing::symmetry::{FromSymmetry, Transform2};
 
 fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])
@@ -31,8 +31,8 @@ fn setup_state(points: usize) -> packing::PackedState<LineShape> {
     let isopointal = &[packing::WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            transform_from_operations("x,y"),
-            transform_from_operations("-x,-y"),
+            Transform2::from_operations("x,y"),
+            Transform2::from_operations("-x,-y"),
         ],
         num_rotations: 1,
         mirror_primary: false,
@@ -44,7 +44,7 @@ fn setup_state(points: usize) -> packing::PackedState<LineShape> {
 
 fn setup_shapes<S>(shape: &S) -> (ShapeInstance<S::Component>, ShapeInstance<S::Component>)
 where
-    S: Shape,
+    S: Shape<U2>,
     for<'a> S::Component: Mul<&'a Transform2, Output = S::Component>,
     for<'a, 'b> &'a S::Component: Mul<&'b Transform2, Output = S::Component>,
     for<'a> &'a S::Component: Mul<Transform2, Output = S::Component>,
