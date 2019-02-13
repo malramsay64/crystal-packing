@@ -232,7 +232,7 @@ mod cell_tests {
 
     use super::*;
 
-    use crate::Transform2;
+    use crate::symmetry::Transform2;
 
     // TODO Cell area test
 

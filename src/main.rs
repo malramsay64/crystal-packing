@@ -24,11 +24,11 @@ use rayon::prelude::*;
 use simplelog::{Config, LevelFilter, TermLogger};
 
 use packing;
+use packing::packing::{monte_carlo_best_packing, MCVars, PackedState, Wallpaper};
 #[allow(unused_imports)]
 use packing::shape::{Atom, LineShape, MolecularShape, Shape};
 use packing::symmetry::Transform;
-use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
-use packing::PackedState;
+use packing::wallpaper::{WallpaperGroup, WallpaperGroups, WyckoffSite};
 
 struct CLIOptions {
     shape: ShapeTypes,
@@ -56,8 +56,8 @@ where
     DefaultAllocator: Allocator<f64, U2>,
     DefaultAllocator: Allocator<f64, U2, U2>,
 {
-    let wallpaper = packing::Wallpaper::new(&options.group);
-    let isopointal = &[packing::WyckoffSite::new(options.group)];
+    let wallpaper = Wallpaper::new(&options.group);
+    let isopointal = &[WyckoffSite::new(options.group)];
 
     let state = PackedState::<S>::initialise(shape.clone(), wallpaper.clone(), isopointal);
     if state.check_intersection() {
@@ -69,7 +69,7 @@ where
         state.packing_fraction().unwrap()
     );
 
-    let mut vars = packing::MCVars::default();
+    let mut vars = MCVars::default();
     vars.steps = options.steps;
     vars.num_start_configs = 32;
     // Remove mutability
@@ -78,9 +78,8 @@ where
     let final_state = (0..vars.num_start_configs)
         .into_par_iter()
         .map(|_| {
-            let state =
-                packing::PackedState::<S>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-            packing::monte_carlo_best_packing(&vars, state)
+            let state = PackedState::<S>::initialise(shape.clone(), wallpaper.clone(), isopointal);
+            monte_carlo_best_packing(&vars, state)
         })
         .max()
         .unwrap()?;

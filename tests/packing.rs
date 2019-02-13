@@ -5,20 +5,23 @@
 //
 
 use packing;
+use packing::cell::CrystalFamily;
+use packing::packing::{monte_carlo_best_packing, MCVars, PackedState, Wallpaper};
 #[allow(unused_imports)]
 use packing::shape::{LineShape, Shape};
 use packing::symmetry::{FromSymmetry, Transform2};
+use packing::wallpaper::WyckoffSite;
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {
     let square = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
 
-    let wallpaper = packing::Wallpaper {
+    let wallpaper = Wallpaper {
         name: String::from("p2"),
-        family: packing::CrystalFamily::Monoclinic,
+        family: CrystalFamily::Monoclinic,
     };
 
-    let isopointal = &[packing::WyckoffSite {
+    let isopointal = &[WyckoffSite {
         letter: 'd',
         symmetries: vec![
             Transform2::from_operations("x,y"),
@@ -29,11 +32,11 @@ fn test_packing_improves() -> Result<(), &'static str> {
         mirror_secondary: false,
     }];
 
-    let state = packing::PackedState::initialise(square, wallpaper, isopointal);
+    let state = PackedState::initialise(square, wallpaper, isopointal);
 
     let init_packing = state.packing_fraction();
 
-    let vars = packing::MCVars {
+    let vars = MCVars {
         kt_start: 0.1,
         kt_finish: 0.001,
         max_step_size: 0.1,
@@ -42,7 +45,7 @@ fn test_packing_improves() -> Result<(), &'static str> {
         seed: Some(0),
     };
 
-    let final_state = packing::monte_carlo_best_packing(&vars, state);
+    let final_state = monte_carlo_best_packing(&vars, state);
 
     let final_packing = final_state?.packing_fraction();
 

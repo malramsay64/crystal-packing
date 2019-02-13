@@ -13,6 +13,8 @@ extern crate criterion;
 use criterion::{Criterion, ParameterizedBenchmark};
 use nalgebra::{Vector2, U2};
 
+use packing::cell::CrystalFamily;
+use packing::packing::{PackedState, Wallpaper, WyckoffSite};
 use packing::shape::{LineShape, Shape, ShapeInstance};
 use packing::symmetry::{FromSymmetry, Transform2};
 
@@ -20,15 +22,15 @@ fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])
 }
 
-fn setup_state(points: usize) -> packing::PackedState<LineShape> {
+fn setup_state(points: usize) -> PackedState<LineShape> {
     let shape = create_polygon(points).unwrap();
 
-    let wallpaper = packing::Wallpaper {
+    let wallpaper = Wallpaper {
         name: String::from("p2"),
-        family: packing::CrystalFamily::Monoclinic,
+        family: CrystalFamily::Monoclinic,
     };
 
-    let isopointal = &[packing::WyckoffSite {
+    let isopointal = &[WyckoffSite {
         letter: 'd',
         symmetries: vec![
             Transform2::from_operations("x,y"),
@@ -39,7 +41,7 @@ fn setup_state(points: usize) -> packing::PackedState<LineShape> {
         mirror_secondary: false,
     }];
 
-    packing::PackedState::initialise(shape, wallpaper, isopointal)
+    PackedState::initialise(shape, wallpaper, isopointal)
 }
 
 fn setup_shapes<S>(shape: &S) -> (ShapeInstance<S::Component>, ShapeInstance<S::Component>)
