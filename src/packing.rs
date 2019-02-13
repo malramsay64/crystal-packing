@@ -188,8 +188,7 @@ where
 
     pub fn packing_fraction(&self) -> Result<f64, &'static str> {
         match (self.shape.area() * self.total_shapes() as f64) / self.cell.area() {
-            x if 0. < x && x <= 1. => Ok(x),
-            _ => Err("Invalid packing fraction"),
+            x => Ok(x),
         }
     }
 
