@@ -10,7 +10,7 @@ use nalgebra as na;
 use nalgebra::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName, Point, U2, U3};
 
-use crate::shape::Intersect;
+use crate::Intersect;
 
 pub type Atom2 = Atom<U2>;
 pub type Atom3 = Atom<U3>;

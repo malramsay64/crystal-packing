@@ -14,7 +14,7 @@ use nalgebra as na;
 use nalgebra::base::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName, Point2, U2, U3};
 
-use crate::shape::{Atom, Atom2, Shape};
+use crate::{Atom, Atom2, Shape};
 
 /// A shape defined by a collection of Atoms
 ///

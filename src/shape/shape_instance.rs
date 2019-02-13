@@ -12,8 +12,7 @@ use log::trace;
 use nalgebra::base::allocator::Allocator;
 use nalgebra::{DefaultAllocator, U2};
 
-use crate::shape::{Intersect, Shape};
-use crate::symmetry::Transform;
+use crate::{Intersect, Shape, Transform};
 
 /// Puts an abstract shape object in a physical space
 ///

@@ -11,7 +11,7 @@ use std::vec;
 use nalgebra as na;
 use nalgebra::{Point2, U2};
 
-use crate::shape::{Line, Shape};
+use crate::{Line, Shape};
 
 /// A Shape constructed from a collection of Lines
 ///

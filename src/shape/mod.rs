@@ -12,7 +12,7 @@ use std::slice;
 use nalgebra::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName};
 
-use crate::symmetry::Transform;
+use crate::Transform;
 
 pub trait U2: DimName {}
 

@@ -7,8 +7,7 @@
 #![allow(clippy::op_ref)]
 use std::ops::Mul;
 
-use crate::shape::Line;
-use crate::symmetry::Transform2;
+use crate::{Line, Transform2};
 
 binop_impl_all!(
     Mul, mul;

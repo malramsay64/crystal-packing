@@ -5,12 +5,13 @@
 //
 
 use packing;
-use packing::cell::CrystalFamily;
-use packing::packing::{monte_carlo_best_packing, MCVars, PackedState, Wallpaper};
-#[allow(unused_imports)]
-use packing::shape::{LineShape, Shape};
-use packing::symmetry::{FromSymmetry, Transform2};
+use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
+#[allow(unused_imports)]
+use packing::{
+    monte_carlo_best_packing, CrystalFamily, FromSymmetry, LineShape, MCVars, PackedState, Shape,
+    Transform2,
+};
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {

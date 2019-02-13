@@ -11,8 +11,7 @@ use std::ops::Mul;
 use nalgebra::base::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName};
 
-use crate::shape::Atom;
-use crate::symmetry::Transform;
+use crate::{Atom, Transform};
 
 impl<'a, 'b, D: DimName> Mul<&'b Transform<D>> for &'a Atom<D>
 where
