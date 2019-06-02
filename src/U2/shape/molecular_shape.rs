@@ -11,42 +11,31 @@ use std::vec;
 
 use itertools::Itertools;
 use nalgebra as na;
-use nalgebra::base::allocator::Allocator;
-use nalgebra::{DefaultAllocator, DimName, Point2, U2, U3};
+use nalgebra::Point2;
 
-use crate::{Atom, Atom2, Shape};
+use super::Atom2;
+use crate::Shape;
 
 /// A shape defined by a collection of Atoms
 ///
 /// This is a shape comprised of a series of circles which each have a position and radius.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MolecularShape<D: DimName>
-where
-    DefaultAllocator: Allocator<f64, D>,
-    DefaultAllocator: Allocator<f64, D, D>,
-{
+pub struct MolecularShape2 {
     pub name: String,
-    pub items: Vec<Atom<D>>,
+    pub items: Vec<Atom2>,
 }
 
-pub type MolecularShape2 = MolecularShape<U2>;
-pub type MolecularShape3 = MolecularShape<U3>;
-
-impl<'a, D: DimName> IntoIterator for &'a MolecularShape<D>
-where
-    DefaultAllocator: Allocator<f64, D>,
-    DefaultAllocator: Allocator<f64, D, D>,
-{
-    type Item = &'a Atom<D>;
-    type IntoIter = slice::Iter<'a, Atom<D>>;
+impl<'a> IntoIterator for &'a MolecularShape2 {
+    type Item = &'a Atom2;
+    type IntoIter = slice::Iter<'a, Atom2>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.items.iter()
     }
 }
 
-impl Shape<U2> for MolecularShape<U2> {
-    type Component = Atom<U2>;
+impl Shape for MolecularShape2 {
+    type Component = Atom2;
 
     fn area(&self) -> f64 {
         // TODO Implement an algorithm which takes into account multiple overlaps of circles, this
@@ -82,7 +71,7 @@ impl Shape<U2> for MolecularShape<U2> {
     }
 }
 
-impl fmt::Display for MolecularShape<U2> {
+impl fmt::Display for MolecularShape2 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "MolShape {{ ")?;
         for item in self.items.iter() {

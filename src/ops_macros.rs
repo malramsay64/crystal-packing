@@ -12,7 +12,6 @@
 /// This converts a set of values and types to an impl block for a specific operation. In doing
 /// this it is possible to implement all the operations at once with the binop_impl_all macro.
 ///
-#[macro_use]
 macro_rules! _binop_impl(
     ($Op: ident, $op: ident;
      $lhs: ident: $Lhs: ty, $rhs: ident: $Rhs: ty, Output = $Output: ty;
@@ -39,7 +38,6 @@ macro_rules! _binop_impl(
 /// [nalgebra](https://github.com/rustsim/nalgebra/blob/911ddca588d2c89e4f7ec9b45aa0aa7f787209c4/src/geometry/isometry_ops.rs)
 /// source code.
 ///
-#[macro_use]
 macro_rules! binop_impl_all(
     // The trait we implementing, along with the function required to implement the trait
     ($Op: ident, $op: ident;

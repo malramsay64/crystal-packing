@@ -9,8 +9,8 @@ use std::f64::consts::PI;
 
 use nalgebra::Vector2;
 
+use super::Transform2;
 use crate::basis::{SharedValue, StandardBasis};
-use crate::symmetry::Transform2;
 use crate::wallpaper::WyckoffSite;
 
 #[derive(Clone, Debug)]

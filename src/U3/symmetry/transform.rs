@@ -8,46 +8,27 @@
 use log::warn;
 
 // Re-export these to allow importing along with the Transform struct
-use nalgebra::base::allocator::Allocator;
-use nalgebra::{DefaultAllocator, DimName, MatrixN, VectorN};
-pub use nalgebra::{Isometry, Rotation, Translation, U2, U3};
+use nalgebra::{Isometry3, Matrix3, Rotation3, Translation3, Vector3};
 
-pub type Transform<D> = Isometry<f64, D, Rotation<f64, D>>;
-
-pub type Transform2 = Transform<U2>;
-pub type Transform3 = Transform<U3>;
+pub type Transform3 = Isometry3<f64, Rotation3<f64>>;
 
 pub trait FromSymmetry {
     fn from_operations(ops: &str) -> Self;
 }
 
-impl<D: DimName> FromSymmetry for Transform<D>
-where
-    DefaultAllocator: Allocator<f64, D>,
-    DefaultAllocator: Allocator<f64, D, D>,
-{
+impl FromSymmetry for Transform3 {
     /// Convert the string representation of a symmetry operation to a vector.
     ///
     /// This converts the string representation of an operation to a Transform,
     /// extracting the rotation and translation components.
     ///
     /// ```
-    /// use packing::symmetry::{Transform2, Transform3, FromSymmetry};
-    /// let t2 = Transform2::from_operations("-x, y");
-    ///
+    /// use packing::symmetry::{Transform3, FromSymmetry};
     /// let t3 = Transform3::from_operations("-x, y, z+1/2");
     /// ```
     ///
-    /// Where a z dimension, or 3 dimensions worth of values are passed into this function, it
-    /// handles the 'error' condition by ignoring those values. That is:
-    /// ```
-    /// use packing::symmetry::{Transform2, FromSymmetry};
-    /// use nalgebra::Point2;
-    /// let t = Transform2::from_operations("-x+z, y, z");
-    /// assert_eq!(t * Point2::new(1., 1.), Point2::new(-1., 1.));
-    /// ```
     /// This should generate a warning, however will still work fine, ignoring the third dimension.
-    fn from_operations(sym_ops: &str) -> Transform<D> {
+    fn from_operations(sym_ops: &str) -> Self {
         let braces: &[_] = &['(', ')'];
         let operations: Vec<&str> = sym_ops
             // Remove braces from front and back
@@ -55,11 +36,11 @@ where
             // Split at the comma
             .split_terminator(',')
             .collect();
-        let mut trans = VectorN::<f64, D>::zeros();
-        let mut rot = MatrixN::<f64, D>::zeros();
+        let mut trans = Vector3::zeros();
+        let mut rot = Matrix3::zeros();
 
         // We are using the <D>::dim() to constrain the iterator to the right number of dimensions
-        for (index, op) in operations.iter().enumerate().take(<D>::dim()) {
+        for (index, op) in operations.iter().enumerate() {
             let mut sign = 1.;
             let mut constant = 0.;
             let mut operator: Option<char> = None;
@@ -74,13 +55,8 @@ where
                         sign = 1.;
                     }
                     'z' => {
-                        if <D>::dim() < 3 {
-                            warn!("Too many input dimensions, ignoring");
-                            sign = 1.;
-                        } else {
-                            rot[(index, 2)] = sign;
-                            sign = 1.;
-                        }
+                        rot[(index, 2)] = sign;
+                        sign = 1.;
                     }
                     '*' | '/' => {
                         operator = Some(c);
@@ -110,9 +86,9 @@ where
             }
             trans[index] = constant;
         }
-        Transform::<D>::from_parts(
-            Translation::<f64, D>::from(trans),
-            Rotation::<f64, D>::from_matrix_unchecked(rot),
+        Transform3::from_parts(
+            Translation3::<f64>::from(trans),
+            Rotation3::<f64>::from_matrix_unchecked(rot),
         )
     }
 }
@@ -122,84 +98,76 @@ mod test {
     use std::f64::consts::PI;
 
     use approx::assert_abs_diff_eq;
-    use nalgebra::{Point2, Point3, Vector2};
+    use nalgebra::{Point3, Vector3};
 
     use super::*;
 
     #[test]
     fn default() {
-        let point = Point2::new(0.2, 0.2);
-        let transform = Transform2::identity();
+        let point = Point3::new(0.2, 0.2, 0.2);
+        let transform = Transform3::identity();
         assert_eq!(transform * point, point);
     }
 
     #[test]
     fn identity_transform() {
-        let identity = Transform2::identity();
-        let point = Point2::new(0.2, 0.2);
+        let identity = Transform3::identity();
+        let point = Point3::new(0.2, 0.2, 0.2);
         assert_eq!(identity * point, point);
 
-        let vec = Vector2::new(0.2, 0.2);
+        let vec = Vector2::new(0.2, 0.2, 0.2);
         assert_eq!(identity * vec, vec);
     }
 
     #[test]
     fn transform() {
-        let isometry = Transform2::new(Vector2::new(1., 1.), PI / 2.);
+        let isometry = Transform3::new(Vector3::new(1., 1., 1.), PI / 2.);
 
-        let point = Point2::new(0.2, 0.2);
+        let point = Point3::new(0.2, 0.2, 0.2);
         assert_eq!(isometry * point, Point2::new(0.8, 1.2));
 
-        let vec = Vector2::new(0.2, 0.2);
-        assert_eq!(isometry * vec, Vector2::new(-0.2, 0.2));
+        let vec = Vector3::new(0.2, 0.2);
+        assert_eq!(isometry * vec, Vector3::new(-0.2, 0.2));
     }
 
     #[test]
     fn parse_operation_default() {
-        let input = String::from("(x, y)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(0.1, 0.2));
+        let input = String::from("(x, y, z)");
+        let st = Transform3::from_operations(&input);
+        let point = Point3::new(0.1, 0.2, 0.3);
+        assert_abs_diff_eq!(st * point, Point3::new(0.1, 0.2, 0.3));
     }
 
     #[test]
     fn parse_operation_xy() {
-        let input = String::from("(-x, x+y)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(-0.1, 0.3));
+        let input = String::from("(-x, x+y, z)");
+        let st = Transform3::from_operations(&input);
+        let point = Point3::new(0.1, 0.2, 0.3);
+        assert_abs_diff_eq!(st * point, Point3::new(-0.1, 0.3, 0.3));
     }
 
     #[test]
     fn parse_operation_consts() {
-        let input = String::from("(x+1/2, -y)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(0.6, -0.2));
+        let input = String::from("(x+1/2, -y, z)");
+        let st = Transform3::from_operations(&input);
+        let point = Point3::new(0.1, 0.2, 0.3);
+        assert_abs_diff_eq!(st * point, Point3::new(0.6, -0.2, 0.3));
     }
 
     #[test]
     fn parse_operation_neg_consts() {
-        let input = String::from("(x-1/2, -y)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(-0.4, -0.2));
+        let input = String::from("(x-1/2, -y, z)");
+        let st = Transform3::from_operations(&input);
+        let point = Point3::new(0.1, 0.2, 0.3);
+        assert_abs_diff_eq!(st * point, Point3::new(-0.4, -0.2, 0.3));
     }
 
     #[test]
     fn parse_operation_zero_const() {
-        let input = String::from("(-y, 0)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(-0.2, 0.));
-    }
-
-    #[test]
-    fn parse_operation_2d_from_3d() {
-        let input = String::from("(x, y, z)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(0.1, 0.2));
+        let input = String::from("(-y, 0, 0)");
+        let st = Transform3::from_operations(&input);
+        let point = Point3::new(0.1, 0.2, 0.3);
+        assert_abs_diff_eq!(st * point, Point2::new(-0.2, 0., 0));
     }
 
     #[test]
@@ -221,9 +189,9 @@ mod test {
     #[test]
     fn mult_symmetry_transform_rotations() {
         for i in 0..10 {
-            let ident = Transform2::identity();
+            let ident = Transform3::identity();
             let angle = f64::from(i) * PI / f64::from(10);
-            let trans = Transform2::new(Vector2::zeros(), angle);
+            let trans = Transform3::new(Vector3::zeros(), angle);
             assert_abs_diff_eq!((ident * trans), trans);
         }
     }
@@ -231,8 +199,8 @@ mod test {
     #[test]
     fn mult_symmetry_transform_translations() {
         for i in 0..10 {
-            let ident = Transform2::identity();
-            let trans = Transform2::new(Vector2::new(f64::from(i), f64::from(i)), 0.);
+            let ident = Transform3::identity();
+            let trans = Transform3::new(Vector3::new(f64::from(i), f64::from(i)), 0.);
             assert_abs_diff_eq!((ident * trans), trans);
         }
     }

@@ -9,36 +9,18 @@ use std::fmt::{Debug, Display};
 use std::ops::Mul;
 
 use log::trace;
-use nalgebra::base::allocator::Allocator;
-use nalgebra::{DefaultAllocator, U2};
 
-use crate::{Intersect, Shape, Transform};
+use super::{Intersect, Shape, Transform2};
 
 /// Puts an abstract shape object in a physical space
 ///
 /// This acts as a cache for computed values.
 #[derive(PartialEq)]
-pub struct ShapeInstance<I>
-where
-    I: Intersect<U2> + Debug + Display + Mul<Transform<U2>, Output = I>,
-    for<'a> I: Mul<&'a Transform<U2>, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform<U2>, Output = I>,
-    for<'a> &'a I: Mul<Transform<U2>, Output = I>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
-{
+pub struct ShapeInstance<S: Shape> {
     pub items: Vec<I>,
 }
 
-impl<I> ShapeInstance<I>
-where
-    I: Intersect<U2> + Debug + Display + Mul<Transform<U2>, Output = I>,
-    for<'a> I: Mul<&'a Transform<U2>, Output = I>,
-    for<'a, 'b> &'a I: Mul<&'b Transform<U2>, Output = I>,
-    for<'a> &'a I: Mul<Transform<U2>, Output = I>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
-{
+impl<S: Shape> ShapeInstance<S> {
     /// Create a ShapeInstance from a Shape and a Symmetry operation
     ///
     /// This takes the general shape typically centred around the origin, and transforms it into a
@@ -46,7 +28,7 @@ where
     /// shape in the appropriate coordinates. In other cases it performs both translations and
     /// rotations of the shape to the appropriate positions.
     ///
-    pub fn from<S>(shape: &S, iso: &Transform<U2>) -> ShapeInstance<I>
+    pub fn from<S>(shape: &S, iso: &Transform2) -> ShapeInstance<S>
     where
         S: Shape<U2, Component = I>,
     {

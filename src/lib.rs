@@ -15,13 +15,13 @@ extern crate log;
 extern crate nalgebra as na;
 extern crate rand;
 
+mod ops_macros;
+
+pub mod U2;
+pub mod U3;
 pub mod basis;
-pub mod cell;
-pub mod ops_macros;
 pub mod packing;
-pub mod shape;
-pub mod site;
-pub mod symmetry;
+pub mod traits;
 pub mod wallpaper;
 
 pub use crate::basis::StandardBasis;
@@ -30,4 +30,5 @@ pub use crate::packing::{monte_carlo_best_packing, MCVars, PackedState};
 pub use crate::shape::*;
 pub use crate::site::OccupiedSite;
 pub use crate::symmetry::*;
+pub use crate::traits::*;
 pub use crate::wallpaper::WallpaperGroup;

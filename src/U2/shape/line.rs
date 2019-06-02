@@ -7,17 +7,17 @@
 use std::fmt;
 
 use approx::{AbsDiffEq, RelativeEq};
-use nalgebra::{Point2, U2};
+use nalgebra::Point2;
 
 use crate::Intersect;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Line {
+pub struct Line2 {
     pub start: Point2<f64>,
     pub end: Point2<f64>,
 }
 
-impl Intersect<U2> for Line {
+impl Intersect for Line2 {
     /// Determine whether two line segments intersect
     ///
     /// This calculates whether two lines intersect at a point contained within each line segment
@@ -52,7 +52,7 @@ impl Intersect<U2> for Line {
     }
 }
 
-impl AbsDiffEq for Line {
+impl AbsDiffEq for Line2 {
     type Epsilon = f64;
 
     fn default_epsilon() -> Self::Epsilon {
@@ -64,7 +64,7 @@ impl AbsDiffEq for Line {
     }
 }
 
-impl RelativeEq for Line {
+impl RelativeEq for Line2 {
     fn default_max_relative() -> Self::Epsilon {
         std::f64::EPSILON
     }
@@ -80,17 +80,17 @@ impl RelativeEq for Line {
     }
 }
 
-impl fmt::Display for Line {
+impl fmt::Display for Line2 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Line {{ ({:.5}, {:.5}), ({:.5}, {:.5}) }}",
+            "Line2 {{ ({:.5}, {:.5}), ({:.5}, {:.5}) }}",
             self.start.x, self.start.y, self.end.x, self.end.y
         )
     }
 }
 
-impl Line {
+impl Line2 {
     pub fn new(start: (f64, f64), end: (f64, f64)) -> Self {
         Self {
             start: Point2::new(start.0, start.1),
@@ -113,13 +113,11 @@ impl Line {
 mod test {
     use nalgebra::Vector2;
 
-    use crate::symmetry::Transform2;
-
     use super::*;
 
     #[test]
     fn new() {
-        let line = Line::new((1., 0.), (0., 1.));
+        let line = Line2::new((1., 0.), (0., 1.));
         assert_eq!(line.start, Point2::new(1., 0.));
         assert_eq!(line.end, Point2::new(0., 1.));
     }
@@ -138,8 +136,8 @@ mod test {
         let mut result = Ok(());
         for start1 in points.iter() {
             for start2 in points.iter() {
-                let l1 = Line::new(*start1, (0., 0.));
-                let l2 = Line::new(*start2, (0., 0.));
+                let l1 = Line2::new(*start1, (0., 0.));
+                let l2 = Line2::new(*start2, (0., 0.));
                 if l1.intersects(&l2) {
                     println!("{:?} {:?}", start1, start2);
                     result = Err(String::from(""));
@@ -152,11 +150,11 @@ mod test {
     #[test]
     fn isometry_matrix_mul() {
         let ident: Transform2 = Transform2::identity();
-        let line = Line::new((1., 1.), (0., 0.));
+        let line = Line2::new((1., 1.), (0., 0.));
         assert_eq!(line * ident, line);
 
         let trans: Transform2 = Transform2::new(Vector2::new(1., 1.), 0.);
-        assert_eq!(line * trans, Line::new((2., 2.), (1., 1.)));
+        assert_eq!(line * trans, Line2::new((2., 2.), (1., 1.)));
     }
 
     //
@@ -179,12 +177,12 @@ mod test {
     //
     #[test]
     fn intersects() {
-        let line1 = Line::new((-1., 0.), (0., -1.));
-        let line2 = Line::new((-1., -1.), (0., 0.));
+        let line1 = Line2::new((-1., 0.), (0., -1.));
+        let line2 = Line2::new((-1., -1.), (0., 0.));
         assert!(line1.intersects(&line2));
         assert!(line2.intersects(&line1));
 
-        let line3 = Line::new((-2., -1.), (1., 0.));
+        let line3 = Line2::new((-2., -1.), (1., 0.));
         assert!(line2.intersects(&line3));
         assert!(line3.intersects(&line2));
         assert!(line1.intersects(&line3));

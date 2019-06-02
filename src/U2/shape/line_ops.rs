@@ -7,16 +7,16 @@
 #![allow(clippy::op_ref)]
 use std::ops::Mul;
 
-use crate::{Line, Transform2};
+use super::{Line2, Transform2};
 
 binop_impl_all!(
     Mul, mul;
-    self: Transform2, rhs: Line, Output = Line;
+    self: Transform2, rhs: Line2, Output = Line2;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;
     [ref ref] => {
-        Line {
+        Line2 {
             start: self * rhs.start,
             end: self * rhs.end,
         }
@@ -25,12 +25,12 @@ binop_impl_all!(
 
 binop_impl_all!(
     Mul, mul;
-    self: Line, rhs: Transform2, Output = Line;
+    self: Line2, rhs: Transform2, Output = Line2;
     [val val] => &self * &rhs;
     [ref val] => self * &rhs;
     [val ref] => &self * rhs;
     [ref ref] => {
-        Line {
+        Line2 {
             start: rhs * self.start,
             end: rhs * self.end,
         }

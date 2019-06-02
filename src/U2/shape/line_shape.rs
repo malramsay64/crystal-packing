@@ -9,9 +9,10 @@ use std::slice;
 use std::vec;
 
 use nalgebra as na;
-use nalgebra::{Point2, U2};
+use nalgebra::Point2;
 
-use crate::{Line, Shape};
+use super::Line2;
+use crate::Shape;
 
 /// A Shape constructed from a collection of Lines
 ///
@@ -21,20 +22,20 @@ use crate::{Line, Shape};
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineShape {
     pub name: String,
-    pub items: Vec<Line>,
+    pub items: Vec<Line2>,
 }
 
 impl<'a> IntoIterator for &'a LineShape {
-    type Item = &'a Line;
-    type IntoIter = slice::Iter<'a, Line>;
+    type Item = &'a Line2;
+    type IntoIter = slice::Iter<'a, Line2>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.items.iter()
     }
 }
 
-impl Shape<U2> for LineShape {
-    type Component = Line;
+impl Shape for LineShape {
+    type Component = Line2;
 
     fn area(&self) -> f64 {
         // This is the sine of the angle between each point, this is used for every calculation
@@ -87,10 +88,10 @@ impl LineShape {
             return Err("The number of points provided is too few to create a 2D shape.");
         }
         let dtheta = 2. * PI / points.len() as f64;
-        let mut items: Vec<Line> = vec![];
+        let mut items: Vec<Line2> = vec![];
         for (index, (r1, r2)) in points.iter().zip(points.iter().cycle().skip(1)).enumerate() {
             let angle = index as f64 * dtheta;
-            items.push(Line::new(
+            items.push(Line2::new(
                 (r1 * f64::sin(angle), r1 * f64::cos(angle)),
                 (r2 * f64::sin(angle + dtheta), r2 * f64::cos(angle + dtheta)),
             ))

@@ -7,29 +7,17 @@
 use std::fmt;
 
 use nalgebra as na;
-use nalgebra::allocator::Allocator;
-use nalgebra::{DefaultAllocator, DimName, Point, U2, U3};
+use nalgebra::Point2;
 
 use crate::Intersect;
 
-pub type Atom2 = Atom<U2>;
-pub type Atom3 = Atom<U3>;
-
 #[derive(Clone, PartialEq, Debug)]
-pub struct Atom<D: DimName>
-where
-    DefaultAllocator: Allocator<f64, D>,
-    DefaultAllocator: Allocator<f64, D, D>,
-{
-    pub position: Point<f64, D>,
+pub struct Atom2 {
+    pub position: Point2<f64>,
     pub radius: f64,
 }
 
-impl<D: DimName> Intersect<D> for Atom<D>
-where
-    DefaultAllocator: Allocator<f64, D>,
-    DefaultAllocator: Allocator<f64, D, D>,
-{
+impl Intersect for Atom2 {
     fn intersects(&self, other: &Self) -> bool {
         let r_squared = (self.radius + other.radius).powi(2);
         // We have an intersection when the distance between the particles is less than the
@@ -38,7 +26,7 @@ where
     }
 }
 
-impl fmt::Display for Atom<U2> {
+impl fmt::Display for Atom2 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -48,29 +36,10 @@ impl fmt::Display for Atom<U2> {
     }
 }
 
-impl fmt::Display for Atom<U3> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Atom3 {{ {}, {}, {}, {} }}",
-            self.position.x, self.position.y, self.position.z, self.radius
-        )
-    }
-}
-
-impl Atom<U2> {
+impl Atom2 {
     pub fn new(x: f64, y: f64, radius: f64) -> Self {
-        Atom {
-            position: Point::<f64, U2>::new(x, y),
-            radius,
-        }
-    }
-}
-
-impl Atom<U3> {
-    pub fn new(x: f64, y: f64, z: f64, radius: f64) -> Self {
-        Atom {
-            position: Point::<f64, U3>::new(x, y, z),
+        Atom2 {
+            position: Point2::<f64>::new(x, y),
             radius,
         }
     }

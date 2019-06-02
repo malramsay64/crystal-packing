@@ -18,8 +18,6 @@ use std::ops::Mul;
 
 use clap::{arg_enum, App, Arg, _clap_count_exprs, value_t};
 use log::{debug, info};
-use nalgebra::allocator::Allocator;
-use nalgebra::{DefaultAllocator, U2};
 use rayon::prelude::*;
 use simplelog::{Config, LevelFilter, TermLogger};
 
@@ -49,12 +47,7 @@ arg_enum! {
 
 fn get_packed_state<S>(options: CLIOptions, shape: S) -> Result<PackedState<S>, &'static str>
 where
-    S: Shape<U2> + Send + Sync,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape + Send + Sync,
 {
     let wallpaper = Wallpaper::new(&options.group);
     let isopointal = &[WyckoffSite::new(options.group)];
