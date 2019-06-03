@@ -11,6 +11,7 @@ use std::vec;
 
 use itertools::{iproduct, Itertools};
 use nalgebra::Point2;
+use serde::{Deserialize, Serialize};
 
 use super::{Line2, Transform2};
 use crate::traits::{Intersect, Shape};
@@ -20,7 +21,7 @@ use crate::traits::{Intersect, Shape};
 /// This defines a collection of lines, from one point to another which define the area enclosed by
 /// a shape. It is assumed that the lines completely enclose an area, and that the enclosed area is
 /// close to the origin.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineShape {
     pub name: String,
     pub items: Vec<Line2>,

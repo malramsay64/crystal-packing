@@ -15,12 +15,13 @@ use log::{debug, trace, warn};
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::rngs::SmallRng;
+use serde::{Deserialize, Serialize};
 
 use crate::basis::{Basis, StandardBasis};
 use crate::traits::*;
 use crate::wallpaper::{Wallpaper, WyckoffSite};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PackedState<S, C, T>
 where
     S: Shape,
@@ -109,8 +110,6 @@ where
     ///
     pub fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
-            // We only need to check the positions after that of index, since the previous ones
-            // have already been checked, hence `.skip(index)`
             trace!(
                 "Creating shape from: {:?}, results in {:?}",
                 position1,
@@ -120,14 +119,17 @@ where
                 .shape
                 .transform(&self.cell.to_cartesian_isometry(position1));
 
+            // We only need to check the positions after that of index, since the previous ones
+            // have already been checked, hence `.skip(index)`
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
-                debug!("Checking {} against {}", index1, index2);
+                trace!("Checking {} against {}", index1, index2);
                 for transform in self.cell.periodic_images(position2, index1 != index2) {
                     let shape_i2 = self
                         .shape
                         .transform(&self.cell.to_cartesian_isometry(&transform));
 
                     trace!("Comparing {} to {}", shape_i1, shape_i2);
+
                     if shape_i1.intersects(&shape_i2) {
                         return true;
                     }
@@ -145,7 +147,9 @@ where
 
     pub fn packing_fraction(&self) -> Result<f64, &'static str> {
         match (self.shape.area() * self.total_shapes() as f64) / self.cell.area() {
-            x => Ok(x),
+            x if x <= 1. => Ok(x),
+            x if x > 1. => Err("Invalid packing fraction"),
+            _ => Err("Invalid Value"),
         }
     }
 
@@ -388,6 +392,8 @@ where
             packing = match state.packing_fraction() {
                 Err(_) => {
                     warn!("Rejected for invalid packing fraction.");
+                    debug!("{:?}", state);
+                    panic!();
                     rejections += 1;
                     basis[basis_index].reset_value();
 

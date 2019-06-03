@@ -8,6 +8,7 @@ use std::f64::consts::PI;
 
 use itertools::iproduct;
 use nalgebra::{Point2, Translation2, Vector2};
+use serde::{Deserialize, Serialize};
 
 use super::Transform2;
 use crate::basis::{SharedValue, StandardBasis};
@@ -17,7 +18,7 @@ use crate::traits::Cell;
 ///
 /// These are all the valid types of crystal symmetries which are valid in a 2D space.
 ///
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CrystalFamily {
     Monoclinic,
     Orthorhombic,
@@ -54,7 +55,7 @@ mod crystal_family_test {
 /// addition to the contained angles. Each cell belongs to one of the Crystal Families which
 /// dictate the degrees of freedom the cell can take.
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cell2 {
     points: Vector2<f64>,
     angles: Vector2<f64>,

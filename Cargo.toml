@@ -5,7 +5,7 @@ authors = ["Malcolm Ramsay <malramsay64@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = "~0.18.0"
+nalgebra = {version="~0.18.0", features=["serde-serialize"]}
 rand = "~0.6.0"
 approx = "~0.3.0"
 log = "~0.4.0"
@@ -13,6 +13,7 @@ simplelog = "~0.5.3"
 clap = "~2.31.0"
 rayon = "~1.0.3"
 itertools = "~0.8.0"
+serde = {version="~1.0.92", features=["derive"]}
 
 [dev-dependencies]
 criterion = "0.2"

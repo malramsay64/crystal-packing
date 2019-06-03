@@ -6,12 +6,12 @@
 
 use std::fmt;
 
-use nalgebra as na;
 use nalgebra::Point2;
+use serde::{Deserialize, Serialize};
 
 use crate::traits::Intersect;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Atom2 {
     pub position: Point2<f64>,
     pub radius: f64,

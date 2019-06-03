@@ -9,6 +9,7 @@ use std::{fmt, slice, vec};
 
 use itertools::{iproduct, Itertools};
 use nalgebra::Point2;
+use serde::{Deserialize, Serialize};
 
 use super::{Atom2, Transform2};
 use crate::traits::{Intersect, Shape};
@@ -16,7 +17,7 @@ use crate::traits::{Intersect, Shape};
 /// A shape defined by a collection of Atoms
 ///
 /// This is a shape comprised of a series of circles which each have a position and radius.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MolecularShape2 {
     pub name: String,
     pub items: Vec<Atom2>,

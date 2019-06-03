@@ -8,10 +8,12 @@
 #![allow(deprecated)]
 
 use clap::{_clap_count_exprs, arg_enum};
+use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
 use crate::U2::{CrystalFamily, Transform2};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct WallpaperGroup {
     pub name: &'static str,
     pub family: CrystalFamily,
@@ -22,7 +24,7 @@ pub struct WallpaperGroup {
 ///
 /// This is the highest level description of the symmetry operations of a crystal structure.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Wallpaper {
     pub name: String,
     pub family: CrystalFamily,
@@ -37,7 +39,7 @@ impl Wallpaper {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WyckoffSite {
     pub letter: char,
     pub symmetries: Vec<Transform2>,
@@ -76,7 +78,7 @@ impl WyckoffSite {
 
 arg_enum! {
     #[allow(non_camel_case_types)]
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     pub enum WallpaperGroups {
         p1,
         p2,

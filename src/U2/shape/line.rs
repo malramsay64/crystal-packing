@@ -8,10 +8,11 @@ use std::fmt;
 
 use approx::{AbsDiffEq, RelativeEq};
 use nalgebra::Point2;
+use serde::{Deserialize, Serialize};
 
 use crate::traits::Intersect;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Line2 {
     pub start: Point2<f64>,
     pub end: Point2<f64>,

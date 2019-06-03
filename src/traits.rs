@@ -4,21 +4,25 @@
 // Distributed under terms of the MIT license.
 //
 
+use std::{fmt, ops, slice};
+
+use serde::Serialize;
+
 use crate::wallpaper::WyckoffSite;
 use crate::StandardBasis;
 use crate::U2::CrystalFamily;
-use std::{fmt, ops, slice};
 
 pub trait Intersect {
     fn intersects(&self, other: &Self) -> bool;
 }
 
-pub trait Shape: Clone + Send + Sync + fmt::Debug + fmt::Display + Intersect {
-    type Transform: Clone + Send + Sync + fmt::Debug;
+pub trait Shape: Intersect + Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
+    type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
     type Component: Intersect
         + Clone
         + Send
         + Sync
+        + Serialize
         + fmt::Debug
         + fmt::Display
         + ops::Mul<Self::Transform, Output = Self::Component>;
@@ -37,9 +41,9 @@ pub trait FromSymmetry {
     fn from_operations(ops: &str) -> Self;
 }
 
-pub trait Cell: Clone + Send + Sync + fmt::Debug {
-    type Transform: Clone + Send + Sync + fmt::Debug;
-    type Point: Clone + Send + Sync + fmt::Display;
+pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug {
+    type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
+    type Point: Clone + Send + Sync + Serialize + fmt::Display;
 
     fn periodic_images(&self, transform: &Self::Transform, zero: bool) -> Vec<Self::Transform>;
     fn from_family(group: &CrystalFamily, max_size: f64) -> Self;
@@ -51,8 +55,8 @@ pub trait Cell: Clone + Send + Sync + fmt::Debug {
     fn get_corners(&self) -> Vec<Self::Point>;
 }
 
-pub trait Site: Clone + Send + Sync + fmt::Debug {
-    type Transform: Clone + Send + Sync + fmt::Debug;
+pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {
+    type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
 
     fn transform(&self) -> Self::Transform;
     fn positions(&self) -> Vec<Self::Transform>;

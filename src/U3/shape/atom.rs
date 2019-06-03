@@ -8,10 +8,11 @@
 use std::fmt;
 
 use nalgebra::Point3;
+use serde::{Deserialize, Serialize};
 
 use crate::traits::Intersect;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Atom3 {
     pub position: Point3<f64>,
     pub radius: f64,

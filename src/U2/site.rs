@@ -8,13 +8,14 @@
 use std::f64::consts::PI;
 
 use nalgebra::Vector2;
+use serde::{Deserialize, Serialize};
 
 use super::Transform2;
 use crate::basis::{SharedValue, StandardBasis};
 use crate::traits::Site;
 use crate::wallpaper::WyckoffSite;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OccupiedSite {
     wyckoff: WyckoffSite,
     x: f64,
