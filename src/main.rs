@@ -8,11 +8,6 @@
 // This is for the clap::arg_enum macro
 #![allow(deprecated)]
 
-extern crate clap;
-extern crate log;
-extern crate rayon;
-extern crate simplelog;
-
 use std::f64::consts::PI;
 
 use clap::{arg_enum, App, Arg, _clap_count_exprs, value_t};
