@@ -9,73 +9,54 @@ use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::prelude::*;
-use std::ops::Mul;
 use std::path::Path;
 
-use itertools::iproduct;
 use log::{debug, trace, warn};
-use nalgebra::base::allocator::Allocator;
-use nalgebra::{DefaultAllocator, Point2, Translation, U2};
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
-pub use crate::basis::{Basis, SharedValue, StandardBasis};
-pub use crate::cell::{Cell, CrystalFamily};
-pub use crate::shape::{LineShape, Shape, ShapeInstance};
-pub use crate::site::OccupiedSite;
-pub use crate::symmetry::{FromSymmetry, Transform, Transform2};
-pub use crate::wallpaper::{Wallpaper, WyckoffSite};
+use crate::basis::{Basis, StandardBasis};
+use crate::traits::*;
+use crate::wallpaper::{Wallpaper, WyckoffSite};
 
 #[derive(Clone, Debug)]
-pub struct PackedState<S>
+pub struct PackedState<S, C, T>
 where
-    S: Shape<U2> + Debug + Display,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
 {
     pub wallpaper: Wallpaper,
     pub shape: S,
-    pub cell: Cell<U2>,
-    occupied_sites: Vec<OccupiedSite>,
+    pub cell: C,
+    occupied_sites: Vec<T>,
 }
 
-impl<S> Eq for PackedState<S>
+impl<S, C, T> Eq for PackedState<S, C, T>
 where
-    S: Shape<U2> + Debug + Display,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape + Debug + Display,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
 {
 }
 
-impl<S> PartialEq for PackedState<S>
+impl<S, C, T> PartialEq for PackedState<S, C, T>
 where
-    S: Shape<U2> + Debug + Display,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape + Debug + Display,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.packing_fraction() == other.packing_fraction()
     }
 }
 
-impl<S> PartialOrd for PackedState<S>
+impl<S, C, T> PartialOrd for PackedState<S, C, T>
 where
-    S: Shape<U2> + Debug + Display,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape + Debug + Display,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.packing_fraction()
@@ -83,14 +64,11 @@ where
     }
 }
 
-impl<S> Ord for PackedState<S>
+impl<S, C, T> Ord for PackedState<S, C, T>
 where
-    S: Shape<U2> + Debug + Display,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape + Debug + Display,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.packing_fraction()
@@ -99,33 +77,28 @@ where
     }
 }
 
-impl<S> PackedState<S>
+impl<S, C, T> PackedState<S, C, T>
 where
-    S: Shape<U2> + Debug + Display,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape + Debug + Display,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
 {
-    pub fn cartesian_positions(&self) -> Vec<Vec<S::Component>> {
-        let mut positions: Vec<Vec<S::Component>> = vec![];
+    pub fn cartesian_positions(&self) -> Vec<S> {
+        let mut positions: Vec<S> = vec![];
         for position in self.relative_positions().iter() {
-            let shape_i: ShapeInstance<S::Component> =
-                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position));
-            positions.push(shape_i.items);
+            let shape_i = self
+                .shape
+                .transform(&self.cell.to_cartesian_isometry(position));
+            positions.push(shape_i);
         }
         positions
     }
 
-    fn relative_positions(&self) -> Vec<Transform<U2>> {
-        let mut transforms: Vec<Transform<U2>> = vec![];
-        for site in self.occupied_sites.iter() {
-            for symmetry in site.symmetries().iter() {
-                transforms.push(symmetry * site.transform());
-            }
-        }
-        transforms
+    fn relative_positions(&self) -> Vec<T::Transform> {
+        self.occupied_sites
+            .iter()
+            .flat_map(|site| site.positions())
+            .collect()
     }
 
     /// Check for intersections of shapes in the current state.
@@ -143,34 +116,17 @@ where
                 position1,
                 self.cell.to_cartesian_isometry(position1)
             );
-            let shape_i1 =
-                ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(position1));
+            let shape_i1 = self
+                .shape
+                .transform(&self.cell.to_cartesian_isometry(position1));
+
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
                 debug!("Checking {} against {}", index1, index2);
-                trace!(
-                    "Creating shape from: {:?}, results in {:?}",
-                    position2,
-                    self.cell.to_cartesian_isometry(position2)
-                );
+                for transform in self.cell.periodic_images(position2, index1 != index2) {
+                    let shape_i2 = self
+                        .shape
+                        .transform(&self.cell.to_cartesian_isometry(&transform));
 
-                // The periodic images to check. Checking the first and second shells i.e.
-                // -2..=2, as this is necessary to ensure no intersections on tilted cells.
-                for (x_periodic, y_periodic) in iproduct!(-2..=2, -2..=2) {
-                    // A shape is always going to intersect with itself. This skips the check for
-                    // a shape intersecting with itself, while still checking the periodic
-                    // copies.
-                    if index1 == index2 && x_periodic == 0 && y_periodic == 0 {
-                        continue;
-                    }
-
-                    let mut p_position2 = *position2;
-                    p_position2.translation *=
-                        Translation::<f64, U2>::new(f64::from(x_periodic), f64::from(y_periodic));
-
-                    let shape_i2 = ShapeInstance::from(
-                        &self.shape,
-                        &self.cell.to_cartesian_isometry(&p_position2),
-                    );
                     if shape_i1.intersects(&shape_i2) {
                         return true;
                     }
@@ -196,17 +152,17 @@ where
         shape: S,
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
-    ) -> PackedState<S> {
+    ) -> PackedState<S, C, T> {
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
         let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
-        let cell = Cell::from_family(&wallpaper.family, max_cell_size);
+        let cell = C::from_family(&wallpaper.family, max_cell_size);
 
         debug!("Cell: {:?}", cell);
 
-        let mut occupied_sites: Vec<OccupiedSite> = Vec::new();
+        let mut occupied_sites: Vec<T> = Vec::new();
         for wyckoff in isopointal.iter() {
-            let site = OccupiedSite::from_wyckoff(wyckoff);
+            let site = T::from_wyckoff(wyckoff);
             occupied_sites.push(site);
         }
 
@@ -235,20 +191,7 @@ where
             Ok(file) => file,
         };
 
-        // Write cell lines to file
-        let pc = na::Translation::<f64, U2>::from(-self.cell.center().coords);
-
-        let mut points = vec![
-            Point2::new(0., 0.),
-            Point2::new(1., 0.),
-            Point2::new(1., 1.),
-            Point2::new(0., 1.),
-        ];
-
-        points = points
-            .into_iter()
-            .map(|p| pc * self.cell.to_cartesian_point(p))
-            .collect();
+        let points = self.cell.get_corners();
 
         for (p0, p1) in points.iter().zip(points.iter().cycle().skip(1)) {
             let colour = 'k';
@@ -261,21 +204,21 @@ where
             // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
             // necessary, although this is currently not an issue due to the limiting of the
             // value of the cell angle.
-            for (x_periodic, y_periodic) in iproduct!(-1..=1, -1..=1) {
-                let mut p_position = *position;
-                p_position.translation *=
-                    Translation::<f64, U2>::new(f64::from(x_periodic), f64::from(y_periodic));
 
-                let shape_i =
-                    ShapeInstance::from(&self.shape, &self.cell.to_cartesian_isometry(&p_position));
+            let shape_i = self.shape.clone().transform(&position);
 
-                let colour = match () {
-                    // These are the 'original' coordinates so differentiate
-                    _ if x_periodic == 0 && y_periodic == 0 => 'b',
-                    _ => 'g',
-                };
-                for item in shape_i.items.iter() {
-                    writeln!(file, "{}, {}", item, colour).unwrap();
+            for item in shape_i.iter() {
+                writeln!(file, "{}, b", item).unwrap();
+            }
+
+            for transform in self.cell.periodic_images(position, false) {
+                let shape_i = self
+                    .shape
+                    .clone()
+                    .transform(&self.cell.to_cartesian_isometry(&transform));
+
+                for item in shape_i.iter() {
+                    writeln!(file, "{}, g", item).unwrap();
                 }
             }
         }
@@ -285,6 +228,7 @@ where
 #[cfg(test)]
 mod packed_state_tests {
     use super::*;
+    use crate::U2::LineShape;
     use approx::assert_abs_diff_eq;
 
     fn create_square() -> LineShape {
@@ -298,7 +242,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![Transform2::from_operations("x,y")],
+            symmetries: vec![na::Transform2::from_operations("x,y")],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -398,17 +342,14 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
     f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-pub fn monte_carlo_best_packing<S>(
+pub fn monte_carlo_best_packing<S, C, T>(
     vars: &MCVars,
-    mut state: PackedState<S>,
-) -> Result<PackedState<S>, &'static str>
+    mut state: PackedState<S, C, T>,
+) -> Result<PackedState<S, C, T>, &'static str>
 where
-    S: Shape<U2> + Debug + Display,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform<U2>, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform<U2>, Output = S::Component>,
-    for<'a> S::Component: Mul<&'a Transform<U2>, Output = S::Component>,
-    DefaultAllocator: Allocator<f64, U2>,
-    DefaultAllocator: Allocator<f64, U2, U2>,
+    S: Shape + Debug + Display,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
 {
     // When a random seed is provided, use it, otherwise seed the random number generator from the
     // system entropy.

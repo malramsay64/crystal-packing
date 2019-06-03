@@ -4,12 +4,14 @@
 // Distributed under terms of the MIT license.
 //
 
-mod cell;
-mod shape;
-mod site;
-mod symmetry;
+pub use nalgebra::{Point2, Translation2};
 
-pub use cell::Cell2;
-pub use shape::{Atom2, Line2};
+pub mod cell;
+pub mod shape;
+pub mod site;
+pub mod symmetry;
+
+pub use cell::{Cell2, CrystalFamily};
+pub use shape::{Atom2, Line2, LineShape, MolecularShape2};
 pub use site::OccupiedSite;
 pub use symmetry::Transform2;

@@ -5,9 +5,6 @@
 // Distributed under terms of the MIT license.
 //
 
-use std::fmt;
-use std::slice;
-
 pub use super::Transform2;
 
 mod atom;

@@ -7,6 +7,7 @@
 use packing;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
+
 #[allow(unused_imports)]
 use packing::{
     monte_carlo_best_packing, CrystalFamily, FromSymmetry, LineShape, MCVars, PackedState, Shape,

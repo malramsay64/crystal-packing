@@ -6,10 +6,12 @@
 
 use std::f64::consts::PI;
 
+use itertools::iproduct;
 use nalgebra::{Point2, Translation2, Vector2};
 
 use super::Transform2;
 use crate::basis::{SharedValue, StandardBasis};
+use crate::traits::Cell;
 
 /// The different crystal families that can be represented
 ///
@@ -81,7 +83,10 @@ impl Default for Cell2 {
     }
 }
 
-impl Cell2 {
+impl Cell for Cell2 {
+    type Transform = Transform2;
+    type Point = Point2<f64>;
+
     /// Convert a transformation into Cartesian coordinates
     ///
     /// The positions of particles are stored in fractional coordinates, making changes to the
@@ -89,7 +94,7 @@ impl Cell2 {
     /// and converts the values of the fractional coordinates in the translation to real
     /// Cartesian coordinates based on the current cell parameters.
     ///
-    pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
+    fn to_cartesian_isometry(&self, transform: &Self::Transform) -> Self::Transform {
         let (x, y) = self.to_cartesian(
             transform.translation.vector.x,
             transform.translation.vector.y,
@@ -97,69 +102,10 @@ impl Cell2 {
         Transform2::from_parts(Translation2::new(x, y), transform.rotation)
     }
 
-    /// The $x$ component of the cell, also known as $a$
-    ///
-    /// This is the interface for accessing the length of the first crystallographic dimension of
-    /// the unit cell.
-    pub fn x(&self) -> f64 {
-        self.points.x
-    }
-
-    /// The $y$ component of the cell, also known as $a$
-    ///
-    /// This is the interface for accessing the length of the first crystallographic dimension of
-    /// the unit cell.
-    pub fn y(&self) -> f64 {
-        if self.points.y == 0. {
-            return self.points.x;
-        }
-        self.points.y
-    }
-
-    /// The angle between the $x$ and $y$ components of the cell
-    ///
-    /// This is typically labelled $\theta$.
-    pub fn angle(&self) -> f64 {
-        self.angles.x
-    }
-
     /// Convert a point in relative coordinates to real coordinates
-    pub fn to_cartesian_point(&self, point: Point2) -> Point2 {
+    fn to_cartesian_point(&self, point: Self::Point) -> Self::Point {
         let (x, y) = self.to_cartesian(point.x, point.y);
         Point2::new(x, y)
-    }
-
-    /// Convert two values in relative coordinates to real coordinates
-    pub fn to_cartesian(&self, x: f64, y: f64) -> (f64, f64) {
-        (
-            x * self.x() + y * self.y() * self.angle().cos(),
-            y * self.y() * self.angle().sin(),
-        )
-    }
-
-    /// Initialise a Cell instance from the CrystalFamily the cell belongs to
-    ///
-    /// Initialising from the Crystal family configures the Cell to the restrictions that the
-    /// crystal family impose upon the unit cell. This includes ensuring both sides of the unit
-    /// cell are the same length, or restricting the angle to a specific value.
-    ///
-    pub fn from_family(family: &CrystalFamily, length: f64) -> Cell2 {
-        let (x_len, y_len, angle) = match family {
-            // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
-            CrystalFamily::Hexagonal => (length, 0., PI / 3.),
-            // The Tetragonal Crystal has both sides equal with a fixed angle of 90 degrees.
-            CrystalFamily::Tetragonal => (length, 0., PI / 2.),
-            // The Orthorhombic crystal has two variable sides with a fixed angle of 90 degrees.
-            CrystalFamily::Orthorhombic => (length, length, PI / 2.),
-            // The Monoclinic cell has two variable sides and a variable angle initialised to 90
-            // degrees
-            CrystalFamily::Monoclinic => (length, length, PI / 2.),
-        };
-        Cell2 {
-            points: Vector2::new(x_len, y_len),
-            angles: Vector2::new(angle, 0.),
-            family: family.clone(),
-        }
     }
 
     /// This finds the values of the unit cell which are allowed to be changed and how
@@ -167,7 +113,7 @@ impl Cell2 {
     /// Each of the different crystal families impose different restrictions on the degrees of
     /// freedom of a unit cell. This compiles these degrees of freedom into a vector of Bases,
     /// which is the data structure used to modify the values.
-    pub fn get_degrees_of_freedom(&mut self) -> Vec<StandardBasis> {
+    fn get_degrees_of_freedom(&mut self) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
 
         // All cells have at least a single variable cell length
@@ -207,7 +153,7 @@ impl Cell2 {
     /// calculations that this is required, when trying to plot the unit cell it should be plotted
     /// with the center at the appropriate position.
     ///
-    pub fn center(&self) -> Point2<f64> {
+    fn center(&self) -> Point2<f64> {
         let (x, y) = self.to_cartesian(0.5, 0.5);
         Point2::new(x, y)
     }
@@ -215,8 +161,98 @@ impl Cell2 {
     /// Calculates the area of the cell
     ///
     /// The general formula for the area of a rhombus.
-    pub fn area(&self) -> f64 {
+    fn area(&self) -> f64 {
         self.angle().sin() * self.x() * self.y()
+    }
+
+    /// Initialise a Cell instance from the CrystalFamily the cell belongs to
+    ///
+    /// Initialising from the Crystal family configures the Cell to the restrictions that the
+    /// crystal family impose upon the unit cell. This includes ensuring both sides of the unit
+    /// cell are the same length, or restricting the angle to a specific value.
+    ///
+    fn from_family(family: &CrystalFamily, length: f64) -> Cell2 {
+        let (x_len, y_len, angle) = match family {
+            // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
+            CrystalFamily::Hexagonal => (length, 0., PI / 3.),
+            // The Tetragonal Crystal has both sides equal with a fixed angle of 90 degrees.
+            CrystalFamily::Tetragonal => (length, 0., PI / 2.),
+            // The Orthorhombic crystal has two variable sides with a fixed angle of 90 degrees.
+            CrystalFamily::Orthorhombic => (length, length, PI / 2.),
+            // The Monoclinic cell has two variable sides and a variable angle initialised to 90
+            // degrees
+            CrystalFamily::Monoclinic => (length, length, PI / 2.),
+        };
+        Cell2 {
+            points: Vector2::new(x_len, y_len),
+            angles: Vector2::new(angle, 0.),
+            family: family.clone(),
+        }
+    }
+
+    fn periodic_images(&self, transform: &Self::Transform, zero: bool) -> Vec<Self::Transform> {
+        // The periodic images to check. Checking the first and second shells i.e.
+        // -2..=2, as this is necessary to ensure no intersections on tilted cells.
+        if zero {
+            iproduct!(-2..=2, -2..=2)
+                .map(|(x, y)| transform * Translation2::new(f64::from(x), f64::from(y)))
+                .collect()
+        } else {
+            iproduct!(-2..=2, -2..=2)
+                .filter(|(x, y)| *x != 0 && *y != 0)
+                .map(|(x, y)| transform * Translation2::new(f64::from(x), f64::from(y)))
+                .collect()
+        }
+    }
+
+    fn get_corners(&self) -> Vec<Self::Point> {
+        let points = vec![
+            Point2::new(-0.5, -0.5),
+            Point2::new(-0.5, 0.5),
+            Point2::new(0.5, 0.5),
+            Point2::new(-0.5, 0.5),
+        ];
+
+        points
+            .into_iter()
+            .map(|p| self.to_cartesian_point(p))
+            .collect()
+    }
+}
+
+impl Cell2 {
+    /// The $x$ component of the cell, also known as $a$
+    ///
+    /// This is the interface for accessing the length of the first crystallographic dimension of
+    /// the unit cell.
+    pub fn x(&self) -> f64 {
+        self.points.x
+    }
+
+    /// The $y$ component of the cell, also known as $a$
+    ///
+    /// This is the interface for accessing the length of the first crystallographic dimension of
+    /// the unit cell.
+    pub fn y(&self) -> f64 {
+        if self.points.y == 0. {
+            return self.points.x;
+        }
+        self.points.y
+    }
+
+    /// The angle between the $x$ and $y$ components of the cell
+    ///
+    /// This is typically labelled $\theta$.
+    pub fn angle(&self) -> f64 {
+        self.angles.x
+    }
+
+    /// Convert two values in relative coordinates to real coordinates
+    pub fn to_cartesian(&self, x: f64, y: f64) -> (f64, f64) {
+        (
+            x * self.x() + y * self.y() * self.angle().cos(),
+            y * self.y() * self.angle().sin(),
+        )
     }
 }
 

@@ -9,8 +9,8 @@
 
 use clap::{_clap_count_exprs, arg_enum};
 
-use crate::cell::CrystalFamily;
-use crate::symmetry::{FromSymmetry, Transform2};
+use crate::traits::*;
+use crate::U2::{CrystalFamily, Transform2};
 
 pub struct WallpaperGroup {
     pub name: &'static str,

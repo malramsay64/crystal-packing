@@ -5,16 +5,13 @@
 //
 
 use std::f64::consts::PI;
-use std::fmt;
-use std::slice;
-use std::vec;
+use std::{fmt, ops, slice, vec};
 
 use itertools::Itertools;
-use nalgebra as na;
 use nalgebra::Point2;
 
-use super::Atom2;
-use crate::Shape;
+use super::{Atom2, Transform2};
+use crate::traits::Shape;
 
 /// A shape defined by a collection of Atoms
 ///
@@ -36,6 +33,7 @@ impl<'a> IntoIterator for &'a MolecularShape2 {
 
 impl Shape for MolecularShape2 {
     type Component = Atom2;
+    type Transform = Transform2;
 
     fn area(&self) -> f64 {
         // TODO Implement an algorithm which takes into account multiple overlaps of circles, this
@@ -68,6 +66,17 @@ impl Shape for MolecularShape2 {
 
     fn iter(&self) -> slice::Iter<'_, Self::Component> {
         self.into_iter()
+    }
+
+    fn transform(&self, transform: &Self::Transform) -> Self {
+        Self {
+            name: self.name.clone(),
+            items: self.into_iter().map(|i| i * transform).collect(),
+        }
+    }
+
+    fn intersects(&self, other: &Self) -> bool {
+        true
     }
 }
 

@@ -5,16 +5,11 @@
 //
 //
 
-use log::warn;
+use nalgebra::{IsometryMatrix3, Matrix3, Rotation3, Translation3, Vector3};
 
-// Re-export these to allow importing along with the Transform struct
-use nalgebra::{Isometry3, Matrix3, Rotation3, Translation3, Vector3};
+use crate::traits::FromSymmetry;
 
-pub type Transform3 = Isometry3<f64, Rotation3<f64>>;
-
-pub trait FromSymmetry {
-    fn from_operations(ops: &str) -> Self;
-}
+pub type Transform3 = IsometryMatrix3<f64>;
 
 impl FromSymmetry for Transform3 {
     /// Convert the string representation of a symmetry operation to a vector.
@@ -126,7 +121,7 @@ mod test {
         let point = Point3::new(0.2, 0.2, 0.2);
         assert_eq!(isometry * point, Point2::new(0.8, 1.2));
 
-        let vec = Vector3::new(0.2, 0.2);
+        let vec = Vector3::new(0.2, 0.2, 0.2);
         assert_eq!(isometry * vec, Vector3::new(-0.2, 0.2));
     }
 

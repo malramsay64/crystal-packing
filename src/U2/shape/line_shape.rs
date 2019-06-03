@@ -5,14 +5,15 @@
 //
 
 use std::f64::consts::PI;
+use std::fmt;
 use std::slice;
 use std::vec;
 
-use nalgebra as na;
+use itertools::Itertools;
 use nalgebra::Point2;
 
-use super::Line2;
-use crate::Shape;
+use super::{Line2, Transform2};
+use crate::traits::Shape;
 
 /// A Shape constructed from a collection of Lines
 ///
@@ -34,8 +35,15 @@ impl<'a> IntoIterator for &'a LineShape {
     }
 }
 
+impl fmt::Display for LineShape {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LineShape {{ {} }}", self.items.iter().format(", "))
+    }
+}
+
 impl Shape for LineShape {
     type Component = Line2;
+    type Transform = Transform2;
 
     fn area(&self) -> f64 {
         // This is the sine of the angle between each point, this is used for every calculation
@@ -63,6 +71,13 @@ impl Shape for LineShape {
 
     fn iter(&self) -> slice::Iter<'_, Self::Component> {
         self.into_iter()
+    }
+
+    fn transform(&self, transform: &Self::Transform) -> Self {
+        Self {
+            name: self.name.clone(),
+            items: self.into_iter().map(|i| i * transform).collect(),
+        }
     }
 }
 

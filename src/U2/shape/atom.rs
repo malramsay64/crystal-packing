@@ -9,7 +9,7 @@ use std::fmt;
 use nalgebra as na;
 use nalgebra::Point2;
 
-use crate::Intersect;
+use crate::traits::Intersect;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Atom2 {

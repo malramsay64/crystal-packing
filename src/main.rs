@@ -14,7 +14,6 @@ extern crate rayon;
 extern crate simplelog;
 
 use std::f64::consts::PI;
-use std::ops::Mul;
 
 use clap::{arg_enum, App, Arg, _clap_count_exprs, value_t};
 use log::{debug, info};
@@ -22,11 +21,10 @@ use rayon::prelude::*;
 use simplelog::{Config, LevelFilter, TermLogger};
 
 use packing;
-use packing::packing::{monte_carlo_best_packing, MCVars, PackedState, Wallpaper};
-#[allow(unused_imports)]
-use packing::shape::{Atom, LineShape, MolecularShape, Shape};
-use packing::symmetry::Transform;
-use packing::wallpaper::{WallpaperGroup, WallpaperGroups, WyckoffSite};
+use packing::packing::{monte_carlo_best_packing, MCVars, PackedState};
+use packing::traits::*;
+use packing::wallpaper::{Wallpaper, WallpaperGroup, WallpaperGroups, WyckoffSite};
+use packing::U2::{Cell2, LineShape, MolecularShape2, OccupiedSite};
 
 struct CLIOptions {
     shape: ShapeTypes,
@@ -39,20 +37,25 @@ struct CLIOptions {
 arg_enum! {
     #[derive(Debug)]
     pub enum ShapeTypes {
-        polygon,
-        trimer,
-        circle,
+        Polygon,
+        Trimer,
+        Circle,
     }
 }
 
-fn get_packed_state<S>(options: CLIOptions, shape: S) -> Result<PackedState<S>, &'static str>
+fn get_packed_state<S, C, T>(
+    options: CLIOptions,
+    shape: S,
+) -> Result<PackedState<S, C, T>, &'static str>
 where
     S: Shape + Send + Sync,
+    C: Cell<Transform = S::Transform> + Send + Sync,
+    T: Site<Transform = S::Transform> + Send + Sync,
 {
     let wallpaper = Wallpaper::new(&options.group);
     let isopointal = &[WyckoffSite::new(options.group)];
 
-    let state = PackedState::<S>::initialise(shape.clone(), wallpaper.clone(), isopointal);
+    let state = PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
     if state.check_intersection() {
         panic!("Initial state has intersections...exiting.");
     }
@@ -71,7 +74,8 @@ where
     let final_state = (0..vars.num_start_configs)
         .into_par_iter()
         .map(|_| {
-            let state = PackedState::<S>::initialise(shape.clone(), wallpaper.clone(), isopointal);
+            let state =
+                PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
             monte_carlo_best_packing(&vars, state)
         })
         .max()
@@ -171,17 +175,17 @@ fn main() -> Result<(), &'static str> {
     debug!("Logging Level: {}", options.log_level);
 
     match options.shape {
-        ShapeTypes::polygon => {
+        ShapeTypes::Polygon => {
             let shape = LineShape::from_radial("Polygon", vec![1.; options.num_sides])?;
-            get_packed_state(options, shape).unwrap();
+            get_packed_state::<LineShape, Cell2, OccupiedSite>(options, shape).unwrap();
         }
-        ShapeTypes::trimer => {
-            let shape = MolecularShape::from_trimer(0.637_556, 2. * PI / 3., 1.);
-            get_packed_state(options, shape).unwrap();
+        ShapeTypes::Trimer => {
+            let shape = MolecularShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
+            get_packed_state::<MolecularShape2, Cell2, OccupiedSite>(options, shape).unwrap();
         }
-        ShapeTypes::circle => {
-            let shape = MolecularShape::circle();
-            get_packed_state(options, shape).unwrap();
+        ShapeTypes::Circle => {
+            let shape = MolecularShape2::circle();
+            get_packed_state::<MolecularShape2, Cell2, OccupiedSite>(options, shape).unwrap();
         }
     };
     Ok(())

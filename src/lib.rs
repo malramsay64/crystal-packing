@@ -15,7 +15,7 @@ extern crate log;
 extern crate nalgebra as na;
 extern crate rand;
 
-mod ops_macros;
+pub mod ops_macros;
 
 pub mod U2;
 pub mod U3;
@@ -25,10 +25,6 @@ pub mod traits;
 pub mod wallpaper;
 
 pub use crate::basis::StandardBasis;
-pub use crate::cell::{Cell, CrystalFamily};
 pub use crate::packing::{monte_carlo_best_packing, MCVars, PackedState};
-pub use crate::shape::*;
-pub use crate::site::OccupiedSite;
-pub use crate::symmetry::*;
-pub use crate::traits::*;
+pub use crate::traits::{FromSymmetry, Intersect, Shape};
 pub use crate::wallpaper::WallpaperGroup;

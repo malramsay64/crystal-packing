@@ -9,7 +9,7 @@ use std::fmt;
 use approx::{AbsDiffEq, RelativeEq};
 use nalgebra::Point2;
 
-use crate::Intersect;
+use crate::traits::Intersect;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Line2 {

@@ -7,16 +7,11 @@
 
 use log::warn;
 
-// Re-export these to allow importing along with the Transform struct
-use nalgebra::{Isometry2, Matrix2, Rotation2, Translation2, Vector2};
+use nalgebra::{IsometryMatrix2, Matrix2, Rotation2, Translation2, Vector2};
 
-pub type Transform2 = Isometry2<f64>;
+use crate::traits::FromSymmetry;
 
-impl Clone for Transform2 {}
-
-pub trait FromSymmetry {
-    fn from_operations(ops: &str) -> Self;
-}
+pub type Transform2 = IsometryMatrix2<f64>;
 
 impl FromSymmetry for Transform2 {
     /// Convert the string representation of a symmetry operation to a vector.
