@@ -111,10 +111,11 @@ impl Line2 {
 
 #[cfg(test)]
 mod test {
-    use super::super::Transform2;
+    use itertools::iproduct;
     use nalgebra::Vector2;
 
     use super::*;
+    use crate::U2::Transform2;
 
     #[test]
     fn new() {
@@ -135,14 +136,12 @@ mod test {
             .collect();
 
         let mut result = Ok(());
-        for start1 in points.iter() {
-            for start2 in points.iter() {
-                let l1 = Line2::new(*start1, (0., 0.));
-                let l2 = Line2::new(*start2, (0., 0.));
-                if l1.intersects(&l2) {
-                    println!("{:?} {:?}", start1, start2);
-                    result = Err(String::from(""));
-                }
+        for (start1, start2) in iproduct!(points.iter(), points.iter()) {
+            let l1 = Line2::new(*start1, (0., 0.));
+            let l2 = Line2::new(*start2, (0., 0.));
+            if l1.intersects(&l2) {
+                println!("{:?} {:?}", start1, start2);
+                result = Err(String::from(""));
             }
         }
         result

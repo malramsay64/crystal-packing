@@ -9,11 +9,11 @@ use std::fmt;
 use std::slice;
 use std::vec;
 
-use itertools::Itertools;
+use itertools::{iproduct, Itertools};
 use nalgebra::Point2;
 
 use super::{Line2, Transform2};
-use crate::traits::Shape;
+use crate::traits::{Intersect, Shape};
 
 /// A Shape constructed from a collection of Lines
 ///
@@ -38,6 +38,20 @@ impl<'a> IntoIterator for &'a LineShape {
 impl fmt::Display for LineShape {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LineShape {{ {} }}", self.items.iter().format(", "))
+    }
+}
+
+impl Intersect for LineShape {
+    /// Check whether this shape intersects with another shape
+    ///
+    /// A ShapeInstance is considered to intersect with another when one of it's components
+    /// intersects with a component of the other shape. For a square, there is an intersection
+    /// when a line from one square crosses the other. Each component item of `self` is
+    /// checked against `other`.
+    ///
+    fn intersects(&self, other: &Self) -> bool {
+        // We want to compare every item of the current shape with every item of the other shape.
+        iproduct!(self.iter(), other.iter()).any(|(s, o)| s.intersects(o))
     }
 }
 
@@ -122,6 +136,7 @@ impl LineShape {
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
+    use nalgebra::Vector2;
 
     use super::*;
 
@@ -146,6 +161,34 @@ mod test {
         let shape = LineShape::from_radial("iter_test", vec![1., 2., 3., 4.]).unwrap();
         assert_abs_diff_eq!(shape.enclosing_radius(), 4.);
         assert_abs_diff_eq!(shape.enclosing_radius(), 4.);
+    }
+
+    #[test]
+    fn intersection() {
+        let square = create_square();
+        let transform = Transform2::new(Vector2::new(1., 1.), 0.);
+        assert!(square.intersects(&square.transform(&transform)));
+    }
+
+    #[test]
+    fn corner_no_intersection() {
+        let square = create_square();
+        let transform = Transform2::new(Vector2::new(2., 2.), 0.);
+        assert!(!square.intersects(&square.transform(&transform)));
+    }
+
+    #[test]
+    fn self_intersection() {
+        let square = create_square();
+        let transform = Transform2::new(Vector2::new(0., 0.), 0.);
+        assert!(square.intersects(&square.transform(&transform)));
+    }
+
+    #[test]
+    fn no_intersection() {
+        let square = create_square();
+        let transform = Transform2::new(Vector2::new(2.01, 2.01), 0.);
+        assert!(!square.intersects(&square.transform(&transform)));
     }
 
 }

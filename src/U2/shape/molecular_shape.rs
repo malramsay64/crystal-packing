@@ -31,6 +31,12 @@ impl<'a> IntoIterator for &'a MolecularShape2 {
     }
 }
 
+impl Intersect for MolecularShape2 {
+    fn intersects(&self, other: &Self) -> bool {
+        iproduct!(self.items.iter(), other.items.iter()).any(|(s, o)| s.intersects(o))
+    }
+}
+
 impl Shape for MolecularShape2 {
     type Component = Atom2;
     type Transform = Transform2;
@@ -73,10 +79,6 @@ impl Shape for MolecularShape2 {
             name: self.name.clone(),
             items: self.into_iter().map(|i| i * transform).collect(),
         }
-    }
-
-    fn intersects(&self, other: &Self) -> bool {
-        iproduct!(self.iter(), other.iter()).any(|(a, b)| a.intersects(b))
     }
 }
 
@@ -147,6 +149,7 @@ impl MolecularShape2 {
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
+    use nalgebra::Vector2;
 
     use super::*;
 
@@ -208,4 +211,40 @@ mod test {
         println!("{}", shape.area());
         assert!(shape.area() > 0.);
     }
+
+    #[test]
+    fn intersection() {
+        let mol = MolecularShape2::circle();
+        let transform = Transform2::new(Vector2::new(1.0, 1.0), 0.);
+        assert!(mol.intersects(&mol.transform(&transform)));
+    }
+
+    #[test]
+    fn no_intersection_edge() {
+        let mol = MolecularShape2::circle();
+        let transform = Transform2::new(Vector2::new(2., 0.), 0.);
+        assert!(!mol.intersects(&mol.transform(&transform)));
+    }
+
+    #[test]
+    fn self_intersection() {
+        let mol = MolecularShape2::circle();
+        let transform = Transform2::new(Vector2::new(0., 0.), 0.);
+        assert!(mol.intersects(&mol.transform(&transform)));
+    }
+
+    #[test]
+    fn no_intersection() {
+        let mol = MolecularShape2::circle();
+        let transform = Transform2::new(Vector2::new(2.01, 0.), 0.);
+        assert!(!mol.intersects(&mol.transform(&transform)));
+    }
+
+    #[test]
+    fn no_intersection_corner() {
+        let mol = MolecularShape2::circle();
+        let transform = Transform2::new(Vector2::new(2., 2.), 0.);
+        assert!(!mol.intersects(&mol.transform(&transform)));
+    }
+
 }

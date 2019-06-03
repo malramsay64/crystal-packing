@@ -127,7 +127,7 @@ where
                         .shape
                         .transform(&self.cell.to_cartesian_isometry(&transform));
 
-                    debug!("Comparing {} to {}", shape_i1, shape_i2);
+                    trace!("Comparing {} to {}", shape_i1, shape_i2);
                     if shape_i1.intersects(&shape_i2) {
                         return true;
                     }

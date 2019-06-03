@@ -13,7 +13,7 @@ pub trait Intersect {
     fn intersects(&self, other: &Self) -> bool;
 }
 
-pub trait Shape: Clone + Send + Sync + fmt::Debug + fmt::Display {
+pub trait Shape: Clone + Send + Sync + fmt::Debug + fmt::Display + Intersect {
     type Transform: Clone + Send + Sync + fmt::Debug;
     type Component: Intersect
         + Clone
@@ -31,25 +31,6 @@ pub trait Shape: Clone + Send + Sync + fmt::Debug + fmt::Display {
     }
     fn iter(&self) -> slice::Iter<'_, Self::Component>;
     fn transform(&self, transform: &Self::Transform) -> Self;
-
-    /// Check whether this shape intersects with another shape
-    ///
-    /// A ShapeInstance is considered to intersect with another when one of it's components
-    /// intersects with a component of the other shape. For a square, there is an intersection
-    /// when a line from one square crosses the other. Each component item of `self` is
-    /// checked against `other`.
-    ///
-    fn intersects(&self, other: &Self) -> bool {
-        // We want to compare every item of the current shape with every item of the other shape.
-        for (index_a, item_a) in self.iter().enumerate() {
-            for item_b in other.iter().skip(index_a) {
-                if item_a.intersects(&item_b) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
 }
 
 pub trait FromSymmetry {

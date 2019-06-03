@@ -261,6 +261,8 @@ mod cell_tests {
     use approx::assert_abs_diff_eq;
 
     use super::*;
+    use crate::traits::*;
+    use crate::U2::LineShape;
 
     // TODO Cell area test
 
@@ -279,5 +281,33 @@ mod cell_tests {
             0.,
         );
         assert_abs_diff_eq!(cell.to_cartesian_isometry(&trans), expected);
+    }
+
+    #[test]
+    fn periodic_intersection() {
+        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
+        let cell = Cell2::default();
+        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+
+        let result = cell
+            .periodic_images(&transform, false)
+            .iter()
+            .any(|t| shape.intersects(&shape.transform(t)));
+
+        assert!(result)
+    }
+
+    #[test]
+    fn no_periodic_intersection() {
+        let shape = LineShape::from_radial("Square", vec![0.49; 4]).unwrap();
+        let cell = Cell2::default();
+        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+
+        let result = cell
+            .periodic_images(&transform, false)
+            .iter()
+            .any(|t| shape.intersects(&shape.transform(t)));
+
+        assert!(!result)
     }
 }
