@@ -8,11 +8,9 @@ use packing;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
 
+use packing::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
 #[allow(unused_imports)]
-use packing::{
-    monte_carlo_best_packing, CrystalFamily, FromSymmetry, LineShape, MCVars, PackedState, Shape,
-    Transform2,
-};
+use packing::{monte_carlo_best_packing, FromSymmetry, MCVars, PackedState, Shape};
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {
@@ -34,7 +32,8 @@ fn test_packing_improves() -> Result<(), &'static str> {
         mirror_secondary: false,
     }];
 
-    let state = PackedState::initialise(square, wallpaper, isopointal);
+    let state =
+        PackedState::<LineShape, Cell2, OccupiedSite>::initialise(square, wallpaper, isopointal);
 
     let init_packing = state.packing_fraction();
 

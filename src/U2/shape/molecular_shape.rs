@@ -5,13 +5,13 @@
 //
 
 use std::f64::consts::PI;
-use std::{fmt, ops, slice, vec};
+use std::{fmt, slice, vec};
 
-use itertools::Itertools;
+use itertools::{iproduct, Itertools};
 use nalgebra::Point2;
 
 use super::{Atom2, Transform2};
-use crate::traits::Shape;
+use crate::traits::{Intersect, Shape};
 
 /// A shape defined by a collection of Atoms
 ///
@@ -76,7 +76,7 @@ impl Shape for MolecularShape2 {
     }
 
     fn intersects(&self, other: &Self) -> bool {
-        true
+        iproduct!(self.iter(), other.iter()).any(|(a, b)| a.intersects(b))
     }
 }
 

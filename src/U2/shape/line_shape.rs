@@ -88,12 +88,12 @@ impl LineShape {
     /// points separated by and equal angle. For example to create a Triangle, which is the shape
     /// with the fewest number of sides, we can run
     /// ```
-    /// use packing::shape::LineShape;
+    /// use packing::U2::LineShape;
     /// let tri = LineShape::from_radial("Triangle", vec![1., 1., 1.]);
     /// ```
     /// More generally to create a regular polygon with an arbitrary number of sides
     /// ```
-    /// use packing::shape::LineShape;
+    /// use packing::U2::LineShape;
     /// let sides = 10;
     /// let polygon = LineShape::from_radial("Polygon", vec![1.; sides]);
     /// ```

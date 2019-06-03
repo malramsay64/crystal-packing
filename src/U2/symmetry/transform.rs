@@ -20,7 +20,8 @@ impl FromSymmetry for Transform2 {
     /// extracting the rotation and translation components.
     ///
     /// ```
-    /// use packing::symmetry::{Transform2, FromSymmetry};
+    /// use packing::U2::Transform2;
+    /// use packing::FromSymmetry;
     /// let t2 = Transform2::from_operations("-x, y");
     ///
     /// ```
@@ -168,19 +169,10 @@ mod test {
     }
 
     #[test]
-    fn parse_operation_2d_from_3d() {
-        let input = String::from("(x, y, z)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(0.1, 0.2));
-    }
-
-    #[test]
+    #[should_panic]
     fn parse_operation_3d() {
         let input = String::from("(x, y, z)");
-        let st = Transform2::from_operations(&input);
-        let point = Point2::new(0.1, 0.2);
-        assert_abs_diff_eq!(st * point, Point2::new(0.1, 0.2));
+        Transform2::from_operations(&input);
     }
 
     #[test]

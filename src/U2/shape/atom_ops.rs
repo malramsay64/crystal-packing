@@ -15,7 +15,7 @@ impl<'a, 'b> Mul<&'b Transform2> for &'a Atom2 {
 
     fn mul(self, rhs: &Transform2) -> Self::Output {
         Atom2 {
-            position: rhs * self.position.clone(),
+            position: rhs * self.position,
             radius: self.radius,
         }
     }

@@ -111,6 +111,7 @@ impl Line2 {
 
 #[cfg(test)]
 mod test {
+    use super::super::Transform2;
     use nalgebra::Vector2;
 
     use super::*;

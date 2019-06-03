@@ -97,7 +97,7 @@ where
     fn relative_positions(&self) -> Vec<T::Transform> {
         self.occupied_sites
             .iter()
-            .flat_map(|site| site.positions())
+            .flat_map(Site::positions)
             .collect()
     }
 
@@ -127,6 +127,7 @@ where
                         .shape
                         .transform(&self.cell.to_cartesian_isometry(&transform));
 
+                    debug!("Comparing {} to {}", shape_i1, shape_i2);
                     if shape_i1.intersects(&shape_i2) {
                         return true;
                     }
@@ -228,7 +229,7 @@ where
 #[cfg(test)]
 mod packed_state_tests {
     use super::*;
-    use crate::U2::LineShape;
+    use crate::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
     use approx::assert_abs_diff_eq;
 
     fn create_square() -> LineShape {
@@ -242,7 +243,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![na::Transform2::from_operations("x,y")],
+            symmetries: vec![Transform2::from_operations("x,y")],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -272,7 +273,7 @@ mod packed_state_tests {
         (wallpaper, isopointal)
     }
 
-    fn init_packed_state(group: &str) -> PackedState<LineShape> {
+    fn init_packed_state(group: &str) -> PackedState<LineShape, Cell2, OccupiedSite> {
         let square: LineShape = create_square();
 
         let (wallpaper, isopointal) = (match group {

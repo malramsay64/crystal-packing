@@ -11,18 +11,17 @@ use std::ops::Mul;
 extern crate criterion;
 
 use criterion::{Criterion, ParameterizedBenchmark};
-use nalgebra::{Vector2, U2};
+use nalgebra::Vector2;
 
 use packing::wallpaper::{Wallpaper, WyckoffSite};
-use packing::{
-    CrystalFamily, FromSymmetry, LineShape, PackedState, Shape, ShapeInstance, Transform2,
-};
+use packing::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
+use packing::{FromSymmetry, PackedState, Shape};
 
 fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])
 }
 
-fn setup_state(points: usize) -> PackedState<LineShape> {
+fn setup_state(points: usize) -> PackedState<LineShape, Cell2, OccupiedSite> {
     let shape = create_polygon(points).unwrap();
 
     let wallpaper = Wallpaper {
@@ -42,21 +41,6 @@ fn setup_state(points: usize) -> PackedState<LineShape> {
     }];
 
     PackedState::initialise(shape, wallpaper, isopointal)
-}
-
-fn setup_shapes<S>(shape: &S) -> (ShapeInstance<S::Component>, ShapeInstance<S::Component>)
-where
-    S: Shape<U2>,
-    for<'a> S::Component: Mul<&'a Transform2, Output = S::Component>,
-    for<'a, 'b> &'a S::Component: Mul<&'b Transform2, Output = S::Component>,
-    for<'a> &'a S::Component: Mul<Transform2, Output = S::Component>,
-{
-    // These two shapes don't intersect so there is no shortcut out of the checking for
-    // intersection
-    let si1 = ShapeInstance::from(shape, &Transform2::new(Vector2::new(-2., 0.), 0.));
-    let si2 = ShapeInstance::from(shape, &Transform2::new(Vector2::new(2., 0.), 0.));
-
-    (si1, si2)
 }
 
 fn state_check_intersection(c: &mut Criterion) {
@@ -79,7 +63,8 @@ fn shape_check_intersection(c: &mut Criterion) {
         "Shape Intersection Scaling",
         |b, &param| {
             let shape = create_polygon(param).unwrap();
-            let (si1, si2) = setup_shapes(&shape);
+            let si1 = shape.transform(&Transform2::new(Vector2::new(0.2, -5.3), PI / 3.));
+            let si2 = shape.transform(&Transform2::new(Vector2::new(-0.2, 5.3), -PI / 3.));
             b.iter(|| si1.intersects(&si2))
         },
         parameters,
@@ -95,7 +80,7 @@ fn create_shape_instance(c: &mut Criterion) {
         |b, &param| {
             let shape = create_polygon(param).unwrap();
             let trans = Transform2::new(Vector2::new(0.2, -5.3), PI / 3.);
-            b.iter(|| ShapeInstance::from(&shape, &trans))
+            b.iter(|| shape.transform(&trans))
         },
         parameters,
     );

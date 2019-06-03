@@ -18,7 +18,8 @@ impl FromSymmetry for Transform3 {
     /// extracting the rotation and translation components.
     ///
     /// ```
-    /// use packing::symmetry::{Transform3, FromSymmetry};
+    /// use packing::U3::Transform3;
+    /// use packing::FromSymmetry;
     /// let t3 = Transform3::from_operations("-x, y, z+1/2");
     /// ```
     ///
@@ -110,19 +111,19 @@ mod test {
         let point = Point3::new(0.2, 0.2, 0.2);
         assert_eq!(identity * point, point);
 
-        let vec = Vector2::new(0.2, 0.2, 0.2);
+        let vec = Vector3::new(0.2, 0.2, 0.2);
         assert_eq!(identity * vec, vec);
     }
 
     #[test]
     fn transform() {
-        let isometry = Transform3::new(Vector3::new(1., 1., 1.), PI / 2.);
+        let isometry = Transform3::new(Vector3::new(1., 1., 1.), Vector3::new(0., 0., PI / 2.));
 
         let point = Point3::new(0.2, 0.2, 0.2);
-        assert_eq!(isometry * point, Point2::new(0.8, 1.2));
+        assert_eq!(isometry * point, Point3::new(0.8, 1.2, 1.2));
 
         let vec = Vector3::new(0.2, 0.2, 0.2);
-        assert_eq!(isometry * vec, Vector3::new(-0.2, 0.2));
+        assert_eq!(isometry * vec, Vector3::new(-0.2, 0.2, 0.2));
     }
 
     #[test]
@@ -162,7 +163,7 @@ mod test {
         let input = String::from("(-y, 0, 0)");
         let st = Transform3::from_operations(&input);
         let point = Point3::new(0.1, 0.2, 0.3);
-        assert_abs_diff_eq!(st * point, Point2::new(-0.2, 0., 0));
+        assert_abs_diff_eq!(st * point, Point3::new(-0.2, 0., 0.));
     }
 
     #[test]
@@ -186,7 +187,7 @@ mod test {
         for i in 0..10 {
             let ident = Transform3::identity();
             let angle = f64::from(i) * PI / f64::from(10);
-            let trans = Transform3::new(Vector3::zeros(), angle);
+            let trans = Transform3::new(Vector3::zeros(), Vector3::new(angle, angle, angle));
             assert_abs_diff_eq!((ident * trans), trans);
         }
     }
@@ -195,7 +196,10 @@ mod test {
     fn mult_symmetry_transform_translations() {
         for i in 0..10 {
             let ident = Transform3::identity();
-            let trans = Transform3::new(Vector3::new(f64::from(i), f64::from(i)), 0.);
+            let trans = Transform3::new(
+                Vector3::new(f64::from(i), f64::from(i), f64::from(i)),
+                Vector3::zeros(),
+            );
             assert_abs_diff_eq!((ident * trans), trans);
         }
     }
