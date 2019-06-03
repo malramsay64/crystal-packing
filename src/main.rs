@@ -26,6 +26,7 @@ struct CLIOptions {
     group: WallpaperGroup,
     steps: u64,
     num_sides: usize,
+    num_start_configs: u64,
     log_level: LevelFilter,
 }
 
@@ -62,7 +63,7 @@ where
 
     let mut vars = MCVars::default();
     vars.steps = options.steps;
-    vars.num_start_configs = 32;
+    vars.num_start_configs = options.num_start_configs;
     // Remove mutability
     let vars = vars;
 
@@ -132,6 +133,12 @@ fn cli() -> CLIOptions {
                 .takes_value(true)
                 .default_value("100"),
         )
+        .arg(
+            Arg::with_name("replications")
+                .long("--replications")
+                .takes_value(true)
+                .default_value("32"),
+        )
         .get_matches();
 
     let wg = value_t!(matches.value_of("wallpaper_group"), WallpaperGroups).unwrap();
@@ -143,6 +150,7 @@ fn cli() -> CLIOptions {
     let group = packing::wallpaper::get_wallpaper_group(wg).unwrap();
 
     let steps: u64 = matches.value_of("steps").unwrap().parse().unwrap();
+    let num_start_configs: u64 = matches.value_of("replications").unwrap().parse().unwrap();
 
     let log_level =
         match matches.occurrences_of("verbosity") as i64 - matches.occurrences_of("quiet") as i64 {
@@ -159,6 +167,7 @@ fn cli() -> CLIOptions {
         group,
         steps,
         num_sides,
+        num_start_configs,
         log_level,
     }
 }
