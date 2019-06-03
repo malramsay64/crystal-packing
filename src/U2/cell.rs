@@ -285,7 +285,7 @@ mod cell_tests {
 
     #[test]
     fn periodic_intersection() {
-        let shape = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
+        let shape = LineShape::from_radial("Square", vec![1.; 4]).unwrap();
         let cell = Cell2::default();
         let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
 
@@ -299,7 +299,7 @@ mod cell_tests {
 
     #[test]
     fn no_periodic_intersection() {
-        let shape = LineShape::from_radial("Square", vec![0.49; 4]).unwrap();
+        let shape = LineShape::from_radial("Square", vec![1. / 2.; 4]).unwrap();
         let cell = Cell2::default();
         let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
 
@@ -309,5 +309,24 @@ mod cell_tests {
             .any(|t| shape.intersects(&shape.transform(t)));
 
         assert!(!result)
+    }
+
+    #[test]
+    fn invalid_intersection() {
+        let shape = LineShape::from_radial("Square", vec![1.; 4]).unwrap();
+        let cell = Cell2 {
+            points: Vector2::new(1.32, 1.59),
+            angles: Vector2::new(1.21, 0.),
+            family: CrystalFamily::Monoclinic,
+        };
+
+        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+
+        let result = cell
+            .periodic_images(&transform, false)
+            .iter()
+            .any(|t| shape.intersects(&shape.transform(t)));
+
+        assert!(result)
     }
 }
