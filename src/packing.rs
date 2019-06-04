@@ -16,6 +16,7 @@ use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 use crate::basis::{Basis, StandardBasis};
 use crate::traits::*;
@@ -85,14 +86,13 @@ where
     T: Site<Transform = S::Transform>,
 {
     pub fn cartesian_positions(&self) -> Vec<S> {
-        let mut positions: Vec<S> = vec![];
-        for position in self.relative_positions().iter() {
-            let shape_i = self
-                .shape
-                .transform(&self.cell.to_cartesian_isometry(position));
-            positions.push(shape_i);
-        }
-        positions
+        self.relative_positions()
+            .iter()
+            .map(|position| {
+                self.shape
+                    .transform(&self.cell.to_cartesian_isometry(position))
+            })
+            .collect()
     }
 
     fn relative_positions(&self) -> Vec<T::Transform> {
@@ -110,11 +110,6 @@ where
     ///
     pub fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
-            trace!(
-                "Creating shape from: {:?}, results in {:?}",
-                position1,
-                self.cell.to_cartesian_isometry(position1)
-            );
             let shape_i1 = self
                 .shape
                 .transform(&self.cell.to_cartesian_isometry(position1));
@@ -127,8 +122,6 @@ where
                     let shape_i2 = self
                         .shape
                         .transform(&self.cell.to_cartesian_isometry(&transform));
-
-                    trace!("Comparing {} to {}", shape_i1, shape_i2);
 
                     if shape_i1.intersects(&shape_i2) {
                         return true;
@@ -200,17 +193,13 @@ where
 
         for (p0, p1) in points.iter().zip(points.iter().cycle().skip(1)) {
             let colour = 'k';
-
             writeln!(file, "{}, {}, {}", p0, p1, colour).unwrap();
         }
 
         for position in self.relative_positions().iter() {
-            // The list of periodic images to check. Currently only checking the first shell,
-            // i.e. -1, 0, 1. For highly tilted cells checking the second shell may also be
-            // necessary, although this is currently not an issue due to the limiting of the
-            // value of the cell angle.
-
-            let shape_i = self.shape.clone().transform(&position);
+            let shape_i = self
+                .shape
+                .transform(&self.cell.to_cartesian_isometry(&position));
 
             for item in shape_i.iter() {
                 writeln!(file, "{}, b", item).unwrap();
@@ -219,7 +208,6 @@ where
             for transform in self.cell.periodic_images(position, false) {
                 let shape_i = self
                     .shape
-                    .clone()
                     .transform(&self.cell.to_cartesian_isometry(&transform));
 
                 for item in shape_i.iter() {
@@ -385,27 +373,22 @@ where
         }
 
         if state.check_intersection() {
-            debug!("Rejected for intersection.");
+            trace!("Rejected for intersection.");
             rejections += 1;
             basis[basis_index].reset_value();
         } else {
             packing = match state.packing_fraction() {
                 Err(_) => {
                     warn!("Rejected for invalid packing fraction.");
-                    debug!("{:?}", state);
-                    panic!();
-                    rejections += 1;
-                    basis[basis_index].reset_value();
-
-                    // Set packing to it's previous value
-                    packing_prev
+                    debug!("{}", serde_json::to_string(&state).unwrap());
+                    panic!("Something is wrong with the current state");
                 }
                 Ok(new_packing) => {
                     if rng.gen::<f64>()
                         > mc_temperature(packing_prev, new_packing, kt, total_shapes)
                     {
                         // Packing fraction was increased too much so reject the step
-                        debug!("Rejected for Increasing packing fraction.");
+                        trace!("Rejected for Increasing packing fraction.");
                         rejections += 1;
                         basis[basis_index].reset_value();
 

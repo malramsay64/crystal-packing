@@ -15,7 +15,7 @@ use nalgebra::Vector2;
 
 use packing::wallpaper::{Wallpaper, WyckoffSite};
 use packing::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
-use packing::{FromSymmetry, PackedState, Shape};
+use packing::{FromSymmetry, Intersect, PackedState, Shape};
 
 fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])

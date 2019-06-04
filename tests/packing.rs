@@ -4,13 +4,21 @@
 // Distributed under terms of the MIT license.
 //
 
+use std::fs;
+
+#[allow(unused_imports)]
+use itertools::Itertools;
+#[allow(unused_imports)]
+use serde::Deserialize;
+use serde_json;
+
 use packing;
+#[allow(unused_imports)]
+use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
-
 use packing::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
-#[allow(unused_imports)]
-use packing::{monte_carlo_best_packing, FromSymmetry, MCVars, PackedState, Shape};
+use packing::{monte_carlo_best_packing, FromSymmetry, MCVars, PackedState};
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {
@@ -53,4 +61,22 @@ fn test_packing_improves() -> Result<(), &'static str> {
     assert!(init_packing < final_packing);
 
     Ok(())
+}
+
+#[test]
+fn packing_invalid_1() {
+    let serialised = fs::read_to_string("tests/packing_invalid_1.json").unwrap();
+    let state: PackedState<LineShape, Cell2, OccupiedSite> =
+        serde_json::from_str(&serialised).unwrap();
+
+    assert!(state.check_intersection());
+}
+
+#[test]
+fn packing_invalid_2() {
+    let serialised = fs::read_to_string("tests/packing_invalid_2.json").unwrap();
+    let state: PackedState<LineShape, Cell2, OccupiedSite> =
+        serde_json::from_str(&serialised).unwrap();
+
+    assert!(state.check_intersection());
 }

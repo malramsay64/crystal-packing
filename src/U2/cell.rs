@@ -66,7 +66,7 @@ impl std::fmt::Display for Cell2 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "Cell2 {{ x: {}, a: {}, angle: {} }}",
+            "Cell2 {{ x: {}, y: {}, angle: {} }}",
             self.x(),
             self.y(),
             self.angle()
@@ -193,14 +193,21 @@ impl Cell for Cell2 {
 
     fn periodic_images(&self, transform: &Self::Transform, zero: bool) -> Vec<Self::Transform> {
         // The periodic images to check. Checking the first and second shells i.e.
-        // -2..=2, as this is necessary to ensure no intersections on tilted cells.
+        // -2..=2, as this is necessary to ensure no intersections on tilted cells
+        // and highly irregular cells.
+        let iter_range = match self.x() / self.y() {
+            p if 0.5 < p && p < 2. => -1..=1,
+            p if 0.3 < p && p < 3. => -2..=2,
+            _ => -3..=3,
+        };
+
         if zero {
-            iproduct!(-2..=2, -2..=2)
+            iproduct!(iter_range.clone(), iter_range.clone())
                 .map(|(x, y)| transform * Translation2::new(f64::from(x), f64::from(y)))
                 .collect()
         } else {
-            iproduct!(-2..=2, -2..=2)
-                .filter(|(x, y)| *x != 0 && *y != 0)
+            iproduct!(iter_range.clone(), iter_range.clone())
+                .filter(|&(x, y)| !(x == 0 && y == 0))
                 .map(|(x, y)| transform * Translation2::new(f64::from(x), f64::from(y)))
                 .collect()
         }
@@ -211,7 +218,7 @@ impl Cell for Cell2 {
             Point2::new(-0.5, -0.5),
             Point2::new(-0.5, 0.5),
             Point2::new(0.5, 0.5),
-            Point2::new(-0.5, 0.5),
+            Point2::new(0.5, -0.5),
         ];
 
         points
@@ -260,6 +267,7 @@ impl Cell2 {
 #[cfg(test)]
 mod cell_tests {
     use approx::assert_abs_diff_eq;
+    use itertools::izip;
 
     use super::*;
     use crate::traits::*;
@@ -290,26 +298,79 @@ mod cell_tests {
         let cell = Cell2::default();
         let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
 
-        let result = cell
+        let intersection = cell
             .periodic_images(&transform, false)
             .iter()
             .any(|t| shape.intersects(&shape.transform(t)));
 
-        assert!(result)
+        assert!(intersection)
+    }
+
+    #[test]
+    fn periodic_edge_intersection() {
+        let shape = LineShape::from_radial("Square", vec![0.5; 4]).unwrap();
+        let cell = Cell2::default();
+        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+
+        let intersection = cell
+            .periodic_images(&transform, false)
+            .iter()
+            .any(|t| shape.intersects(&shape.transform(t)));
+
+        assert!(intersection)
     }
 
     #[test]
     fn no_periodic_intersection() {
-        let shape = LineShape::from_radial("Square", vec![1. / 2.; 4]).unwrap();
+        let shape = LineShape::from_radial("Square", vec![0.49; 4]).unwrap();
         let cell = Cell2::default();
         let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
 
-        let result = cell
+        let intersection = cell
             .periodic_images(&transform, false)
             .iter()
             .any(|t| shape.intersects(&shape.transform(t)));
 
-        assert!(!result)
+        assert!(!intersection)
+    }
+
+    #[test]
+    fn periodic_images_nozero() {
+        let translations = vec![
+            Translation2::new(-1., -1.),
+            Translation2::new(-1., 0.),
+            Translation2::new(-1., 1.),
+            Translation2::new(0., -1.),
+            Translation2::new(0., 1.),
+            Translation2::new(1., -1.),
+            Translation2::new(1., -0.),
+            Translation2::new(1., 1.),
+        ];
+        let cell = Cell2::default();
+        let transform = Transform2::identity();
+        for (calculated, expected) in izip!(cell.periodic_images(&transform, false), translations) {
+            assert_abs_diff_eq!(calculated.translation, expected);
+        }
+    }
+
+    #[test]
+    fn periodic_images() {
+        let translations = vec![
+            Translation2::new(-1., -1.),
+            Translation2::new(-1., 0.),
+            Translation2::new(-1., 1.),
+            Translation2::new(0., -1.),
+            Translation2::new(0., 0.),
+            Translation2::new(0., 1.),
+            Translation2::new(1., -1.),
+            Translation2::new(1., -0.),
+            Translation2::new(1., 1.),
+        ];
+        let cell = Cell2::default();
+        let transform = Transform2::identity();
+        for (calculated, expected) in izip!(cell.periodic_images(&transform, true), translations) {
+            assert_abs_diff_eq!(calculated.translation, expected);
+        }
     }
 
     #[test]
@@ -323,11 +384,11 @@ mod cell_tests {
 
         let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
 
-        let result = cell
+        let intersection = cell
             .periodic_images(&transform, false)
             .iter()
             .any(|t| shape.intersects(&shape.transform(t)));
 
-        assert!(result)
+        assert!(intersection)
     }
 }
