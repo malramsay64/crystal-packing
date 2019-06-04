@@ -3,7 +3,7 @@
 
 from pathlib import Path
 import sys
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 import re
 
 remove_chars = "[" + re.escape("{}[]()") + "]"
