@@ -3,9 +3,10 @@
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
-extern crate rand;
 
 use rand::Rng;
+
+use crate::traits::Basis;
 
 /// A Value which can be modified in many places
 ///
@@ -72,13 +73,6 @@ mod shared_value_tests {
         assert_abs_diff_eq!(value1.get_value(), 0.5);
         assert_abs_diff_eq!(value2.get_value(), 0.5);
     }
-}
-
-pub trait Basis {
-    fn set_value(&mut self, new_value: f64);
-    fn get_value(&self) -> f64;
-    fn reset_value(&self);
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64;
 }
 
 #[derive(Clone, Debug)]
