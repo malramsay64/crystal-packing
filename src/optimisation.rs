@@ -46,14 +46,9 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
     f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-pub fn monte_carlo_best_packing<S, C, T>(
-    vars: &MCVars,
-    mut state: PackedState<S, C, T>,
-) -> Result<PackedState<S, C, T>, &'static str>
+pub fn monte_carlo_best_packing<A>(vars: &MCVars, mut state: A) -> Result<A, &'static str>
 where
-    S: Shape + Debug + Display,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    A: State,
 {
     // When a random seed is provided, use it, otherwise seed the random number generator from the
     // system entropy.

@@ -72,3 +72,11 @@ pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {
     fn from_wyckoff(wyckoff: &WyckoffSite) -> Self;
     fn get_basis(&mut self, rot_symmetry: u64) -> Vec<StandardBasis>;
 }
+
+pub trait State:
+    Eq + PartialEq + PartialOrd + Ord + Clone + Send + Sync + Serialize + fmt::Debug
+{
+    fn score(&self) -> Result<f64, &'static str>;
+    fn generate_basis(&mut self) -> Vec<StandardBasis>;
+    fn total_shapes(&self) -> usize;
+}

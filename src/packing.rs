@@ -72,6 +72,35 @@ where
     }
 }
 
+impl<S, C, T> State for PackedState<S, C, T>
+where
+    S: Shape + Debug + Display,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
+{
+    fn total_shapes(&self) -> usize {
+        self.occupied_sites
+            .iter()
+            .fold(0, |sum, site| sum + site.multiplicity())
+    }
+
+    fn score(&self) -> Result<f64, &'static str> {
+        if self.check_intersection() {
+            Err("Intersection in packing")
+        } else {
+            Ok((self.shape.area() * self.total_shapes() as f64) / self.cell.area())
+        }
+    }
+
+    fn generate_basis(&mut self) -> Vec<StandardBasis> {
+        let mut basis: Vec<StandardBasis> = vec![];
+        basis.append(&mut self.cell.get_degrees_of_freedom());
+        for site in self.occupied_sites.iter_mut() {
+            basis.append(&mut site.get_basis(1));
+        }
+        basis
+    }
+}
 impl<S, C, T> PackedState<S, C, T>
 where
     S: Shape + Debug + Display,
@@ -125,20 +154,6 @@ where
         false
     }
 
-    pub fn total_shapes(&self) -> usize {
-        self.occupied_sites
-            .iter()
-            .fold(0, |sum, site| sum + site.multiplicity())
-    }
-
-    pub fn score(&self) -> Result<f64, &'static str> {
-        if self.check_intersection() {
-            Err("Intersection in packing")
-        } else {
-            Ok((self.shape.area() * self.total_shapes() as f64) / self.cell.area())
-        }
-    }
-
     pub fn initialise(
         shape: S,
         wallpaper: Wallpaper,
@@ -163,15 +178,6 @@ where
             cell,
             occupied_sites,
         }
-    }
-
-    pub fn generate_basis(&mut self) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![];
-        basis.append(&mut self.cell.get_degrees_of_freedom());
-        for site in self.occupied_sites.iter_mut() {
-            basis.append(&mut site.get_basis(1));
-        }
-        basis
     }
 
     pub fn to_figure(&self, filename: &str) {
