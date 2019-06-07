@@ -45,7 +45,6 @@ impl Mul<Transform3> for Atom3 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn it_works() {}

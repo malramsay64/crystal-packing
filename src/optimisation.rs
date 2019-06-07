@@ -4,15 +4,12 @@
 // Distributed under terms of the MIT license.
 //
 
-use std::fmt::{Debug, Display};
-
 use log::trace;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
 use crate::traits::*;
-use crate::PackedState;
 
 pub struct MCVars {
     pub kt_start: f64,

@@ -5,7 +5,7 @@
 //
 
 use std::f64::consts::PI;
-use std::ops::Mul;
+
 
 #[macro_use]
 extern crate criterion;
