@@ -52,14 +52,10 @@ where
     let isopointal = &[WyckoffSite::new(options.group)];
 
     let state = PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-    if state.check_intersection() {
-        panic!("Initial state has intersections...exiting.");
-    }
-
-    info!(
-        "Init packing fraction: {}",
-        state.packing_fraction().unwrap()
-    );
+    match state.score() {
+        Err(_) => panic!("Initial state has intersections...exiting."),
+        Ok(x) => info!("Init packing fraction: {}", x),
+    };
 
     let mut vars = MCVars::default();
     vars.steps = options.steps;
@@ -86,10 +82,7 @@ where
 
     final_state.to_figure("test.txt");
 
-    info!(
-        "Final packing fraction: {}",
-        final_state.packing_fraction().unwrap()
-    );
+    info!("Final packing fraction: {}", final_state.score().unwrap());
     Ok(final_state)
 }
 

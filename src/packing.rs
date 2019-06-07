@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-use log::{debug, trace, warn};
+use log::{debug, trace};
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::rngs::SmallRng;
@@ -50,7 +50,7 @@ where
     T: Site<Transform = S::Transform>,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.packing_fraction() == other.packing_fraction()
+        self.score() == other.score()
     }
 }
 
@@ -61,8 +61,7 @@ where
     T: Site<Transform = S::Transform>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.packing_fraction()
-            .partial_cmp(&other.packing_fraction())
+        self.score().partial_cmp(&other.score())
     }
 }
 
@@ -73,9 +72,7 @@ where
     T: Site<Transform = S::Transform>,
 {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.packing_fraction()
-            .partial_cmp(&other.packing_fraction())
-            .unwrap()
+        self.score().partial_cmp(&other.score()).unwrap()
     }
 }
 
@@ -108,7 +105,7 @@ where
     /// symmetry defined copies for the current cell and the neighbouring cells. Checking the
     /// neighbouring cells ensures there are no intersections of when tiling space.
     ///
-    pub fn check_intersection(&self) -> bool {
+    fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
             let shape_i1 = self
                 .shape
@@ -138,7 +135,7 @@ where
             .fold(0, |sum, site| sum + site.multiplicity())
     }
 
-    pub fn packing_fraction(&self) -> Result<f64, &'static str> {
+    pub fn score(&self) -> Result<f64, &'static str> {
         if self.check_intersection() {
             Err("Intersection in packing")
         } else {
@@ -286,7 +283,7 @@ mod packed_state_tests {
     #[test]
     fn packing_fraction_p1() {
         let state = init_packed_state("p1");
-        assert_abs_diff_eq!(state.packing_fraction().unwrap(), 1. / 8.);
+        assert_abs_diff_eq!(state.score().unwrap(), 1. / 8.);
     }
 
     #[test]
@@ -298,7 +295,7 @@ mod packed_state_tests {
     #[test]
     fn packing_fraction_p2mg() {
         let state = init_packed_state("p2mg");
-        assert_abs_diff_eq!(state.packing_fraction().unwrap(), 1. / 32.);
+        assert_abs_diff_eq!(state.score().unwrap(), 1. / 32.);
     }
 
 }
@@ -359,9 +356,9 @@ where
     let mut basis = state.generate_basis();
     let basis_distribution = Uniform::new(0, basis.len() as u64);
 
-    let mut packing_prev: f64 = state.packing_fraction()?;
-    let mut packing: f64;
-    let mut packing_max: f64 = 0.;
+    let mut score_prev: f64 = state.score()?;
+    let mut score: f64 = 0.;
+    let mut score_max: f64 = 0.;
 
     let mut best_state = state.clone();
 
@@ -371,37 +368,36 @@ where
             basis_current.set_value(basis_current.sample(&mut rng, vars.max_step_size));
         }
 
-        packing = match state.packing_fraction() {
+        score = match state.score() {
             Err(_) => {
                 trace!("Trace rejected for increasing packing fraction");
-                packing_prev
+                score_prev
             }
-            Ok(new_packing) => {
-                if rng.gen::<f64>() > mc_temperature(packing_prev, new_packing, kt, total_shapes) {
+            Ok(score_new) => {
+                if rng.gen::<f64>() > mc_temperature(score_prev, score_new, kt, total_shapes) {
                     // Packing fraction was increased too much so reject the step
                     trace!("Rejected for Increasing packing fraction.");
                     rejections += 1;
                     basis[basis_index].reset_value();
 
                     // Set packing to it's previous value
-                    packing_prev
+                    score_prev
                 } else {
-                    // This is where we update the packing fraction cause the test was
-                    // successful
-                    packing_prev = new_packing;
-                    new_packing
+                    // This is where we update the score cause the test was successful
+                    score_prev = score_new;
+                    score_new
                 }
             }
         };
-        if packing > packing_max {
+        if score > score_max {
             best_state = state.clone();
-            packing_max = packing;
+            score_max = score;
         }
         kt *= kt_ratio;
     }
     println!(
-        "Packing Fraction: {:.4}, Rejections: {:.2} %",
-        packing_max,
+        "Score: {:.4}, Rejections: {:.2} %",
+        score,
         100. * rejections as f64 / vars.steps as f64,
     );
     Ok(best_state)

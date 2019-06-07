@@ -43,7 +43,7 @@ fn test_packing_improves() -> Result<(), &'static str> {
     let state =
         PackedState::<LineShape, Cell2, OccupiedSite>::initialise(square, wallpaper, isopointal);
 
-    let init_packing = state.packing_fraction();
+    let init_packing = state.score();
 
     let vars = MCVars {
         kt_start: 0.1,
@@ -56,7 +56,7 @@ fn test_packing_improves() -> Result<(), &'static str> {
 
     let final_state = monte_carlo_best_packing(&vars, state);
 
-    let final_packing = final_state?.packing_fraction();
+    let final_packing = final_state?.score();
 
     assert!(init_packing < final_packing);
 
@@ -69,7 +69,7 @@ fn packing_invalid_1() {
     let state: PackedState<LineShape, Cell2, OccupiedSite> =
         serde_json::from_str(&serialised).unwrap();
 
-    assert!(state.check_intersection());
+    assert!(state.score().is_err());
 }
 
 #[test]
@@ -78,5 +78,5 @@ fn packing_invalid_2() {
     let state: PackedState<LineShape, Cell2, OccupiedSite> =
         serde_json::from_str(&serialised).unwrap();
 
-    assert!(state.check_intersection());
+    assert!(state.score().is_err());
 }

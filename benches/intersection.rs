@@ -49,7 +49,7 @@ fn state_check_intersection(c: &mut Criterion) {
         "State Intersection Scaling",
         |b, &param| {
             let state = setup_state(param);
-            b.iter(|| state.check_intersection())
+            b.iter(|| state.score())
         },
         parameters,
     );
