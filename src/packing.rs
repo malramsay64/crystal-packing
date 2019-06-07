@@ -139,10 +139,10 @@ where
     }
 
     pub fn packing_fraction(&self) -> Result<f64, &'static str> {
-        match (self.shape.area() * self.total_shapes() as f64) / self.cell.area() {
-            x if x <= 1. => Ok(x),
-            x if x > 1. => Err("Invalid packing fraction"),
-            _ => Err("Invalid Value"),
+        if self.check_intersection() {
+            Err("Intersection in packing")
+        } else {
+            Ok((self.shape.area() * self.total_shapes() as f64) / self.cell.area())
         }
     }
 
@@ -359,9 +359,8 @@ where
     let mut basis = state.generate_basis();
     let basis_distribution = Uniform::new(0, basis.len() as u64);
 
-    let mut packing: f64 = state.packing_fraction()?;
-
-    let mut packing_prev: f64 = 0.;
+    let mut packing_prev: f64 = state.packing_fraction()?;
+    let mut packing: f64;
     let mut packing_max: f64 = 0.;
 
     let mut best_state = state.clone();
@@ -372,37 +371,28 @@ where
             basis_current.set_value(basis_current.sample(&mut rng, vars.max_step_size));
         }
 
-        if state.check_intersection() {
-            trace!("Rejected for intersection.");
-            rejections += 1;
-            basis[basis_index].reset_value();
-        } else {
-            packing = match state.packing_fraction() {
-                Err(_) => {
-                    warn!("Rejected for invalid packing fraction.");
-                    debug!("{}", serde_json::to_string(&state).unwrap());
-                    panic!("Something is wrong with the current state");
-                }
-                Ok(new_packing) => {
-                    if rng.gen::<f64>()
-                        > mc_temperature(packing_prev, new_packing, kt, total_shapes)
-                    {
-                        // Packing fraction was increased too much so reject the step
-                        trace!("Rejected for Increasing packing fraction.");
-                        rejections += 1;
-                        basis[basis_index].reset_value();
+        packing = match state.packing_fraction() {
+            Err(_) => {
+                trace!("Trace rejected for increasing packing fraction");
+                packing_prev
+            }
+            Ok(new_packing) => {
+                if rng.gen::<f64>() > mc_temperature(packing_prev, new_packing, kt, total_shapes) {
+                    // Packing fraction was increased too much so reject the step
+                    trace!("Rejected for Increasing packing fraction.");
+                    rejections += 1;
+                    basis[basis_index].reset_value();
 
-                        // Set packing to it's previous value
-                        packing_prev
-                    } else {
-                        // This is where we update the packing fraction cause the test was
-                        // successful
-                        packing_prev = new_packing;
-                        new_packing
-                    }
+                    // Set packing to it's previous value
+                    packing_prev
+                } else {
+                    // This is where we update the packing fraction cause the test was
+                    // successful
+                    packing_prev = new_packing;
+                    new_packing
                 }
-            };
-        }
+            }
+        };
         if packing > packing_max {
             best_state = state.clone();
             packing_max = packing;
