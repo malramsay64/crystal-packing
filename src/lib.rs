@@ -20,11 +20,13 @@ pub mod ops_macros;
 pub mod U2;
 pub mod U3;
 pub mod basis;
+pub mod optimisation;
 pub mod packing;
 pub mod traits;
 pub mod wallpaper;
 
 pub use crate::basis::StandardBasis;
-pub use crate::packing::{monte_carlo_best_packing, MCVars, PackedState};
+pub use crate::optimisation::{monte_carlo_best_packing, MCVars};
+pub use crate::packing::PackedState;
 pub use crate::traits::{FromSymmetry, Intersect, Shape};
 pub use crate::wallpaper::WallpaperGroup;

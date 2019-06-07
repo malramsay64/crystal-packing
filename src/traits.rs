@@ -6,11 +6,19 @@
 
 use std::{fmt, ops, slice};
 
+use rand::Rng;
 use serde::Serialize;
 
 use crate::wallpaper::WyckoffSite;
 use crate::StandardBasis;
 use crate::U2::CrystalFamily;
+
+pub trait Basis {
+    fn set_value(&mut self, new_value: f64);
+    fn get_value(&self) -> f64;
+    fn reset_value(&self);
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64;
+}
 
 pub trait Intersect {
     fn intersects(&self, other: &Self) -> bool;

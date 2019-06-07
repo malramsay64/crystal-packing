@@ -16,10 +16,10 @@ use rayon::prelude::*;
 use simplelog::{Config, LevelFilter, TermLogger};
 
 use packing;
-use packing::packing::{monte_carlo_best_packing, MCVars, PackedState};
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WallpaperGroup, WallpaperGroups, WyckoffSite};
 use packing::U2::{Cell2, LineShape, MolecularShape2, OccupiedSite};
+use packing::{monte_carlo_best_packing, MCVars, PackedState};
 
 struct CLIOptions {
     shape: ShapeTypes,
