@@ -3,14 +3,6 @@
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
-
-//
-// symmetry.rs
-// Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
-// Distributed under terms of the MIT license.
-//
-//
-
 use log::warn;
 
 use nalgebra::allocator::Allocator;
@@ -103,8 +95,12 @@ where
                         operator = None;
                         sign = 1.
                     }
+                    ' ' | '+' => (),
                     // Default is do nothing (shouldn't encounter this at all)
-                    _ => {}
+                    x => {
+                        warn!("Found '{}'", x);
+                        return Err("Invalid value found");
+                    }
                 };
             }
             trans[index] = constant;
@@ -195,8 +191,22 @@ mod test_2d {
 
     #[test]
     #[should_panic]
-    fn parse_operation_3d() {
-        let input = String::from("(z, y, x)");
+    fn parse_operation_z() {
+        let input = String::from("(z, y)");
+        Transform2::from_operations(&input).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn parse_operation_3_inputs() {
+        let input = String::from("(x, y, z)");
+        Transform2::from_operations(&input).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn parse_operation_1_input() {
+        let input = String::from("(x)");
         Transform2::from_operations(&input).unwrap();
     }
 
@@ -333,5 +343,19 @@ mod test_3d {
             );
             assert_abs_diff_eq!((ident * trans), trans);
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn parse_operation_2_inputs() {
+        let input = String::from("(x, y)");
+        Transform3::from_operations(&input).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn parse_operation_invalid() {
+        let input = String::from("(x, y, w)");
+        Transform3::from_operations(&input).unwrap();
     }
 }
