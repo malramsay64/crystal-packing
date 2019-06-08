@@ -34,8 +34,8 @@ fn test_packing_improves() -> Result<(), &'static str> {
     let isopointal = &[WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform2::from_operations("x,y"),
-            Transform2::from_operations("-x,-y"),
+            Transform2::from_operations("x,y").unwrap(),
+            Transform2::from_operations("-x,-y").unwrap(),
         ],
         num_rotations: 1,
         mirror_primary: false,

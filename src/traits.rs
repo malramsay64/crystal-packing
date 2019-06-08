@@ -44,8 +44,8 @@ pub trait Shape: Intersect + Clone + Send + Sync + Serialize + fmt::Debug + fmt:
     fn transform(&self, transform: &Self::Transform) -> Self;
 }
 
-pub trait FromSymmetry {
-    fn from_operations(ops: &str) -> Self;
+pub trait FromSymmetry: Sized {
+    fn from_operations(ops: &str) -> Result<Self, &'static str>;
 }
 
 pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug {

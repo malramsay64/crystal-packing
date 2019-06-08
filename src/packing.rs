@@ -234,7 +234,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![Transform2::from_operations("x,y")],
+            symmetries: vec![Transform2::from_operations("x,y").unwrap()],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -251,10 +251,10 @@ mod packed_state_tests {
         let isopointal = vec![WyckoffSite {
             letter: 'd',
             symmetries: vec![
-                Transform2::from_operations("x,y"),
-                Transform2::from_operations("-x,-y"),
-                Transform2::from_operations("-x+1/2,y"),
-                Transform2::from_operations("x+1/2,-y"),
+                Transform2::from_operations("x,y").unwrap(),
+                Transform2::from_operations("-x,-y").unwrap(),
+                Transform2::from_operations("-x+1/2,y").unwrap(),
+                Transform2::from_operations("x+1/2,-y").unwrap(),
             ],
             num_rotations: 1,
             mirror_primary: false,

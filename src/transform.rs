@@ -42,7 +42,7 @@ where
     /// let t3 = Transform3::from_operations("-x, y, z+1/2");
     /// ```
     ///
-    fn from_operations(sym_ops: &str) -> Transform<D> {
+    fn from_operations(sym_ops: &str) -> Result<Transform<D>, &'static str> {
         let braces: &[_] = &['(', ')'];
         let operations: Vec<&str> = sym_ops
             // Remove braces from front and back
@@ -50,6 +50,13 @@ where
             // Split at the comma
             .split_terminator(',')
             .collect();
+
+        match operations.len() {
+            x if x < <D>::dim() => return Err("Not enough dimensions in input"),
+            x if x > <D>::dim() => return Err("Too many dimensions in input"),
+            _ => (),
+        }
+
         let mut trans = VectorN::<f64, D>::zeros();
         let mut rot = MatrixN::<f64, D>::zeros();
 
@@ -70,7 +77,7 @@ where
                     }
                     'z' => {
                         if <D>::dim() < 3 {
-                            panic!("Too many input dimensions");
+                            return Err("No Z dimension in a 2D transform");
                         } else {
                             rot[(index, 2)] = sign;
                             sign = 1.;
@@ -87,11 +94,9 @@ where
                         let val = c.to_string().parse::<u64>().unwrap() as f64;
                         // Is there an operator defined, i.e. is this the first digit
                         constant = match operator {
-                            Some(op) => match op {
-                                '/' => sign * constant / val,
-                                '*' => sign * constant * val,
-                                _ => 0.,
-                            },
+                            Some(op) if op == '/' => sign * constant / val,
+                            Some(op) if op == '*' => sign * constant / val,
+                            Some(_) => 0.,
                             None => sign * val,
                         };
                         // Reset values
@@ -104,10 +109,10 @@ where
             }
             trans[index] = constant;
         }
-        Transform::<D>::from_parts(
+        Ok(Transform::<D>::from_parts(
             Translation::<f64, D>::from(trans),
             Rotation::<f64, D>::from_matrix_unchecked(rot),
-        )
+        ))
     }
 }
 
@@ -151,7 +156,7 @@ mod test_2d {
     #[test]
     fn parse_operation_default() {
         let input = String::from("(x, y)");
-        let st = Transform2::from_operations(&input);
+        let st = Transform2::from_operations(&input).unwrap();
         let point = Point2::new(0.1, 0.2);
         assert_abs_diff_eq!(st * point, Point2::new(0.1, 0.2));
     }
@@ -159,7 +164,7 @@ mod test_2d {
     #[test]
     fn parse_operation_xy() {
         let input = String::from("(-x, x+y)");
-        let st = Transform2::from_operations(&input);
+        let st = Transform2::from_operations(&input).unwrap();
         let point = Point2::new(0.1, 0.2);
         assert_abs_diff_eq!(st * point, Point2::new(-0.1, 0.3));
     }
@@ -167,7 +172,7 @@ mod test_2d {
     #[test]
     fn parse_operation_consts() {
         let input = String::from("(x+1/2, -y)");
-        let st = Transform2::from_operations(&input);
+        let st = Transform2::from_operations(&input).unwrap();
         let point = Point2::new(0.1, 0.2);
         assert_abs_diff_eq!(st * point, Point2::new(0.6, -0.2));
     }
@@ -175,7 +180,7 @@ mod test_2d {
     #[test]
     fn parse_operation_neg_consts() {
         let input = String::from("(x-1/2, -y)");
-        let st = Transform2::from_operations(&input);
+        let st = Transform2::from_operations(&input).unwrap();
         let point = Point2::new(0.1, 0.2);
         assert_abs_diff_eq!(st * point, Point2::new(-0.4, -0.2));
     }
@@ -183,7 +188,7 @@ mod test_2d {
     #[test]
     fn parse_operation_zero_const() {
         let input = String::from("(-y, 0)");
-        let st = Transform2::from_operations(&input);
+        let st = Transform2::from_operations(&input).unwrap();
         let point = Point2::new(0.1, 0.2);
         assert_abs_diff_eq!(st * point, Point2::new(-0.2, 0.));
     }
@@ -192,7 +197,7 @@ mod test_2d {
     #[should_panic]
     fn parse_operation_3d() {
         let input = String::from("(z, y, x)");
-        Transform2::from_operations(&input);
+        Transform2::from_operations(&input).unwrap();
     }
 
     #[test]
@@ -255,7 +260,7 @@ mod test_3d {
     #[test]
     fn parse_operation_default() {
         let input = String::from("(x, y, z)");
-        let st = Transform3::from_operations(&input);
+        let st = Transform3::from_operations(&input).unwrap();
         let point = Point3::new(0.1, 0.2, 0.3);
         assert_abs_diff_eq!(st * point, Point3::new(0.1, 0.2, 0.3));
     }
@@ -263,7 +268,7 @@ mod test_3d {
     #[test]
     fn parse_operation_xy() {
         let input = String::from("(-x, x+y, z)");
-        let st = Transform3::from_operations(&input);
+        let st = Transform3::from_operations(&input).unwrap();
         let point = Point3::new(0.1, 0.2, 0.3);
         assert_abs_diff_eq!(st * point, Point3::new(-0.1, 0.3, 0.3));
     }
@@ -271,7 +276,7 @@ mod test_3d {
     #[test]
     fn parse_operation_consts() {
         let input = String::from("(x+1/2, -y, z)");
-        let st = Transform3::from_operations(&input);
+        let st = Transform3::from_operations(&input).unwrap();
         let point = Point3::new(0.1, 0.2, 0.3);
         assert_abs_diff_eq!(st * point, Point3::new(0.6, -0.2, 0.3));
     }
@@ -279,7 +284,7 @@ mod test_3d {
     #[test]
     fn parse_operation_neg_consts() {
         let input = String::from("(x-1/2, -y, z)");
-        let st = Transform3::from_operations(&input);
+        let st = Transform3::from_operations(&input).unwrap();
         let point = Point3::new(0.1, 0.2, 0.3);
         assert_abs_diff_eq!(st * point, Point3::new(-0.4, -0.2, 0.3));
     }
@@ -287,7 +292,7 @@ mod test_3d {
     #[test]
     fn parse_operation_zero_const() {
         let input = String::from("(-y, 0, 0)");
-        let st = Transform3::from_operations(&input);
+        let st = Transform3::from_operations(&input).unwrap();
         let point = Point3::new(0.1, 0.2, 0.3);
         assert_abs_diff_eq!(st * point, Point3::new(-0.2, 0., 0.));
     }
@@ -295,7 +300,7 @@ mod test_3d {
     #[test]
     fn parse_operation_3d() {
         let input = String::from("(x, y, z)");
-        let st = Transform3::from_operations(&input);
+        let st = Transform3::from_operations(&input).unwrap();
         let point = Point3::new(0.1, 0.2, 0.3);
         assert_abs_diff_eq!(st * point, Point3::new(0.1, 0.2, 0.3));
     }
@@ -303,7 +308,7 @@ mod test_3d {
     #[test]
     fn parse_operation_from_3d_complex() {
         let input = String::from("(x+z, y-x, -z+y+1/2)");
-        let st = Transform3::from_operations(&input);
+        let st = Transform3::from_operations(&input).unwrap();
         let point = Point3::new(0.1, 0.2, 0.3);
         assert_abs_diff_eq!(st * point, Point3::new(0.4, 0.1, 0.4));
     }
