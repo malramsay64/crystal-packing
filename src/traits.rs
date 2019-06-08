@@ -24,6 +24,10 @@ pub trait Intersect {
     fn area(&self) -> f64;
 }
 
+pub trait Potential {
+    fn energy(&self, other: &Self) -> f64;
+}
+
 pub trait Shape: Intersect + Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
     type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
     type Component: Intersect
