@@ -21,6 +21,7 @@ pub trait Basis {
 
 pub trait Intersect {
     fn intersects(&self, other: &Self) -> bool;
+    fn area(&self) -> f64;
 }
 
 pub trait Shape: Intersect + Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
@@ -34,7 +35,6 @@ pub trait Shape: Intersect + Clone + Send + Sync + Serialize + fmt::Debug + fmt:
         + fmt::Display
         + ops::Mul<Self::Transform, Output = Self::Component>;
 
-    fn area(&self) -> f64;
     fn enclosing_radius(&self) -> f64;
     fn get_items(&self) -> Vec<Self::Component>;
     fn rotational_symmetries(&self) -> u64 {

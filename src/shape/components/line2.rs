@@ -51,6 +51,11 @@ impl Intersect for Line2 {
         }
         false
     }
+
+    fn area(&self) -> f64 {
+        // TODO Implement some area calculation being the area to the origin or to the y axis.
+        0.
+    }
 }
 
 impl AbsDiffEq for Line2 {

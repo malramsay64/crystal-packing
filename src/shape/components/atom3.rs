@@ -25,6 +25,10 @@ impl Intersect for Atom3 {
         // combined radius of the two particles.
         na::distance_squared(&self.position, &other.position) < r_squared
     }
+
+    fn area(&self) -> f64 {
+        4. / 3. * std::f64::consts::PI * self.radius.powi(3)
+    }
 }
 
 impl fmt::Display for Atom3 {

@@ -55,11 +55,6 @@ impl Intersect for LineShape {
         // We want to compare every item of the current shape with every item of the other shape.
         iproduct!(self.iter(), other.iter()).any(|(s, o)| s.intersects(o))
     }
-}
-
-impl Shape for LineShape {
-    type Component = Line2;
-    type Transform = Transform2;
 
     fn area(&self) -> f64 {
         // This is the sine of the angle between each point, this is used for every calculation
@@ -71,6 +66,11 @@ impl Shape for LineShape {
             .map(|p| 0.5 * angle_term * na::distance(&zero, &p.start) * na::distance(&zero, &p.end))
             .sum()
     }
+}
+
+impl Shape for LineShape {
+    type Component = Line2;
+    type Transform = Transform2;
 
     fn enclosing_radius(&self) -> f64 {
         self.iter()
