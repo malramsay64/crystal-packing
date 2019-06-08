@@ -7,16 +7,11 @@
 
 pub use super::Transform2;
 
-mod atom;
-mod atom_ops;
+pub mod components;
 
-mod line;
-mod line_ops;
+pub mod line_shape;
+pub mod molecular_shape2;
 
-mod line_shape;
-mod molecular_shape;
-
-pub use atom::*;
-pub use line::*;
+pub use components::*;
 pub use line_shape::*;
-pub use molecular_shape::*;
+pub use molecular_shape2::*;

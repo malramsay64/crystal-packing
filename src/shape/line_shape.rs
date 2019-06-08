@@ -1,5 +1,5 @@
 //
-// line_shape.rs
+// line_shape2.rs
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
@@ -13,8 +13,9 @@ use itertools::{iproduct, Itertools};
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
-use super::{Line2, Transform2};
+use super::Line2;
 use crate::traits::{Intersect, Shape};
+use crate::Transform2;
 
 /// A Shape constructed from a collection of Lines
 ///
@@ -103,12 +104,12 @@ impl LineShape {
     /// points separated by and equal angle. For example to create a Triangle, which is the shape
     /// with the fewest number of sides, we can run
     /// ```
-    /// use packing::U2::LineShape;
+    /// use packing::LineShape;
     /// let tri = LineShape::from_radial("Triangle", vec![1., 1., 1.]);
     /// ```
     /// More generally to create a regular polygon with an arbitrary number of sides
     /// ```
-    /// use packing::U2::LineShape;
+    /// use packing::LineShape;
     /// let sides = 10;
     /// let polygon = LineShape::from_radial("Polygon", vec![1.; sides]);
     /// ```

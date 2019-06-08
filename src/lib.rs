@@ -17,16 +17,22 @@ extern crate rand;
 
 pub mod ops_macros;
 
-pub mod U2;
-pub mod U3;
 pub mod basis;
+pub mod cell;
 pub mod optimisation;
 pub mod packing;
+pub mod shape;
+pub mod site;
 pub mod traits;
+pub mod transform;
 pub mod wallpaper;
 
-pub use crate::basis::StandardBasis;
+pub use crate::basis::*;
+pub use crate::cell::*;
 pub use crate::optimisation::{monte_carlo_best_packing, MCVars};
 pub use crate::packing::PackedState;
+pub use crate::shape::*;
+pub use crate::site::*;
 pub use crate::traits::{FromSymmetry, Intersect, Shape};
+pub use crate::transform::*;
 pub use crate::wallpaper::WallpaperGroup;

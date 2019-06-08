@@ -3,6 +3,12 @@
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
+
+//
+// site.rs
+// Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
+// Distributed under terms of the MIT license.
+//
 //
 
 use std::f64::consts::PI;
@@ -10,10 +16,10 @@ use std::f64::consts::PI;
 use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
-use super::Transform2;
 use crate::basis::{SharedValue, StandardBasis};
 use crate::traits::Site;
 use crate::wallpaper::WyckoffSite;
+use crate::Transform2;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OccupiedSite {
@@ -81,4 +87,12 @@ impl OccupiedSite {
     fn symmetries(&self) -> &[Transform2] {
         &self.wyckoff.symmetries
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {}
 }

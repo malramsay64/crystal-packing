@@ -1,5 +1,5 @@
 //
-// atom_ops.rs
+// atom2_ops.rs
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
@@ -8,7 +8,8 @@
 
 use std::ops::Mul;
 
-use super::{Atom2, Transform2};
+use super::Atom2;
+use crate::Transform2;
 
 impl<'a, 'b> Mul<&'b Transform2> for &'a Atom2 {
     type Output = Atom2;

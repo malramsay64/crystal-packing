@@ -10,8 +10,7 @@ use rand::Rng;
 use serde::Serialize;
 
 use crate::wallpaper::WyckoffSite;
-use crate::StandardBasis;
-use crate::U2::CrystalFamily;
+use crate::{CrystalFamily, StandardBasis};
 
 pub trait Basis {
     fn set_value(&mut self, new_value: f64);

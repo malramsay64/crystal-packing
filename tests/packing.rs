@@ -17,8 +17,10 @@ use packing;
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
-use packing::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
-use packing::{monte_carlo_best_packing, FromSymmetry, MCVars, PackedState};
+use packing::{
+    monte_carlo_best_packing, Cell2, CrystalFamily, FromSymmetry, LineShape, MCVars, OccupiedSite,
+    PackedState, Transform2,
+};
 
 #[test]
 fn test_packing_improves() -> Result<(), &'static str> {

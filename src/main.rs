@@ -15,11 +15,11 @@ use log::{debug, info};
 use rayon::prelude::*;
 use simplelog::{Config, LevelFilter, TermLogger};
 
-use packing;
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WallpaperGroup, WallpaperGroups, WyckoffSite};
-use packing::U2::{Cell2, LineShape, MolecularShape2, OccupiedSite};
-use packing::{monte_carlo_best_packing, MCVars, PackedState};
+use packing::{
+    monte_carlo_best_packing, Cell2, LineShape, MCVars, MolecularShape2, OccupiedSite, PackedState,
+};
 
 struct CLIOptions {
     shape: ShapeTypes,

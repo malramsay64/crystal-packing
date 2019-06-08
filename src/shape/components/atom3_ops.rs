@@ -1,12 +1,13 @@
 //
-// atom_ops.rs
+// atom3_ops.rs
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
 
 use std::ops::Mul;
 
-use super::{Atom3, Transform3};
+use super::Atom3;
+use crate::Transform3;
 
 impl<'a, 'b> Mul<&'b Transform3> for &'a Atom3 {
     type Output = Atom3;

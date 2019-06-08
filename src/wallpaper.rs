@@ -11,7 +11,7 @@ use clap::{_clap_count_exprs, arg_enum};
 use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
-use crate::U2::{CrystalFamily, Transform2};
+use crate::{CrystalFamily, Transform2};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WallpaperGroup {

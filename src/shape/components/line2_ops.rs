@@ -1,5 +1,5 @@
 //
-// line_ops.rs
+// line2_ops.rs
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
@@ -7,7 +7,8 @@
 #![allow(clippy::op_ref)]
 use std::ops::Mul;
 
-use super::{Line2, Transform2};
+use super::Line2;
+use crate::Transform2;
 
 binop_impl_all!(
     Mul, mul;

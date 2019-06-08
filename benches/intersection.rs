@@ -6,7 +6,6 @@
 
 use std::f64::consts::PI;
 
-
 #[macro_use]
 extern crate criterion;
 
@@ -15,8 +14,7 @@ use nalgebra::Vector2;
 
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WyckoffSite};
-use packing::PackedState;
-use packing::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
+use packing::{Cell2, CrystalFamily, LineShape, OccupiedSite, PackedState, Transform2};
 
 fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
     LineShape::from_radial("Polygon", vec![1.; sides])

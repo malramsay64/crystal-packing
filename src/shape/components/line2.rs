@@ -1,5 +1,5 @@
 //
-// line.rs
+// line2.rs
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
@@ -116,7 +116,7 @@ mod test {
     use nalgebra::Vector2;
 
     use super::*;
-    use crate::U2::Transform2;
+    use crate::Transform2;
 
     #[test]
     fn new() {

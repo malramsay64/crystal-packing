@@ -1,5 +1,5 @@
 //
-// cell.rs
+// cell2.rs
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
@@ -10,9 +10,8 @@ use itertools::iproduct;
 use nalgebra::{Point2, Translation2, Vector2};
 use serde::{Deserialize, Serialize};
 
-use super::Transform2;
-use crate::basis::{SharedValue, StandardBasis};
 use crate::traits::Cell;
+use crate::{SharedValue, StandardBasis, Transform2};
 
 /// The different crystal families that can be represented
 ///
@@ -271,7 +270,7 @@ mod cell_tests {
 
     use super::*;
     use crate::traits::*;
-    use crate::U2::LineShape;
+    use crate::LineShape;
 
     // TODO Cell area test
 
