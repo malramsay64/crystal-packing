@@ -7,11 +7,11 @@
 use std::f64::consts::PI;
 use std::{fmt, slice, vec};
 
-use itertools::{iproduct, Itertools};
+use itertools::iproduct;
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
-use super::{LJ2, Transform2};
+use super::{Transform2, LJ2};
 use crate::traits::{Potential, Shape};
 
 /// A shape defined by a collection of Atoms
@@ -33,8 +33,10 @@ impl<'a> IntoIterator for &'a LJShape2 {
 }
 
 impl Potential for LJShape2 {
-    fn intersects(&self, other: &Self) -> f64 {
-        iproduct!(self.items.iter(), other.items.iter()).map(|(s, o)| s.energy(o)).sum()
+    fn energy(&self, other: &Self) -> f64 {
+        iproduct!(self.items.iter(), other.items.iter())
+            .map(|(s, o)| s.energy(o))
+            .sum()
     }
 }
 
@@ -42,25 +44,15 @@ impl Shape for LJShape2 {
     type Component = LJ2;
     type Transform = Transform2;
 
-    fn area(&self) -> f64 {
-        // TODO Implement an algorithm which takes into account multiple overlaps of circles, this
-        // naive implementation is just a temporary measure.
-        let total_area: f64 = self.items.iter().map(|a| PI * a.radius.powi(2)).sum();
-
-        let naive_overlap: f64 = self
-            .items
-            .iter()
-            .tuple_combinations()
-            .map(|(a1, a2)| Self::circle_overlap(a1, a2))
-            .sum();
-
-        total_area - naive_overlap
+    fn score(&self, other: &Self) -> Result<f64, &'static str> {
+        Ok(iproduct!(self.items.iter(), other.items.iter())
+            .fold(0., |sum, (s, o)| sum + s.energy(o)))
     }
 
     fn enclosing_radius(&self) -> f64 {
         self.items
             .iter()
-            .map(|p| na::distance(&Point2::origin(), &p.position) + p.radius)
+            .map(|p| na::distance(&Point2::origin(), &p.position) + p.sigma)
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
@@ -105,13 +97,13 @@ impl LJShape2 {
         Self {
             name: String::from("Trimer"),
             items: vec![
-                Lj2::new(0., -2. / 3. * distance * f64::cos(angle / 2.), 1.),
-                Lj2::new(
+                LJ2::new(0., -2. / 3. * distance * f64::cos(angle / 2.), 1.),
+                LJ2::new(
                     -distance * f64::sin(angle / 2.),
                     1. / 3. * distance * f64::cos(angle / 2.),
                     radius,
                 ),
-                Lj2::new(
+                LJ2::new(
                     distance * f64::sin(angle / 2.),
                     1. / 3. * distance * f64::cos(angle / 2.),
                     radius,
@@ -126,7 +118,7 @@ impl LJShape2 {
     pub fn circle() -> Self {
         Self {
             name: String::from("circle"),
-            items: vec![Lj2::new(0., 0., 1.)],
+            items: vec![LJ2::new(0., 0., 1.)],
         }
     }
 }
@@ -160,4 +152,4 @@ mod test {
             epsilon = 1e-3,
         );
     }
-
+}

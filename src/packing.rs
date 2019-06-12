@@ -21,7 +21,7 @@ use crate::wallpaper::{Wallpaper, WyckoffSite};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PackedState<S, C, T>
 where
-    S: Shape,
+    S: Shape + Intersect,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -33,7 +33,7 @@ where
 
 impl<S, C, T> Eq for PackedState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Intersect,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -41,7 +41,7 @@ where
 
 impl<S, C, T> PartialEq for PackedState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Intersect,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -52,7 +52,7 @@ where
 
 impl<S, C, T> PartialOrd for PackedState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Intersect,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -63,7 +63,7 @@ where
 
 impl<S, C, T> Ord for PackedState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Intersect,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -74,7 +74,7 @@ where
 
 impl<S, C, T> State for PackedState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Intersect,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -103,7 +103,7 @@ where
 }
 impl<S, C, T> PackedState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Intersect,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {

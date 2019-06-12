@@ -6,26 +6,22 @@
 
 use std::cmp::Ordering;
 use std::error::Error;
-use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-use log::{debug, trace, warn};
-use rand::distributions::Uniform;
-use rand::prelude::*;
-use rand::rngs::SmallRng;
+use itertools::Itertools;
+use log::debug;
 use serde::{Deserialize, Serialize};
-use serde_json;
 
-use crate::basis::{Basis, StandardBasis};
 use crate::traits::*;
 use crate::wallpaper::{Wallpaper, WyckoffSite};
+use crate::StandardBasis;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct State<S, C, T>
+pub struct PotentialState<S, C, T>
 where
-    S: Shape,
+    S: Shape + Potential,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -35,17 +31,17 @@ where
     occupied_sites: Vec<T>,
 }
 
-impl<S, C, T> Eq for State<S, C, T>
+impl<S, C, T> Eq for PotentialState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Potential,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
 }
 
-impl<S, C, T> PartialEq for State<S, C, T>
+impl<S, C, T> PartialEq for PotentialState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Potential,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
@@ -54,38 +50,67 @@ where
     }
 }
 
-impl<S, C, T> PartialOrd for State<S, C, T>
+impl<S, C, T> PartialOrd for PotentialState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Potential,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.score()
-            .partial_cmp(&other.score())
+        self.score().partial_cmp(&other.score())
     }
 }
 
-impl<S, C, T> Ord for PackedState<S, C, T>
+impl<S, C, T> Ord for PotentialState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Potential,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.score()
-            .partial_cmp(&other.score())
-            .unwrap()
+        self.score().partial_cmp(&other.score()).unwrap()
     }
 }
 
-impl<S, C, T> PackedState<S, C, T>
+impl<S, C, T> State for PotentialState<S, C, T>
 where
-    S: Shape + Debug + Display,
+    S: Shape + Potential,
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
-    pub fn cartesian_positions(&self) -> Vec<S> {
+    fn generate_basis(&mut self) -> Vec<StandardBasis> {
+        let mut basis: Vec<StandardBasis> = vec![];
+        basis.append(&mut self.cell.get_degrees_of_freedom());
+        for site in self.occupied_sites.iter_mut() {
+            basis.append(&mut site.get_basis(1));
+        }
+        basis
+    }
+
+    fn score(&self) -> Result<f64, &'static str> {
+        // We want to minimize the potential energy, so the score we want to maximize is the
+        // negation of the potential energy.
+        Ok(-self
+            .cartesian_positions()
+            .iter()
+            .tuple_combinations()
+            .fold(0., |sum, (a, b)| sum + a.energy(b)))
+    }
+
+    fn total_shapes(&self) -> usize {
+        self.occupied_sites
+            .iter()
+            .fold(0, |sum, site| sum + site.multiplicity())
+    }
+}
+
+impl<S, C, T> PotentialState<S, C, T>
+where
+    S: Shape + Potential,
+    C: Cell<Transform = S::Transform>,
+    T: Site<Transform = S::Transform>,
+{
+    fn cartesian_positions(&self) -> Vec<S> {
         self.relative_positions()
             .iter()
             .map(|position| {
@@ -101,46 +126,11 @@ where
             .flat_map(Site::positions)
             .collect()
     }
-
-    pub fn score(&self) -> Result<f64, &'static str> {
-        let mut score: f64 = 0.;
-        for (index1, position1) in self.relative_positions().iter().enumerate() {
-            let shape_i1 = self
-                .shape
-                .transform(&self.cell.to_cartesian_isometry(position1));
-
-            // We only need to check the positions after that of index, since the previous ones
-            // have already been checked, hence `.skip(index)`
-            for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
-                trace!("Checking {} against {}", index1, index2);
-                for transform in self.cell.periodic_images(position2, index1 != index2) {
-                    let shape_i2 = self
-                        .shape
-                        .transform(&self.cell.to_cartesian_isometry(&transform));
-
-                    score += shape_i1.score(&shape_i2);
-                    }
-                }
-            }
-        }
-        score
-    }
-
-    pub fn total_shapes(&self) -> usize {
-        self.occupied_sites
-            .iter()
-            .fold(0, |sum, site| sum + site.multiplicity())
-    }
-
-    pub fn score(&self) -> Result<f64, &'static str> {
-        self.score() / self.total_shapes() as f64
-    }
-
     pub fn initialise(
         shape: S,
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
-    ) -> PackedState<S, C, T> {
+    ) -> PotentialState<S, C, T> {
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
         let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
@@ -154,21 +144,12 @@ where
             occupied_sites.push(site);
         }
 
-        PackedState {
+        PotentialState {
             wallpaper,
             shape,
             cell,
             occupied_sites,
         }
-    }
-
-    fn generate_basis(&mut self) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![];
-        basis.append(&mut self.cell.get_degrees_of_freedom());
-        for site in self.occupied_sites.iter_mut() {
-            basis.append(&mut site.get_basis(1));
-        }
-        basis
     }
 
     pub fn to_figure(&self, filename: &str) {
@@ -211,12 +192,7 @@ where
 #[cfg(test)]
 mod packed_state_tests {
     use super::*;
-    use crate::U2::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
-    use approx::assert_abs_diff_eq;
-
-    fn create_square() -> LineShape {
-        LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap()
-    }
+    use crate::{Cell2, CrystalFamily, LJShape2, LineShape, OccupiedSite, Transform2};
 
     fn create_wallpaper_p1() -> (Wallpaper, Vec<WyckoffSite>) {
         let wallpaper = Wallpaper {
@@ -225,7 +201,7 @@ mod packed_state_tests {
         };
         let isopointal = vec![WyckoffSite {
             letter: 'a',
-            symmetries: vec![Transform2::from_operations("x,y")],
+            symmetries: vec![Transform2::from_operations("x,y").unwrap()],
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
@@ -242,10 +218,10 @@ mod packed_state_tests {
         let isopointal = vec![WyckoffSite {
             letter: 'd',
             symmetries: vec![
-                Transform2::from_operations("x,y"),
-                Transform2::from_operations("-x,-y"),
-                Transform2::from_operations("-x+1/2,y"),
-                Transform2::from_operations("x+1/2,-y"),
+                Transform2::from_operations("x,y").unwrap(),
+                Transform2::from_operations("-x,-y").unwrap(),
+                Transform2::from_operations("-x+1/2,y").unwrap(),
+                Transform2::from_operations("x+1/2,-y").unwrap(),
             ],
             num_rotations: 1,
             mirror_primary: false,
@@ -255,8 +231,8 @@ mod packed_state_tests {
         (wallpaper, isopointal)
     }
 
-    fn init_packed_state(group: &str) -> PackedState<LineShape, Cell2, OccupiedSite> {
-        let square: LineShape = create_square();
+    fn init_state(group: &str) -> PotentialState<LJShape2, Cell2, OccupiedSite> {
+        let circle = LJShape2::circle();
 
         let (wallpaper, isopointal) = (match group {
             "p1" => Some(create_wallpaper_p1()),
@@ -264,141 +240,19 @@ mod packed_state_tests {
             _ => None,
         })
         .unwrap();
-        PackedState::initialise(square, wallpaper, &isopointal)
+        PotentialState::initialise(circle, wallpaper, &isopointal)
     }
 
     #[test]
     fn total_shapes_p1() {
-        let state = init_packed_state("p1");
+        let state = init_state("p1");
         assert_eq!(state.total_shapes(), 1);
     }
 
     #[test]
     fn total_shapes_p2mg() {
-        let state = init_packed_state("p2mg");
+        let state = init_state("p2mg");
         assert_eq!(state.total_shapes(), 4);
     }
 
-}
-
-pub struct MCVars {
-    pub kt_start: f64,
-    pub kt_finish: f64,
-    pub max_step_size: f64,
-    pub num_start_configs: u64,
-    pub steps: u64,
-    pub seed: Option<u64>,
-}
-
-impl Default for MCVars {
-    fn default() -> MCVars {
-        MCVars {
-            kt_start: 0.1,
-            kt_finish: 0.0005,
-            max_step_size: 0.01,
-            num_start_configs: 32,
-            steps: 100,
-            seed: None,
-        }
-    }
-}
-
-impl MCVars {
-    fn kt_ratio(&self) -> f64 {
-        f64::powf(self.kt_finish / self.kt_start, 1.0 / self.steps as f64)
-    }
-}
-
-fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
-    f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
-}
-
-pub fn monte_carlo_best_packing<S, C, T>(
-    vars: &MCVars,
-    mut state: PackedState<S, C, T>,
-) -> Result<PackedState<S, C, T>, &'static str>
-where
-    S: Shape + Debug + Display,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
-{
-    // When a random seed is provided, use it, otherwise seed the random number generator from the
-    // system entropy.
-    let mut rng = match vars.seed {
-        Some(x) => SmallRng::seed_from_u64(x),
-        None => SmallRng::from_entropy(),
-    };
-    let mut rejections: u64 = 0;
-
-    let mut kt: f64 = vars.kt_start;
-    let kt_ratio: f64 = vars.kt_ratio();
-    let total_shapes: u64 = state.total_shapes() as u64;
-
-    let mut basis = state.generate_basis();
-    let basis_distribution = Uniform::new(0, basis.len() as u64);
-
-    let mut packing: f64 = state.score()?;
-
-    let mut packing_prev: f64 = 0.;
-    let mut packing_max: f64 = 0.;
-
-    let mut best_state = state.clone();
-
-    for _ in 0..vars.steps {
-        let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
-        if let Some(basis_current) = basis.get_mut(basis_index) {
-            basis_current.set_value(basis_current.sample(&mut rng, vars.max_step_size));
-        }
-
-        if state.check_intersection() {
-            trace!("Rejected for intersection.");
-            rejections += 1;
-            basis[basis_index].reset_value();
-        } else {
-            packing = match state.score() {
-                Err(_) => {
-                    warn!("Rejected for invalid packing fraction.");
-                    debug!("{}", serde_json::to_string(&state).unwrap());
-                    panic!("Something is wrong with the current state");
-                }
-                Ok(new_packing) => {
-                    if rng.gen::<f64>()
-                        > mc_temperature(packing_prev, new_packing, kt, total_shapes)
-                    {
-                        // Packing fraction was increased too much so reject the step
-                        trace!("Rejected for Increasing packing fraction.");
-                        rejections += 1;
-                        basis[basis_index].reset_value();
-
-                        // Set packing to it's previous value
-                        packing_prev
-                    } else {
-                        // This is where we update the packing fraction cause the test was
-                        // successful
-                        packing_prev = new_packing;
-                        new_packing
-                    }
-                }
-            };
-        }
-        if packing > packing_max {
-            best_state = state.clone();
-            packing_max = packing;
-        }
-        kt *= kt_ratio;
-    }
-    println!(
-        "Packing Fraction: {:.4}, Rejections: {:.2} %",
-        packing_max,
-        100. * rejections as f64 / vars.steps as f64,
-    );
-    Ok(best_state)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {}
 }

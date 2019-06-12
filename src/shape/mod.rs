@@ -10,8 +10,10 @@ pub use super::Transform2;
 pub mod components;
 
 pub mod line_shape;
+pub mod lj_shape;
 pub mod molecular_shape2;
 
 pub use components::*;
 pub use line_shape::*;
+pub use lj_shape::*;
 pub use molecular_shape2::*;

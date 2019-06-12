@@ -44,7 +44,7 @@ fn get_packed_state<S, C, T>(
     shape: S,
 ) -> Result<PackedState<S, C, T>, &'static str>
 where
-    S: Shape + Send + Sync,
+    S: Shape + Intersect + Send + Sync,
     C: Cell<Transform = S::Transform> + Send + Sync,
     T: Site<Transform = S::Transform> + Send + Sync,
 {

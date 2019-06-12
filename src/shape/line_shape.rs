@@ -72,6 +72,14 @@ impl Shape for LineShape {
     type Component = Line2;
     type Transform = Transform2;
 
+    fn score(&self, other: &Self) -> Result<f64, &'static str> {
+        if self.intersects(other) {
+            Err("Shape intersects")
+        } else {
+            Ok(self.area())
+        }
+    }
+
     fn enclosing_radius(&self) -> f64 {
         self.iter()
             .map(|p| na::distance(&Point2::origin(), &p.start))

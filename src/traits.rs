@@ -28,10 +28,9 @@ pub trait Potential {
     fn energy(&self, other: &Self) -> f64;
 }
 
-pub trait Shape: Intersect + Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
+pub trait Shape: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
     type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
-    type Component: Intersect
-        + Clone
+    type Component: Clone
         + Send
         + Sync
         + Serialize
@@ -39,6 +38,7 @@ pub trait Shape: Intersect + Clone + Send + Sync + Serialize + fmt::Debug + fmt:
         + fmt::Display
         + ops::Mul<Self::Transform, Output = Self::Component>;
 
+    fn score(&self, other: &Self) -> Result<f64, &'static str>;
     fn enclosing_radius(&self) -> f64;
     fn get_items(&self) -> Vec<Self::Component>;
     fn rotational_symmetries(&self) -> u64 {
