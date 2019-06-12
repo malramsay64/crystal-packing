@@ -18,7 +18,8 @@ use simplelog::{Config, LevelFilter, TermLogger};
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WallpaperGroup, WallpaperGroups, WyckoffSite};
 use packing::{
-    monte_carlo_best_packing, Cell2, LineShape, MCVars, MolecularShape2, OccupiedSite, PackedState,
+    monte_carlo_best_packing, Cell2, LJShape2, LineShape, MCVars, MolecularShape2, OccupiedSite,
+    PackedState, PotentialState,
 };
 
 struct CLIOptions {
@@ -36,7 +37,48 @@ arg_enum! {
         Polygon,
         Trimer,
         Circle,
+        LJTrimer,
     }
+}
+
+fn get_potential_state<S, C, T>(
+    options: CLIOptions,
+    shape: S,
+) -> Result<PotentialState<S, C, T>, &'static str>
+where
+    S: Shape + Potential + Send + Sync,
+    C: Cell<Transform = S::Transform> + Send + Sync,
+    T: Site<Transform = S::Transform> + Send + Sync,
+{
+    let wallpaper = Wallpaper::new(&options.group);
+    let isopointal = &[WyckoffSite::new(options.group)];
+
+    let mut vars = MCVars::default();
+    vars.steps = options.steps;
+    vars.num_start_configs = options.num_start_configs;
+    // Remove mutability
+    let vars = vars;
+
+    let final_state = (0..vars.num_start_configs)
+        .into_par_iter()
+        .map(|_| {
+            let state =
+                PotentialState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
+            monte_carlo_best_packing(&vars, state)
+        })
+        .max()
+        .unwrap()?;
+
+    info!(
+        "Cell Area: {}, Num Shapes: {}",
+        final_state.cell.area(),
+        final_state.total_shapes(),
+    );
+
+    final_state.to_figure("test.txt");
+
+    info!("Final packing fraction: {}", final_state.score().unwrap());
+    Ok(final_state)
 }
 
 fn get_packed_state<S, C, T>(
@@ -183,6 +225,10 @@ fn main() -> Result<(), &'static str> {
         ShapeTypes::Circle => {
             let shape = MolecularShape2::circle();
             get_packed_state::<MolecularShape2, Cell2, OccupiedSite>(options, shape).unwrap();
+        }
+        ShapeTypes::LJTrimer => {
+            let shape = LJShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
+            get_potential_state::<LJShape2, Cell2, OccupiedSite>(options, shape).unwrap();
         }
     };
     Ok(())
