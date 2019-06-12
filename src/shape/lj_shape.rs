@@ -97,16 +97,16 @@ impl LJShape2 {
         Self {
             name: String::from("Trimer"),
             items: vec![
-                LJ2::new(0., -2. / 3. * distance * f64::cos(angle / 2.), 1.),
+                LJ2::new(0., -2. / 3. * distance * f64::cos(angle / 2.), 2.),
                 LJ2::new(
                     -distance * f64::sin(angle / 2.),
                     1. / 3. * distance * f64::cos(angle / 2.),
-                    radius,
+                    radius * 2.,
                 ),
                 LJ2::new(
                     distance * f64::sin(angle / 2.),
                     1. / 3. * distance * f64::cos(angle / 2.),
-                    radius,
+                    radius * 2.,
                 ),
             ],
         }
