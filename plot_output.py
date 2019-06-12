@@ -28,6 +28,20 @@ def main(filename):
                     alpha=0.8,
                 )
                 ax.add_patch(circle)
+            elif line.startswith("LJ2"):
+                line = re.sub(remove_chars, "", line[3:])
+                x, y, r, _, colour = [
+                    element.strip() for element in line.strip().split(",")
+                ]
+                circle = plt.Circle(
+                    (float(x), float(y)),
+                    float(r) / 2,
+                    facecolor=colour,
+                    edgecolor=colour,
+                    linewidth=3,
+                    alpha=0.8,
+                )
+                ax.add_patch(circle)
             elif line.startswith("Line2"):
                 line = re.sub(remove_chars, "", line[5:])
                 x0, y0, x1, y1, colour = [
