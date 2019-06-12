@@ -88,13 +88,23 @@ where
     }
 
     fn score(&self) -> Result<f64, &'static str> {
+        let mut sum = 0.;
+        for (index1, position1) in self.relative_positions().iter().enumerate() {
+            let shape1 = self
+                .shape
+                .transform(&self.cell.to_cartesian_isometry(position1));
+            for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
+                for transform in self.cell.periodic_images(position2, index1 != index2) {
+                    let shape2 = self
+                        .shape
+                        .transform(&self.cell.to_cartesian_isometry(&transform));
+                    sum += shape1.energy(&shape2)
+                }
+            }
+        }
         // We want to minimize the potential energy, so the score we want to maximize is the
         // negation of the potential energy.
-        Ok(-self
-            .cartesian_positions()
-            .iter()
-            .tuple_combinations()
-            .fold(0., |sum, (a, b)| sum + a.energy(b)))
+        Ok(-sum / 6.)
     }
 
     fn total_shapes(&self) -> usize {
@@ -126,13 +136,14 @@ where
             .flat_map(Site::positions)
             .collect()
     }
+
     pub fn initialise(
         shape: S,
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
     ) -> PotentialState<S, C, T> {
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
-        let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
+        let max_cell_size = 2. * shape.enclosing_radius() * num_shapes as f64;
 
         let cell = C::from_family(&wallpaper.family, max_cell_size);
 
