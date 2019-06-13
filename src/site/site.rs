@@ -17,7 +17,7 @@ use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::basis::{SharedValue, StandardBasis};
-use crate::traits::Site;
+use crate::traits::*;
 use crate::wallpaper::WyckoffSite;
 use crate::Transform2;
 
@@ -41,6 +41,7 @@ impl Site for OccupiedSite {
         self.symmetries()
             .iter()
             .map(|sym| sym * transform)
+            .map(|sym| sym.periodic(1.))
             .collect()
     }
 
