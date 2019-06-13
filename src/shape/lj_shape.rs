@@ -51,7 +51,7 @@ impl Shape for LJShape2 {
     fn enclosing_radius(&self) -> f64 {
         self.items
             .iter()
-            .map(|p| na::distance(&Point2::origin(), &p.position) + p.sigma)
+            .map(|p| na::distance(&Point2::origin(), &p.position) + p.sigma / 2.)
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
