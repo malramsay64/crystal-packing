@@ -4,6 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-mod site;
+mod site2;
 
-pub use site::*;
+pub use site2::*;
