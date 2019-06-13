@@ -10,7 +10,7 @@ use itertools::iproduct;
 use nalgebra::{Point2, Translation2, Vector2};
 use serde::{Deserialize, Serialize};
 
-use crate::traits::Cell;
+use crate::traits::*;
 use crate::{SharedValue, StandardBasis, Transform2};
 
 /// The different crystal families that can be represented
@@ -202,12 +202,12 @@ impl Cell for Cell2 {
 
         if zero {
             iproduct!(iter_range.clone(), iter_range.clone())
-                .map(|(x, y)| transform * Translation2::new(f64::from(x), f64::from(y)))
+                .map(|(x, y)| transform.adjust_period(Vector2::new(f64::from(x), f64::from(y))))
                 .collect()
         } else {
             iproduct!(iter_range.clone(), iter_range.clone())
                 .filter(|&(x, y)| !(x == 0 && y == 0))
-                .map(|(x, y)| transform * Translation2::new(f64::from(x), f64::from(y)))
+                .map(|(x, y)| transform.adjust_period(Vector2::new(f64::from(x), f64::from(y))))
                 .collect()
         }
     }

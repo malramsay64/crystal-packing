@@ -5,6 +5,7 @@
 //
 use log::warn;
 
+use itertools::zip;
 use nalgebra::allocator::Allocator;
 use nalgebra::{
     DefaultAllocator, DimName, Isometry, MatrixN, Rotation, Translation, VectorN, U2, U3,
@@ -117,6 +118,20 @@ where
         for (v, a) in zip(tmp.vector.iter_mut(), adjustment.iter()) {
             *v += a;
         }
+        tmp
+    }
+}
+
+impl<D: DimName> AdjustPeriod<D> for Transform<D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Transform<D>;
+
+    fn adjust_period(&self, adjustment: VectorN<f64, D>) -> Self::Output {
+        let mut tmp = self.clone();
+        tmp.translation = tmp.translation.adjust_period(adjustment);
         tmp
     }
 }
