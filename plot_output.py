@@ -24,7 +24,7 @@ def main(filename):
                     float(r),
                     facecolor=colour,
                     edgecolor=colour,
-                    linewidth=3,
+                    linewidth=1,
                     alpha=0.8,
                 )
                 ax.add_patch(circle)
@@ -38,7 +38,7 @@ def main(filename):
                     float(r) / 2,
                     facecolor=colour,
                     edgecolor=colour,
-                    linewidth=3,
+                    linewidth=1,
                     alpha=0.8,
                 )
                 ax.add_patch(circle)
