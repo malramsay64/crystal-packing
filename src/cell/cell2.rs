@@ -269,7 +269,7 @@ mod cell_tests {
     use itertools::izip;
 
     use super::*;
-    use crate::traits::*;
+
     use crate::LineShape;
 
     // TODO Cell area test

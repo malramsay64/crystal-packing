@@ -4,7 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-use std::f64::consts::PI;
 use std::{fmt, slice, vec};
 
 use itertools::iproduct;
@@ -126,7 +125,7 @@ impl LJShape2 {
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
-    use nalgebra::Vector2;
+    use std::f64::consts::PI;
 
     use super::*;
 

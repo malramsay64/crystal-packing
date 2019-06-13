@@ -89,11 +89,3 @@ impl OccupiedSite {
         &self.wyckoff.symmetries
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {}
-}

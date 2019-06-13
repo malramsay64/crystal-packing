@@ -6,7 +6,6 @@
 
 use std::cmp::Ordering;
 use std::error::Error;
-use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;

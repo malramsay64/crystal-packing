@@ -4,13 +4,10 @@
 // Distributed under terms of the MIT license.
 //
 
-use std::fs;
-
 #[allow(unused_imports)]
 use itertools::Itertools;
 #[allow(unused_imports)]
 use serde::Deserialize;
-use serde_json;
 
 use packing;
 #[allow(unused_imports)]
@@ -18,8 +15,8 @@ use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
 use packing::{
-    monte_carlo_best_packing, Cell2, CrystalFamily, FromSymmetry, LJShape2, LineShape, MCVars,
-    OccupiedSite, PackedState, PotentialState, Transform2,
+    monte_carlo_best_packing, Cell2, CrystalFamily, FromSymmetry, LJShape2, MCVars, OccupiedSite,
+    PotentialState, Transform2,
 };
 
 #[test]

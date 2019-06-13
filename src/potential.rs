@@ -10,7 +10,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-use itertools::Itertools;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
@@ -203,7 +202,7 @@ where
 #[cfg(test)]
 mod packed_state_tests {
     use super::*;
-    use crate::{Cell2, CrystalFamily, LJShape2, LineShape, OccupiedSite, Transform2};
+    use crate::{Cell2, CrystalFamily, LJShape2, OccupiedSite, Transform2};
 
     fn create_wallpaper_p1() -> (Wallpaper, Vec<WyckoffSite>) {
         let wallpaper = Wallpaper {
