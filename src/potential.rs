@@ -104,7 +104,7 @@ where
         }
         // We want to minimize the potential energy, so the score we want to maximize is the
         // negation of the potential energy.
-        Ok(-sum / 6.)
+        Ok(-sum / 60.)
     }
 
     fn total_shapes(&self) -> usize {
