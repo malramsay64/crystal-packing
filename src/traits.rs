@@ -6,6 +6,8 @@
 
 use std::{fmt, ops, slice};
 
+use nalgebra::allocator::Allocator;
+use nalgebra::{DefaultAllocator, DimName, VectorN};
 use rand::Rng;
 use serde::Serialize;
 
@@ -17,6 +19,25 @@ pub trait Basis {
     fn get_value(&self) -> f64;
     fn reset_value(&self);
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64;
+}
+
+pub trait Periodic<Rhs = Self> {
+    type Output;
+
+    fn periodic(&self, rhs: Rhs) -> Self::Output;
+}
+
+pub trait PeriodicAssign<Rhs = Self> {
+    fn periodic_assign(&mut self, rhs: Rhs);
+}
+
+pub trait AdjustPeriod<D: DimName>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output;
+    fn adjust_period(&self, adjustment: VectorN<f64, D>) -> Self::Output;
 }
 
 pub trait Intersect {

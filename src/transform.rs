@@ -10,12 +10,116 @@ use nalgebra::{
     DefaultAllocator, DimName, Isometry, MatrixN, Rotation, Translation, VectorN, U2, U3,
 };
 
-use crate::traits::FromSymmetry;
+use crate::traits::*;
 
 type Transform<D> = Isometry<f64, D, Rotation<f64, D>>;
 
 pub type Transform2 = Transform<U2>;
 pub type Transform3 = Transform<U3>;
+
+impl Periodic for f64 {
+    type Output = f64;
+
+    fn periodic(&self, rhs: Self) -> Self::Output {
+        ((((self + 0.5) % rhs) + rhs) % rhs) - 0.5
+    }
+}
+
+impl PeriodicAssign for f64 {
+    fn periodic_assign(&mut self, rhs: Self) {
+        *self = ((((*self + 0.5) % rhs) + rhs) % rhs) - 0.5
+    }
+}
+
+impl<D: DimName> PeriodicAssign<f64> for VectorN<f64, D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    fn periodic_assign(&mut self, rhs: f64) {
+        for x in self.iter_mut() {
+            x.periodic_assign(rhs)
+        }
+    }
+}
+
+impl<D: DimName> Periodic<f64> for VectorN<f64, D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = VectorN<f64, D>;
+
+    fn periodic(&self, rhs: f64) -> Self::Output {
+        let mut tmp = self.clone();
+        tmp.periodic_assign(rhs);
+        tmp
+    }
+}
+
+impl<D: DimName> PeriodicAssign<f64> for Translation<f64, D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    fn periodic_assign(&mut self, rhs: f64) {
+        self.vector.periodic_assign(rhs)
+    }
+}
+
+impl<D: DimName> Periodic<f64> for Translation<f64, D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Translation<f64, D>;
+
+    fn periodic(&self, rhs: f64) -> Self::Output {
+        let mut tmp = self.clone();
+        tmp.periodic_assign(rhs);
+        tmp
+    }
+}
+
+impl<D: DimName> PeriodicAssign<f64> for Transform<D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    fn periodic_assign(&mut self, rhs: f64) {
+        self.translation.periodic_assign(rhs)
+    }
+}
+
+impl<D: DimName> Periodic<f64> for Transform<D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Transform<D>;
+
+    fn periodic(&self, rhs: f64) -> Self::Output {
+        let mut tmp = self.clone();
+        tmp.periodic_assign(rhs);
+        tmp
+    }
+}
+
+impl<D: DimName> AdjustPeriod<D> for Translation<f64, D>
+where
+    DefaultAllocator: Allocator<f64, D>,
+    DefaultAllocator: Allocator<f64, D, D>,
+{
+    type Output = Translation<f64, D>;
+
+    fn adjust_period(&self, adjustment: VectorN<f64, D>) -> Self::Output {
+        let mut tmp = self.clone();
+        for (v, a) in zip(tmp.vector.iter_mut(), adjustment.iter()) {
+            *v += a;
+        }
+        tmp
+    }
+}
 
 impl<D: DimName> FromSymmetry for Transform<D>
 where
