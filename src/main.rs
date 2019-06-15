@@ -97,7 +97,7 @@ where
 
     let state = PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
     match state.score() {
-        Err(_) => panic!("Initial state has intersections...exiting."),
+        Err(x) => return Err(x),
         Ok(x) => info!("Init packing fraction: {}", x),
     };
 
