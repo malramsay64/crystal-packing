@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use log::trace;
+use log::{info, trace};
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::rngs::SmallRng;
@@ -101,7 +101,7 @@ where
         }
         kt *= kt_ratio;
     }
-    println!(
+    info!(
         "Score: {:.4}, Rejections: {:.2} %",
         score,
         100. * rejections as f64 / vars.steps as f64,

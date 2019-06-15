@@ -77,7 +77,7 @@ where
 
     final_state.to_figure("test.txt");
 
-    info!("Final packing fraction: {}", final_state.score().unwrap());
+    info!("Final score: {}", final_state.score().unwrap());
     Ok(final_state)
 }
 
@@ -125,6 +125,7 @@ where
     final_state.to_figure("test.txt");
 
     info!("Final packing fraction: {}", final_state.score().unwrap());
+
     Ok(final_state)
 }
 
@@ -177,7 +178,7 @@ fn cli() -> CLIOptions {
         .get_matches();
 
     let wg = value_t!(matches.value_of("wallpaper_group"), WallpaperGroups).unwrap();
-    println!("Using Wallpaper Group: {}", wg);
+    info!("Using Wallpaper Group: {}", wg);
 
     let shape = value_t!(matches.value_of("shape"), ShapeTypes).unwrap();
     let num_sides = matches.value_of("sides").unwrap().parse().unwrap();
