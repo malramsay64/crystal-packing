@@ -103,7 +103,7 @@ where
         }
         // We want to minimize the potential energy, so the score we want to maximize is the
         // negation of the potential energy.
-        Ok(-sum / 60. / self.total_shapes() as f64)
+        Ok(-sum / 15. / self.total_shapes() as f64)
     }
 
     fn total_shapes(&self) -> usize {
@@ -264,5 +264,4 @@ mod packed_state_tests {
         let state = init_state("p2mg");
         assert_eq!(state.total_shapes(), 4);
     }
-
 }
