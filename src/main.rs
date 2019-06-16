@@ -9,11 +9,12 @@
 #![allow(deprecated)]
 
 use std::f64::consts::PI;
+use std::fs::File;
+use std::io::prelude::*;
 
 use clap::{arg_enum, App, Arg, _clap_count_exprs, value_t};
 use log::{debug, info};
 use rayon::prelude::*;
-use serde::Serialize;
 use serde_json;
 use simplelog::{Config, LevelFilter, TermLogger};
 
@@ -216,35 +217,35 @@ fn main() -> Result<(), &'static str> {
     TermLogger::init(options.log_level, Config::default()).unwrap();
     debug!("Logging Level: {}", options.log_level);
 
-    let mut file = std::fs::File::create("structure.json")?;
+    let mut file = File::create("structure.json").unwrap();
 
     match options.shape {
         ShapeTypes::Polygon => {
             let shape = LineShape::from_radial("Polygon", vec![1.; options.num_sides])?;
             let state = get_packed_state::<LineShape, Cell2, OccupiedSite>(options, shape).unwrap();
-            let serialised = serde_json::to_string(state)?;
-            file.write_all
+            let serialised = serde_json::to_string(&state).unwrap();
+            file.write_all(&serialised.as_bytes()).unwrap();
         }
         ShapeTypes::Trimer => {
             let shape = MolecularShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
             let state =
                 get_packed_state::<MolecularShape2, Cell2, OccupiedSite>(options, shape).unwrap();
-            let serialised = serde_json::to_string(state)?;
-            file.write_all
+            let serialised = serde_json::to_string(&state).unwrap();
+            file.write_all(&serialised.as_bytes()).unwrap();
         }
         ShapeTypes::Circle => {
             let shape = MolecularShape2::circle();
-            let shape =
+            let state =
                 get_packed_state::<MolecularShape2, Cell2, OccupiedSite>(options, shape).unwrap();
-            let serialised = serde_json::to_string(state)?;
-            file.write_all
+            let serialised = serde_json::to_string(&state).unwrap();
+            file.write_all(&serialised.as_bytes()).unwrap();
         }
         ShapeTypes::LJTrimer => {
             let shape = LJShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
-            let shape =
+            let state =
                 get_potential_state::<LJShape2, Cell2, OccupiedSite>(options, shape).unwrap();
-            let serialised = serde_json::to_string(state)?;
-            file.write_all
+            let serialised = serde_json::to_string(&state).unwrap();
+            file.write_all(&serialised.as_bytes()).unwrap();
         }
     };
     Ok(())
