@@ -13,7 +13,7 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 
-use clap::{value_t, App, Arg, SubCommand};
+use clap::{value_t_or_exit, App, Arg};
 use log::{debug, info};
 use rayon::prelude::*;
 use serde_json;
@@ -71,60 +71,52 @@ fn cli() -> CLIOptions {
                 .multiple(true)
                 .long("quiet"),
         )
+        .arg(Arg::with_name("shape")
+             .possible_values(&["trimer", "polygon", "circle"])
+             .required(true)
+             )
         .arg(
-            Arg::with_name("wallpaper_group")
+            Arg::with_name("wallpaper")
                 .possible_values(&WallpaperGroups::variants())
                 .case_insensitive(true)
-                .required_unless("start_config"),
+                .required(true)
         )
-        .subcommand(
-            SubCommand::with_name("circle")
+        .arg(
+            Arg::with_name("lj")
+            .long("lj")
+        )
+        .arg(
+            Arg::with_name("radius")
+            .long("radius")
+            .help("The radius of the smaller particles.")
+            .default_value("0.637556")
+            .takes_value(true),
             )
-        .subcommand(
-            SubCommand::with_name("trimer")
-                .arg(
-                    Arg::with_name("interaction")
-                        .long("interaction")
-                        .takes_value(true)
-                        .possible_values(&["lj", "packing"])
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("radius")
-                    .long("radius")
-                    .help("The radius of the smaller particles.")
-                    .default_value("0.637556")
-                    .takes_value(true),
-                    )
-                .arg(
-                    Arg::with_name("distance")
-                    .long("distance")
-                    .default_value("1")
-                    .help("The distance from the center of the large particle to the center of the small particles.")
-                    .takes_value(true),
-                    )
-                .arg(
-                    Arg::with_name("angle")
-                    .long("angle")
-                    .default_value("120")
-                    .help("The angle between the two small particles.")
-                    .takes_value(true)
-                    )
-        )
-        .subcommand(
-            SubCommand::with_name("polygon").arg(
-                Arg::with_name("sides")
-                    .long("--num-sides")
-                    .takes_value(true)
-                    .default_value("4")
-                    .help("The number of sides which should be used with the polygon shape."),
-            ),
-        )
-        .subcommand(
-            SubCommand::with_name("config")
-            .arg(Arg::with_name("shape").possible_values(&["trimer", "ljtrimer", "polygon"]))
-            .arg(Arg::with_name("filename"))
+        .arg(
+            Arg::with_name("distance")
+            .long("distance")
+            .default_value("1")
+            .help("The distance from the center of the large particle to the center of the small particles.")
+            .takes_value(true),
             )
+        .arg(
+            Arg::with_name("angle")
+            .long("angle")
+            .default_value("120")
+            .help("The angle between the two small particles.")
+            .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("sides")
+            .long("--num-sides")
+            .takes_value(true)
+            .default_value("4")
+            .help("The number of sides which should be used with the polygon shape."),
+            )
+        .arg(Arg::with_name("read_config")
+             .long("read-config")
+             .takes_value(true)
+        )
         .arg(
             Arg::with_name("steps")
                 .short("-s")
@@ -141,58 +133,59 @@ fn cli() -> CLIOptions {
         )
         .get_matches();
 
-    let wg = value_t!(matches.value_of("wallpaper_group"), WallpaperGroups).ok();
-    let group: Option<WallpaperGroup> = match wg {
-        Some(g) => Some(packing::wallpaper::get_wallpaper_group(g).unwrap()),
-        None => None,
-    };
-
-    let state = match matches.subcommand() {
-        ("circle", _) => StateTypes::Circle(PackedState2::from_group(
-            MolecularShape2::circle(),
-            &group.unwrap(),
-        )),
-        ("trimer", Some(matches)) => {
-            let radius: f64 = value_t!(matches, "radius", f64).unwrap();
-            let distance: f64 = value_t!(matches, "distance", f64).unwrap();
-            let angle: f64 = value_t!(matches, "angle", f64).unwrap();
-            let angle = angle * PI / 180.;
-
-            match matches.value_of("interaction") {
-                Some("packing") => StateTypes::Trimer(PackedState2::from_group(
-                    MolecularShape2::from_trimer(radius, angle, distance),
-                    &group.unwrap(),
-                )),
-                Some("lj") => StateTypes::LJTrimer(PotentialState2::from_group(
-                    LJShape2::from_trimer(radius, angle, distance),
-                    &group.unwrap(),
-                )),
-                _ => panic!(),
+    println!("Starting Analysis");
+    let state = if let Some(fname) = matches.value_of("read_config") {
+        println!("Reading config from: {}", fname);
+        let serialised = fs::read_to_string(fname).unwrap();
+        match (matches.value_of("shape"), matches.is_present("lj")) {
+            (Some("trimer"), false) => {
+                StateTypes::Trimer(serde_json::from_str(&serialised).unwrap())
             }
+            (Some("trimer"), true) => {
+                StateTypes::LJTrimer(serde_json::from_str(&serialised).unwrap())
+            }
+            (Some("polygon"), _) => StateTypes::Polygon(serde_json::from_str(&serialised).unwrap()),
+            _ => panic!(),
         }
-        ("polygon", Some(matches)) => {
-            let sides: usize = value_t!(matches "num_sides", usize).unwrap();
-            StateTypes::Polygon(PackedState2::from_group(
-                LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
-                &group.unwrap(),
-            ))
-        }
-        ("config", Some(matches)) => {
-            let serialised = fs::read_to_string("").unwrap();
-            match matches.value_of("shape") {
-                Some("trimer") => StateTypes::Trimer(serde_json::from_str(&serialised).unwrap()),
-                Some("polygon") => StateTypes::Polygon(serde_json::from_str(&serialised).unwrap()),
-                Some("ljtrimer") => {
-                    StateTypes::LJTrimer(serde_json::from_str(&serialised).unwrap())
+    } else {
+        let wg = value_t_or_exit!(matches.value_of("wallpaper"), WallpaperGroups);
+        println!("Wallpaper Group: {}", wg);
+        let group: WallpaperGroup = packing::wallpaper::get_wallpaper_group(wg).unwrap();
+        match matches.value_of("shape") {
+            Some("circle") => {
+                StateTypes::Circle(PackedState2::from_group(MolecularShape2::circle(), &group))
+            }
+            Some("trimer") => {
+                let radius: f64 = value_t_or_exit!(matches, "radius", f64);
+                let distance: f64 = value_t_or_exit!(matches, "distance", f64);
+                let angle: f64 = value_t_or_exit!(matches, "angle", f64);
+                let angle = angle * PI / 180.;
+
+                if matches.is_present("lj") {
+                    StateTypes::LJTrimer(PotentialState2::from_group(
+                        LJShape2::from_trimer(radius, angle, distance),
+                        &group,
+                    ))
+                } else {
+                    StateTypes::Trimer(PackedState2::from_group(
+                        MolecularShape2::from_trimer(radius, angle, distance),
+                        &group,
+                    ))
                 }
-                _ => panic!(),
             }
+            Some("polygon") => {
+                let sides: usize = value_t_or_exit!(matches, "num_sides", usize);
+                StateTypes::Polygon(PackedState2::from_group(
+                    LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
+                    &group,
+                ))
+            }
+            _ => panic!(),
         }
-        _ => panic!(),
     };
 
-    let steps: u64 = value_t!(matches, "steps", u64).unwrap();
-    let num_start_configs: u64 = value_t!(matches, "num_start_configs", u64).unwrap();
+    let steps: u64 = value_t_or_exit!(matches, "steps", u64);
+    let num_start_configs: u64 = value_t_or_exit!(matches, "replications", u64);
 
     let log_level =
         match matches.occurrences_of("verbosity") as i64 - matches.occurrences_of("quiet") as i64 {
@@ -214,25 +207,25 @@ fn cli() -> CLIOptions {
 
 fn main() -> Result<(), &'static str> {
     let options = cli();
-
     TermLogger::init(options.log_level, Config::default()).unwrap();
+
     debug!("Logging Level: {}", options.log_level);
 
     let mut file = File::create("structure.json").unwrap();
 
     match options.state {
         StateTypes::Circle(state) | StateTypes::Trimer(state) => {
-            let s = parallel_opt(options.steps, options.num_start_configs, state.clone());
+            let s = parallel_opt(options.steps, options.num_start_configs, state.clone()).unwrap();
             let serialised = serde_json::to_string(&s).unwrap();
             file.write_all(&serialised.as_bytes()).unwrap();
         }
         StateTypes::Polygon(state) => {
-            let s = parallel_opt(options.steps, options.num_start_configs, state.clone());
+            let s = parallel_opt(options.steps, options.num_start_configs, state.clone()).unwrap();
             let serialised = serde_json::to_string(&s).unwrap();
             file.write_all(&serialised.as_bytes()).unwrap();
         }
         StateTypes::LJTrimer(state) => {
-            let s = parallel_opt(options.steps, options.num_start_configs, state.clone());
+            let s = parallel_opt(options.steps, options.num_start_configs, state.clone()).unwrap();
             let serialised = serde_json::to_string(&s).unwrap();
             file.write_all(&serialised.as_bytes()).unwrap();
         }
