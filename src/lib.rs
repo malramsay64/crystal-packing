@@ -30,7 +30,7 @@ pub mod wallpaper;
 
 pub use crate::basis::*;
 pub use crate::cell::*;
-pub use crate::optimisation::{monte_carlo_best_packing, MCVars};
+pub use crate::optimisation::*;
 pub use crate::packing::PackedState;
 pub use crate::potential::PotentialState;
 pub use crate::shape::*;

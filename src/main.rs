@@ -21,8 +21,8 @@ use simplelog::{Config, LevelFilter, TermLogger};
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WallpaperGroup, WallpaperGroups, WyckoffSite};
 use packing::{
-    monte_carlo_best_packing, Cell2, LJShape2, LineShape, MCVars, MolecularShape2, OccupiedSite,
-    PackedState, PotentialState,
+    BuildOptimiser, Cell2, LJShape2, LineShape, MolecularShape2, OccupiedSite, PackedState,
+    PotentialState,
 };
 
 struct CLIOptions {
@@ -53,18 +53,14 @@ where
     let wallpaper = Wallpaper::new(&options.group);
     let isopointal = &[WyckoffSite::new(options.group)];
 
-    let mut vars = MCVars::default();
-    vars.steps = options.steps;
-    vars.num_start_configs = options.num_start_configs;
-    // Remove mutability
-    let vars = vars;
+    let opt = BuildOptimiser::default().steps(options.steps).build();
 
-    let final_state = (0..vars.num_start_configs)
+    let final_state = (0..options.num_start_configs)
         .into_par_iter()
         .map(|_| {
             let state =
                 PotentialState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-            monte_carlo_best_packing(&vars, state)
+            opt.optimise_state(state)
         })
         .max()
         .unwrap()?;
@@ -88,19 +84,12 @@ where
         Ok(x) => info!("Init packing fraction: {}", x),
     };
 
-    let mut vars = MCVars::default();
-    vars.steps = options.steps;
-    vars.num_start_configs = options.num_start_configs;
-    // Remove mutability
-    let vars = vars;
+    let opt = BuildOptimiser::default().steps(options.steps).build();
 
-    let final_state = (0..vars.num_start_configs)
+    let state = PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
+    let final_state = (0..options.num_start_configs)
         .into_par_iter()
-        .map(|_| {
-            let state =
-                PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-            monte_carlo_best_packing(&vars, state)
-        })
+        .map(|_| opt.optimise_state(state.clone()))
         .max()
         .unwrap()?;
 
