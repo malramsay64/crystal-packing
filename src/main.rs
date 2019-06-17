@@ -19,10 +19,9 @@ use serde_json;
 use simplelog::{Config, LevelFilter, TermLogger};
 
 use packing::traits::*;
-use packing::wallpaper::{Wallpaper, WallpaperGroup, WallpaperGroups, WyckoffSite};
+use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
 use packing::{
-    BuildOptimiser, Cell2, LJShape2, LineShape, MolecularShape2, OccupiedSite, PackedState,
-    PotentialState,
+    BuildOptimiser, LJShape2, LineShape, MolecularShape2, PackedState2, PotentialState2,
 };
 
 struct CLIOptions {
@@ -44,55 +43,18 @@ arg_enum! {
     }
 }
 
-fn get_potential_state<S, C, T>(options: CLIOptions, shape: S) -> Result<impl State, &'static str>
-where
-    S: Shape + Potential + Send + Sync,
-    C: Cell<Transform = S::Transform> + Send + Sync,
-    T: Site<Transform = S::Transform> + Send + Sync,
-{
-    let wallpaper = Wallpaper::new(&options.group);
-    let isopointal = &[WyckoffSite::new(options.group)];
-
-    let opt = *BuildOptimiser::default().steps(options.steps);
-    let state = PotentialState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-
-    let final_state = (0..options.num_start_configs)
+fn parallel_opt(
+    steps: u64,
+    start_configs: u64,
+    state: impl State,
+) -> Result<impl State, &'static str> {
+    let opt = *BuildOptimiser::default().steps(steps);
+    let final_state = (0..start_configs)
         .into_par_iter()
         .map(|_| opt.build().optimise_state(state.clone()))
         .max()
         .unwrap()?;
-
     info!("Final score: {}", final_state.score().unwrap());
-    Ok(final_state)
-}
-
-fn get_packed_state<S, C, T>(options: CLIOptions, shape: S) -> Result<impl State, &'static str>
-where
-    S: Shape + Intersect + Send + Sync,
-    C: Cell<Transform = S::Transform> + Send + Sync,
-    T: Site<Transform = S::Transform> + Send + Sync,
-{
-    let wallpaper = Wallpaper::new(&options.group);
-    let isopointal = &[WyckoffSite::new(options.group)];
-
-    let state = PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-    match state.score() {
-        Err(x) => return Err(x),
-        Ok(x) => info!("Init packing fraction: {}", x),
-    };
-
-    // Own the object not a reference to allow copying
-    let opt = *BuildOptimiser::default().steps(options.steps);
-
-    let state = PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-    let final_state = (0..options.num_start_configs)
-        .into_par_iter()
-        .map(|_| opt.build().optimise_state(state.clone()))
-        .max()
-        .unwrap()?;
-
-    info!("Final packing fraction: {}", final_state.score().unwrap());
-
     Ok(final_state)
 }
 
@@ -186,28 +148,41 @@ fn main() -> Result<(), &'static str> {
     match options.shape {
         ShapeTypes::Polygon => {
             let shape = LineShape::from_radial("Polygon", vec![1.; options.num_sides])?;
-            let state = get_packed_state::<LineShape, Cell2, OccupiedSite>(options, shape).unwrap();
+            let state = parallel_opt(
+                options.steps,
+                options.num_start_configs,
+                PackedState2::from_group(shape, &options.group),
+            );
             let serialised = serde_json::to_string(&state).unwrap();
             file.write_all(&serialised.as_bytes()).unwrap();
         }
         ShapeTypes::Trimer => {
             let shape = MolecularShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
-            let state =
-                get_packed_state::<MolecularShape2, Cell2, OccupiedSite>(options, shape).unwrap();
+            let state = parallel_opt(
+                options.steps,
+                options.num_start_configs,
+                PackedState2::from_group(shape, &options.group),
+            );
             let serialised = serde_json::to_string(&state).unwrap();
             file.write_all(&serialised.as_bytes()).unwrap();
         }
         ShapeTypes::Circle => {
             let shape = MolecularShape2::circle();
-            let state =
-                get_packed_state::<MolecularShape2, Cell2, OccupiedSite>(options, shape).unwrap();
+            let state = parallel_opt(
+                options.steps,
+                options.num_start_configs,
+                PackedState2::from_group(shape, &options.group),
+            );
             let serialised = serde_json::to_string(&state).unwrap();
             file.write_all(&serialised.as_bytes()).unwrap();
         }
         ShapeTypes::LJTrimer => {
             let shape = LJShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
-            let state =
-                get_potential_state::<LJShape2, Cell2, OccupiedSite>(options, shape).unwrap();
+            let state = parallel_opt(
+                options.steps,
+                options.num_start_configs,
+                PotentialState2::from_group(shape, &options.group),
+            );
             let serialised = serde_json::to_string(&state).unwrap();
             file.write_all(&serialised.as_bytes()).unwrap();
         }

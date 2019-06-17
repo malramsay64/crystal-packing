@@ -13,9 +13,11 @@ use std::path::Path;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
-use crate::basis::StandardBasis;
 use crate::traits::*;
-use crate::wallpaper::{Wallpaper, WyckoffSite};
+use crate::wallpaper::{Wallpaper, WallpaperGroup, WyckoffSite};
+use crate::{Cell2, OccupiedSite, StandardBasis};
+
+pub type PackedState2<S> = PackedState<S, Cell2, OccupiedSite>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PackedState<S, C, T>
@@ -177,6 +179,12 @@ where
             cell,
             occupied_sites,
         }
+    }
+
+    pub fn from_group(shape: S, group: &WallpaperGroup) -> Self {
+        let wallpaper = Wallpaper::new(&group);
+        let isopointal = &[WyckoffSite::new(group.clone())];
+        Self::initialise(shape.clone(), wallpaper.clone(), isopointal)
     }
 
     pub fn to_figure(&self, filename: &str) {

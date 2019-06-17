@@ -14,8 +14,10 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
-use crate::wallpaper::{Wallpaper, WyckoffSite};
-use crate::StandardBasis;
+use crate::wallpaper::{Wallpaper, WallpaperGroup, WyckoffSite};
+use crate::{Cell2, OccupiedSite, StandardBasis};
+
+pub type PotentialState2<S> = PotentialState<S, Cell2, OccupiedSite>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PotentialState<S, C, T>
@@ -134,6 +136,12 @@ where
             .iter()
             .flat_map(Site::positions)
             .collect()
+    }
+
+    pub fn from_group(shape: S, group: &WallpaperGroup) -> Self {
+        let wallpaper = Wallpaper::new(&group);
+        let isopointal = &[WyckoffSite::new(group.clone())];
+        Self::initialise(shape.clone(), wallpaper.clone(), isopointal)
     }
 
     pub fn initialise(
