@@ -11,6 +11,7 @@ use rand::rngs::SmallRng;
 
 use crate::traits::*;
 
+#[derive(Debug, Clone, Copy)]
 pub struct BuildOptimiser {
     kt_start: f64,
     kt_finish: f64,
