@@ -43,10 +43,10 @@ fn mc_temperature(old: f64, new: f64, kt: f64, n: u64) -> f64 {
     f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(n as i32)
 }
 
-pub fn monte_carlo_best_packing<A>(vars: &MCVars, mut state: A) -> Result<A, &'static str>
-where
-    A: State,
-{
+pub fn monte_carlo_best_packing(
+    vars: &MCVars,
+    mut state: impl State,
+) -> Result<impl State, &'static str> {
     // When a random seed is provided, use it, otherwise seed the random number generator from the
     // system entropy.
     let mut rng = match vars.seed {

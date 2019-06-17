@@ -44,10 +44,7 @@ arg_enum! {
     }
 }
 
-fn get_potential_state<S, C, T>(
-    options: CLIOptions,
-    shape: S,
-) -> Result<PotentialState<S, C, T>, &'static str>
+fn get_potential_state<S, C, T>(options: CLIOptions, shape: S) -> Result<impl State, &'static str>
 where
     S: Shape + Potential + Send + Sync,
     C: Cell<Transform = S::Transform> + Send + Sync,
@@ -72,22 +69,11 @@ where
         .max()
         .unwrap()?;
 
-    info!(
-        "Cell Area: {}, Num Shapes: {}",
-        final_state.cell.area(),
-        final_state.total_shapes(),
-    );
-
-    final_state.to_figure("test.txt");
-
     info!("Final score: {}", final_state.score().unwrap());
     Ok(final_state)
 }
 
-fn get_packed_state<S, C, T>(
-    options: CLIOptions,
-    shape: S,
-) -> Result<PackedState<S, C, T>, &'static str>
+fn get_packed_state<S, C, T>(options: CLIOptions, shape: S) -> Result<impl State, &'static str>
 where
     S: Shape + Intersect + Send + Sync,
     C: Cell<Transform = S::Transform> + Send + Sync,
@@ -117,15 +103,6 @@ where
         })
         .max()
         .unwrap()?;
-
-    info!(
-        "Cell Area: {}, Shape Area: {}, Num Shapes: {}",
-        final_state.cell.area(),
-        shape.area(),
-        final_state.total_shapes(),
-    );
-
-    final_state.to_figure("test.txt");
 
     info!("Final packing fraction: {}", final_state.score().unwrap());
 
