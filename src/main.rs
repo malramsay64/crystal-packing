@@ -53,15 +53,12 @@ where
     let wallpaper = Wallpaper::new(&options.group);
     let isopointal = &[WyckoffSite::new(options.group)];
 
-    let opt = BuildOptimiser::default().steps(options.steps).build();
+    let opt = *BuildOptimiser::default().steps(options.steps);
+    let state = PotentialState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
 
     let final_state = (0..options.num_start_configs)
         .into_par_iter()
-        .map(|_| {
-            let state =
-                PotentialState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
-            opt.optimise_state(state)
-        })
+        .map(|_| opt.build().optimise_state(state.clone()))
         .max()
         .unwrap()?;
 
@@ -84,12 +81,13 @@ where
         Ok(x) => info!("Init packing fraction: {}", x),
     };
 
-    let opt = BuildOptimiser::default().steps(options.steps).build();
+    // Own the object not a reference to allow copying
+    let opt = *BuildOptimiser::default().steps(options.steps);
 
     let state = PackedState::<S, C, T>::initialise(shape.clone(), wallpaper.clone(), isopointal);
     let final_state = (0..options.num_start_configs)
         .into_par_iter()
-        .map(|_| opt.optimise_state(state.clone()))
+        .map(|_| opt.build().optimise_state(state.clone()))
         .max()
         .unwrap()?;
 
