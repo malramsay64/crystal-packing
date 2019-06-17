@@ -153,18 +153,9 @@ fn cli() -> CLIOptions {
             &group.unwrap(),
         )),
         ("trimer", Some(matches)) => {
-            let radius: f64 = matches
-                .value_of("radius")
-                .map(|x| x.parse().unwrap())
-                .unwrap();
-            let distance: f64 = matches
-                .value_of("distance")
-                .map(|x| x.parse().unwrap())
-                .unwrap();
-            let angle: f64 = matches
-                .value_of("angle")
-                .map(|x| x.parse().unwrap())
-                .unwrap();
+            let radius: f64 = value_t!(matches, "radius", f64).unwrap();
+            let distance: f64 = value_t!(matches, "distance", f64).unwrap();
+            let angle: f64 = value_t!(matches, "angle", f64).unwrap();
             let angle = angle * PI / 180.;
 
             match matches.value_of("interaction") {
@@ -180,12 +171,9 @@ fn cli() -> CLIOptions {
             }
         }
         ("polygon", Some(matches)) => {
-            let sides: u64 = matches
-                .value_of("num_sides")
-                .map(|x| x.parse().unwrap())
-                .unwrap();
+            let sides: usize = value_t!(matches "num_sides", usize).unwrap();
             StateTypes::Polygon(PackedState2::from_group(
-                LineShape::from_radial("Polygon", vec![1.; sides as usize]).unwrap(),
+                LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
                 &group.unwrap(),
             ))
         }
@@ -203,8 +191,8 @@ fn cli() -> CLIOptions {
         _ => panic!(),
     };
 
-    let steps: u64 = matches.value_of("steps").unwrap().parse().unwrap();
-    let num_start_configs: u64 = matches.value_of("replications").unwrap().parse().unwrap();
+    let steps: u64 = value_t!(matches, "steps", u64).unwrap();
+    let num_start_configs: u64 = value_t!(matches, "num_start_configs", u64).unwrap();
 
     let log_level =
         match matches.occurrences_of("verbosity") as i64 - matches.occurrences_of("quiet") as i64 {
