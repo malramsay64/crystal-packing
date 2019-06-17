@@ -11,37 +11,30 @@ use std::ops::Mul;
 use super::Atom2;
 use crate::Transform2;
 
-impl<'a, 'b> Mul<&'b Transform2> for &'a Atom2 {
-    type Output = Atom2;
+binop_impl_all!(
+    Mul, mul;
+    self: Transform2, rhs: Atom2, Output = Atom2;
+    [val val] => &self * &rhs;
+    [ref val] => self * &rhs;
+    [val ref] => &self * rhs;
+    [ref ref] => {
+        Atom2 {
+            position: self * rhs.position,
+            radius: rhs.radius,
+        }
+    };
+);
 
-    fn mul(self, rhs: &Transform2) -> Self::Output {
+binop_impl_all!(
+    Mul, mul;
+    self: Atom2, rhs: Transform2, Output = Atom2;
+    [val val] => &self * &rhs;
+    [ref val] => self * &rhs;
+    [val ref] => &self * rhs;
+    [ref ref] => {
         Atom2 {
             position: rhs * self.position,
             radius: self.radius,
         }
-    }
-}
-
-impl<'a> Mul<Transform2> for &'a Atom2 {
-    type Output = Atom2;
-
-    fn mul(self, rhs: Transform2) -> Self::Output {
-        self * &rhs
-    }
-}
-
-impl<'a> Mul<&'a Transform2> for Atom2 {
-    type Output = Atom2;
-
-    fn mul(self, rhs: &Transform2) -> Self::Output {
-        &self * rhs
-    }
-}
-
-impl Mul<Transform2> for Atom2 {
-    type Output = Atom2;
-
-    fn mul(self, rhs: Transform2) -> Self::Output {
-        &self * &rhs
-    }
-}
+    };
+);

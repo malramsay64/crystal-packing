@@ -9,40 +9,33 @@ use std::ops::Mul;
 use super::Atom3;
 use crate::Transform3;
 
-impl<'a, 'b> Mul<&'b Transform3> for &'a Atom3 {
-    type Output = Atom3;
+binop_impl_all!(
+    Mul, mul;
+    self: Transform3, rhs: Atom3, Output = Atom3;
+    [val val] => &self * &rhs;
+    [ref val] => self * &rhs;
+    [val ref] => &self * rhs;
+    [ref ref] => {
+        Atom3 {
+            position: self * rhs.position,
+            radius: rhs.radius,
+        }
+    };
+);
 
-    fn mul(self, rhs: &Transform3) -> Self::Output {
+binop_impl_all!(
+    Mul, mul;
+    self: Atom3, rhs: Transform3, Output = Atom3;
+    [val val] => &self * &rhs;
+    [ref val] => self * &rhs;
+    [val ref] => &self * rhs;
+    [ref ref] => {
         Atom3 {
             position: rhs * self.position,
             radius: self.radius,
         }
-    }
-}
-
-impl<'a> Mul<Transform3> for &'a Atom3 {
-    type Output = Atom3;
-
-    fn mul(self, rhs: Transform3) -> Self::Output {
-        self * &rhs
-    }
-}
-
-impl<'a> Mul<&'a Transform3> for Atom3 {
-    type Output = Atom3;
-
-    fn mul(self, rhs: &Transform3) -> Self::Output {
-        &self * rhs
-    }
-}
-
-impl Mul<Transform3> for Atom3 {
-    type Output = Atom3;
-
-    fn mul(self, rhs: Transform3) -> Self::Output {
-        &self * &rhs
-    }
-}
+    };
+);
 
 #[cfg(test)]
 mod tests {
