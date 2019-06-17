@@ -63,32 +63,37 @@ fn cli() -> CLIOptions {
             Arg::with_name("verbosity")
                 .short("v")
                 .multiple(true)
-                .long("verbose"),
+                .long("verbose")
+                .help("Output more debugging information to console.")
         )
         .arg(
             Arg::with_name("quiet")
                 .short("q")
                 .multiple(true)
-                .long("quiet"),
+                .long("quiet")
+                .help("Suppress output to terminal.")
         )
         .arg(Arg::with_name("shape")
              .possible_values(&["trimer", "polygon", "circle"])
              .required(true)
+             .help("Shape used for the optimisation.")
              )
         .arg(
             Arg::with_name("wallpaper")
                 .possible_values(&WallpaperGroups::variants())
                 .case_insensitive(true)
                 .required(true)
+                .help("The wallpaper group defining the symmetry of the unit cell.")
         )
         .arg(
             Arg::with_name("lj")
             .long("lj")
+            .help("Pass to use the lennard jones potential instead of hard discs.")
         )
         .arg(
             Arg::with_name("radius")
             .long("radius")
-            .help("The radius of the smaller particles.")
+            .help("The radius of the smaller particles in the trimer molecule.")
             .default_value("0.637556")
             .takes_value(true),
             )
@@ -96,14 +101,14 @@ fn cli() -> CLIOptions {
             Arg::with_name("distance")
             .long("distance")
             .default_value("1")
-            .help("The distance from the center of the large particle to the center of the small particles.")
+            .help("The distance from the center of the large particle to the center of the small particles in the trimer molecule.")
             .takes_value(true),
             )
         .arg(
             Arg::with_name("angle")
             .long("angle")
             .default_value("120")
-            .help("The angle between the two small particles.")
+            .help("The angle between the two small particles in the trimer molecule.")
             .takes_value(true)
         )
         .arg(
@@ -116,20 +121,22 @@ fn cli() -> CLIOptions {
         .arg(Arg::with_name("read_config")
              .long("read-config")
              .takes_value(true)
+             .help("Read the configuration from a file. The shape has to be the same as in the configuration.")
         )
         .arg(
             Arg::with_name("steps")
                 .short("-s")
                 .long("--steps")
                 .takes_value(true)
-                .default_value("100"),
+                .default_value("100")
+                .help("The number of steps to use for the optimisation.")
         )
         .arg(
             Arg::with_name("replications")
                 .long("--replications")
                 .takes_value(true)
                 .default_value("32")
-                .help("The number of optimisation simulations to run."),
+                .help("The number of replications of the optimisation simulation to run."),
         )
         .get_matches();
 
