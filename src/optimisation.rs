@@ -32,27 +32,27 @@ impl Default for BuildOptimiser {
 }
 
 impl BuildOptimiser {
-    pub fn kt_start(mut self, kt_start: f64) -> BuildOptimiser {
+    pub fn kt_start(&mut self, kt_start: f64) -> &mut Self {
         self.kt_start = kt_start;
         self
     }
 
-    pub fn kt_finish(mut self, kt_finish: f64) -> BuildOptimiser {
+    pub fn kt_finish(&mut self, kt_finish: f64) -> &mut Self {
         self.kt_finish = kt_finish;
         self
     }
 
-    pub fn max_step_size(mut self, max_step_size: f64) -> BuildOptimiser {
+    pub fn max_step_size(&mut self, max_step_size: f64) -> &mut Self {
         self.max_step_size = max_step_size;
         self
     }
 
-    pub fn steps(mut self, steps: u64) -> BuildOptimiser {
+    pub fn steps(&mut self, steps: u64) -> &mut Self {
         self.steps = steps;
         self
     }
 
-    pub fn seed(mut self, seed: u64) -> BuildOptimiser {
+    pub fn seed(&mut self, seed: u64) -> &mut Self {
         self.seed = Some(seed);
         self
     }
