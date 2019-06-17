@@ -4,8 +4,8 @@
 // Distributed under terms of the MIT license.
 //
 
-pub mod packing;
+pub mod packed;
 pub mod potential;
 
-pub use packing::*;
+pub use packed::*;
 pub use potential::*;
