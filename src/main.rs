@@ -9,9 +9,9 @@
 #![allow(deprecated)]
 
 use std::f64::consts::PI;
-use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
+use std::{fs, path};
 
 use clap::{value_t_or_exit, App, Arg};
 use log::{debug, info};
@@ -30,6 +30,7 @@ struct CLIOptions {
     steps: u64,
     num_start_configs: u64,
     log_level: LevelFilter,
+    outfile: path::PathBuf,
 }
 
 enum StateTypes {
@@ -37,21 +38,6 @@ enum StateTypes {
     Trimer(PackedState2<MolecularShape2>),
     Circle(PackedState2<MolecularShape2>),
     LJTrimer(PotentialState2<LJShape2>),
-}
-
-fn parallel_opt(
-    steps: u64,
-    start_configs: u64,
-    state: impl State,
-) -> Result<impl State, &'static str> {
-    let opt = *BuildOptimiser::default().steps(steps);
-    let final_state = (0..start_configs)
-        .into_par_iter()
-        .map(|_| opt.build().optimise_state(state.clone()))
-        .max()
-        .unwrap()?;
-    info!("Final score: {}", final_state.score().unwrap());
-    Ok(final_state)
 }
 
 fn cli() -> CLIOptions {
@@ -123,6 +109,12 @@ fn cli() -> CLIOptions {
              .takes_value(true)
              .help("Read the configuration from a file. The shape has to be the same as in the configuration.")
         )
+        .arg(Arg::with_name("outfile")
+             .long("outfile")
+             .takes_value(true)
+             .default_value("structure.json")
+             .help("Filename to output best packes structure to.")
+             )
         .arg(
             Arg::with_name("steps")
                 .short("-s")
@@ -193,6 +185,7 @@ fn cli() -> CLIOptions {
 
     let steps: u64 = value_t_or_exit!(matches, "steps", u64);
     let num_start_configs: u64 = value_t_or_exit!(matches, "replications", u64);
+    let outfile = value_t_or_exit!(matches, "outfile", path::PathBuf);
 
     let log_level =
         match matches.occurrences_of("verbosity") as i64 - matches.occurrences_of("quiet") as i64 {
@@ -209,7 +202,38 @@ fn cli() -> CLIOptions {
         steps,
         num_start_configs,
         log_level,
+        outfile,
     }
+}
+
+fn analyse_state(
+    outfile: path::PathBuf,
+    steps: u64,
+    start_configs: u64,
+    state: impl State,
+) -> Result<(), &'static str> {
+    let mut state_path = outfile.clone();
+    state_path.set_extension("json");
+
+    let mut plot_path = outfile.clone();
+    plot_path.set_extension("txt");
+
+    let mut state_file = File::create(state_path).unwrap();
+    let mut plot_file = File::create(plot_path).unwrap();
+
+    let opt = *BuildOptimiser::default().steps(steps);
+    let final_state = (0..start_configs)
+        .into_par_iter()
+        .map(|_| opt.build().optimise_state(state.clone()))
+        .max()
+        .unwrap()?;
+    info!("Final score: {}", final_state.score().unwrap());
+    let serialised = serde_json::to_string(&final_state).unwrap();
+    state_file.write_all(&serialised.as_bytes()).unwrap();
+    plot_file
+        .write_all(final_state.as_positions().unwrap().as_bytes())
+        .unwrap();
+    Ok(())
 }
 
 fn main() -> Result<(), &'static str> {
@@ -218,24 +242,25 @@ fn main() -> Result<(), &'static str> {
 
     debug!("Logging Level: {}", options.log_level);
 
-    let mut file = File::create("structure.json").unwrap();
-
     match options.state {
-        StateTypes::Circle(state) | StateTypes::Trimer(state) => {
-            let s = parallel_opt(options.steps, options.num_start_configs, state.clone()).unwrap();
-            let serialised = serde_json::to_string(&s).unwrap();
-            file.write_all(&serialised.as_bytes()).unwrap();
-        }
-        StateTypes::Polygon(state) => {
-            let s = parallel_opt(options.steps, options.num_start_configs, state.clone()).unwrap();
-            let serialised = serde_json::to_string(&s).unwrap();
-            file.write_all(&serialised.as_bytes()).unwrap();
-        }
-        StateTypes::LJTrimer(state) => {
-            let s = parallel_opt(options.steps, options.num_start_configs, state.clone()).unwrap();
-            let serialised = serde_json::to_string(&s).unwrap();
-            file.write_all(&serialised.as_bytes()).unwrap();
-        }
+        StateTypes::Circle(state) | StateTypes::Trimer(state) => analyse_state(
+            options.outfile,
+            options.steps,
+            options.num_start_configs,
+            state,
+        )?,
+        StateTypes::Polygon(state) => analyse_state(
+            options.outfile,
+            options.steps,
+            options.num_start_configs,
+            state,
+        )?,
+        StateTypes::LJTrimer(state) => analyse_state(
+            options.outfile,
+            options.steps,
+            options.num_start_configs,
+            state,
+        )?,
     }
 
     Ok(())
