@@ -85,7 +85,7 @@ pub struct MCOptimiser {
 
 impl MCOptimiser {
     fn temperature(&self, old: f64, new: f64, kt: f64, num_shapes: u64) -> f64 {
-        f64::exp((1. / old - 1. / new) / kt) * (old / new).powi(num_shapes as i32)
+        f64::exp((new - old) / kt)
     }
 
     pub fn optimise_state(&self, mut state: impl State) -> Result<impl State, &'static str> {
