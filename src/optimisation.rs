@@ -113,13 +113,19 @@ impl MCOptimiser {
             score = match state.score() {
                 Err(_) => {
                     trace!("Rejected for invalid score.");
+                    rejections += 1;
                     score_prev
                 }
                 Ok(score_new) => {
                     if rng.gen::<f64>() > self.temperature(score_prev, score_new, kt, total_shapes)
                     {
-                        // Packing fraction was increased too much so reject the step
-                        trace!("Rejected for increasing score.");
+                        trace!(
+                            "Rejected for lowering score at t={:.4}\nscore_prev: {:.4}, score_new: {:.4}, kt: {:.4}",
+                            self.temperature(score_prev, score_new, kt, total_shapes),
+                            score_prev,
+                            score_new,
+                            kt
+                        );
                         rejections += 1;
                         basis[basis_index].reset_value();
 
@@ -127,7 +133,7 @@ impl MCOptimiser {
                         score_prev
                     } else {
                         // This is where we update the score cause the test was successful
-                        score_prev = score_new;
+                        score_prev = score;
                         score_new
                     }
                 }
@@ -140,7 +146,7 @@ impl MCOptimiser {
         }
         info!(
             "Score: {:.4}, Rejections: {:.2} %",
-            score,
+            score_max,
             100. * rejections as f64 / self.steps as f64,
         );
         Ok(best_state)
