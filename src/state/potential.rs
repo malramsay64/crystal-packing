@@ -6,8 +6,9 @@
 
 use std::cmp::Ordering;
 use std::error::Error;
+use std::fmt;
+use std::fmt::Write;
 use std::fs::File;
-use std::io::prelude::*;
 use std::path::Path;
 
 use log::debug;
@@ -113,6 +114,17 @@ where
             .iter()
             .fold(0, |sum, site| sum + site.multiplicity())
     }
+
+    fn as_positions(&self) -> Result<String, fmt::Error> {
+        let mut output = String::new();
+        writeln!(&mut output, "{}", self.cell)?;
+        writeln!(&mut output, "Positions")?;
+
+        for transform in self.cartesian_positions() {
+            writeln!(&mut output, "{}", transform.as_simple())?;
+        }
+        Ok(output)
+    }
 }
 
 impl<S, C, T> PotentialState<S, C, T>
@@ -121,13 +133,10 @@ where
     C: Cell<Transform = S::Transform>,
     T: Site<Transform = S::Transform>,
 {
-    fn cartesian_positions(&self) -> Vec<S> {
+    fn cartesian_positions(&self) -> Vec<T::Transform> {
         self.relative_positions()
             .iter()
-            .map(|position| {
-                self.shape
-                    .transform(&self.cell.to_cartesian_isometry(position))
-            })
+            .map(|position| self.cell.to_cartesian_isometry(position))
             .collect()
     }
 
@@ -167,42 +176,6 @@ where
             shape,
             cell,
             occupied_sites,
-        }
-    }
-
-    pub fn to_figure(&self, filename: &str) {
-        let path = Path::new(filename);
-        let display = path.display();
-        let mut file = match File::create(&path) {
-            Err(why) => panic!("couldn't create {}: {}", display, why.description()),
-            Ok(file) => file,
-        };
-
-        let points = self.cell.get_corners();
-
-        for (p0, p1) in points.iter().zip(points.iter().cycle().skip(1)) {
-            let colour = 'k';
-            writeln!(file, "{}, {}, {}", p0, p1, colour).unwrap();
-        }
-
-        for position in self.relative_positions().iter() {
-            let shape_i = self
-                .shape
-                .transform(&self.cell.to_cartesian_isometry(&position));
-
-            for item in shape_i.iter() {
-                writeln!(file, "{}, b", item).unwrap();
-            }
-
-            for transform in self.cell.periodic_images(position, false) {
-                let shape_i = self
-                    .shape
-                    .transform(&self.cell.to_cartesian_isometry(&transform));
-
-                for item in shape_i.iter() {
-                    writeln!(file, "{}, g", item).unwrap();
-                }
-            }
         }
     }
 }

@@ -3,6 +3,9 @@
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
+
+use std::fmt::Write;
+
 use log::warn;
 
 use itertools::zip;
@@ -14,6 +17,21 @@ use nalgebra::{
 use crate::traits::*;
 
 type Transform<D> = Isometry<f64, D, Rotation<f64, D>>;
+
+impl Transformer for Transform2 {
+    fn as_simple(&self) -> String {
+        let mut s = String::new();
+        write!(
+            s,
+            "x: {}, y: {}, angle: {}",
+            self.translation.x,
+            self.translation.y,
+            self.rotation.angle()
+        )
+        .unwrap();
+        s
+    }
+}
 
 pub type Transform2 = Transform<U2>;
 pub type Transform3 = Transform<U3>;

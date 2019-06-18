@@ -14,6 +14,10 @@ use serde::Serialize;
 use crate::wallpaper::WyckoffSite;
 use crate::{CrystalFamily, StandardBasis};
 
+pub trait Transformer {
+    fn as_simple(&self) -> String;
+}
+
 pub trait Basis {
     fn set_value(&mut self, new_value: f64);
     fn get_value(&self) -> f64;
@@ -50,7 +54,7 @@ pub trait Potential {
 }
 
 pub trait Shape: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
-    type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
+    type Transform: Transformer + Clone + Send + Sync + Serialize + fmt::Debug;
     type Component: Clone
         + Send
         + Sync
@@ -73,8 +77,8 @@ pub trait FromSymmetry: Sized {
     fn from_operations(ops: &str) -> Result<Self, &'static str>;
 }
 
-pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug {
-    type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
+pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
+    type Transform: Transformer + Clone + Send + Sync + Serialize + fmt::Debug;
     type Point: Clone + Send + Sync + Serialize + fmt::Display;
 
     fn periodic_images(&self, transform: &Self::Transform, zero: bool) -> Vec<Self::Transform>;
@@ -88,7 +92,7 @@ pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug {
 }
 
 pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {
-    type Transform: Clone + Send + Sync + Serialize + fmt::Debug;
+    type Transform: Transformer + Clone + Send + Sync + Serialize + fmt::Debug;
 
     fn transform(&self) -> Self::Transform;
     fn positions(&self) -> Vec<Self::Transform>;
@@ -103,4 +107,5 @@ pub trait State:
     fn score(&self) -> Result<f64, &'static str>;
     fn generate_basis(&mut self) -> Vec<StandardBasis>;
     fn total_shapes(&self) -> usize;
+    fn as_positions(&self) -> Result<String, fmt::Error>;
 }
