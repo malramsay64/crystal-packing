@@ -13,7 +13,7 @@ simplelog = "~0.5.3"
 clap = "~2.31.0"
 rayon = "~1.0.3"
 itertools = "~0.8.0"
-serde = {version="~1.0.92", features=["derive"]}
+serde = {version="~1.0.94", features=["derive"]}
 serde_json = "*"
 
 [dev-dependencies]
