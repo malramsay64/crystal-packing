@@ -12,7 +12,7 @@ approx = "~0.3.0"
 log = "~0.4.0"
 simplelog = "~0.5.3"
 clap = "~2.31.0"
-rayon = "~1.0.3"
+rayon = "~1.1.0"
 itertools = "~0.8.0"
 serde = {version="~1.0.92", features=["derive"]}
 serde_json = "*"
