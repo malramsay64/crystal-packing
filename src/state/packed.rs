@@ -7,8 +7,6 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Write;
-use std::io::prelude::*;
-use std::path::Path;
 
 use log::debug;
 use serde::{Deserialize, Serialize};

@@ -6,7 +6,7 @@
 //
 
 // This is for the clap::arg_enum macro
-#![allow(deprecated)]
+// #![allow(deprecated)]
 
 use std::f64::consts::PI;
 use std::fs::File;
@@ -17,7 +17,7 @@ use clap::{value_t_or_exit, App, Arg};
 use log::{debug, info};
 use rayon::prelude::*;
 use serde_json;
-use simplelog::{Config, LevelFilter, TermLogger};
+use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 
 use packing::traits::*;
 use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
@@ -238,7 +238,7 @@ fn analyse_state(
 
 fn main() -> Result<(), &'static str> {
     let options = cli();
-    TermLogger::init(options.log_level, Config::default()).unwrap();
+    TermLogger::init(options.log_level, Config::default(), TerminalMode::Mixed).unwrap();
 
     debug!("Logging Level: {}", options.log_level);
 

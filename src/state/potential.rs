@@ -5,11 +5,8 @@
 //
 
 use std::cmp::Ordering;
-use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
-use std::fs::File;
-use std::path::Path;
 
 use log::debug;
 use serde::{Deserialize, Serialize};

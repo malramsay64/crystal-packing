@@ -7,7 +7,7 @@
 // This is for the arg_enum macro
 #![allow(deprecated)]
 
-use clap::{_clap_count_exprs, arg_enum};
+use clap::arg_enum;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
