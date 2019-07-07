@@ -7,7 +7,7 @@
 use log::{info, trace};
 use rand::distributions::Uniform;
 use rand::prelude::*;
-use rand::rngs::SmallRng;
+use rand_pcg::Pcg64Mcg;
 
 use crate::traits::*;
 
@@ -61,7 +61,7 @@ impl BuildOptimiser {
     pub fn build(&self) -> MCOptimiser {
         let kt_ratio = f64::powf(self.kt_finish / self.kt_start, 1.0 / self.steps as f64);
         let seed = match self.seed {
-            None => SmallRng::from_entropy().gen(),
+            None => Pcg64Mcg::from_entropy().gen(),
             Some(x) => x,
         };
 
@@ -89,7 +89,7 @@ impl MCOptimiser {
     }
 
     pub fn optimise_state(&self, mut state: impl State) -> Result<impl State, &'static str> {
-        let mut rng = SmallRng::seed_from_u64(self.seed);
+        let mut rng = Pcg64Mcg::seed_from_u64(self.seed);
         let mut rejections: u64 = 0;
 
         let mut kt: f64 = self.kt_start;
