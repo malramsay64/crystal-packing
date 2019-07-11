@@ -66,7 +66,7 @@ impl Shape for MolecularShape2 {
     fn enclosing_radius(&self) -> f64 {
         self.items
             .iter()
-            .map(|p| na::distance(&Point2::origin(), &p.position) + p.radius)
+            .map(|p| nalgebra::distance(&Point2::origin(), &p.position) + p.radius)
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
@@ -105,7 +105,7 @@ impl MolecularShape2 {
     }
 
     fn circle_overlap(a1: &Atom2, a2: &Atom2) -> f64 {
-        let distance = na::distance(&a1.position, &a2.position);
+        let distance = nalgebra::distance(&a1.position, &a2.position);
         // There is some overlap between the circles which needs to be calculated
         if distance < a1.radius + a2.radius {
             let d1 = (distance.powi(2) + a1.radius.powi(2) - a2.radius.powi(2)) / (2. * distance);

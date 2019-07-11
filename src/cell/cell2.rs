@@ -276,13 +276,13 @@ mod cell_tests {
     #[test]
     fn to_cartesian_test() {
         let mut cell = Cell2::default();
-        let trans = Transform2::new(na::Vector2::new(0.5, 0.5), 0.);
+        let trans = Transform2::new(nalgebra::Vector2::new(0.5, 0.5), 0.);
 
         assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
         cell.angles.x = PI / 4.;
         let expected = Transform2::new(
-            na::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
+            nalgebra::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
             0.,
         );
         assert_abs_diff_eq!(cell.to_cartesian_isometry(&trans), expected);
@@ -292,7 +292,7 @@ mod cell_tests {
     fn periodic_intersection() {
         let shape = LineShape::from_radial("Square", vec![1.; 4]).unwrap();
         let cell = Cell2::default();
-        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)
@@ -306,7 +306,7 @@ mod cell_tests {
     fn periodic_edge_intersection() {
         let shape = LineShape::from_radial("Square", vec![0.5; 4]).unwrap();
         let cell = Cell2::default();
-        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)
@@ -320,7 +320,7 @@ mod cell_tests {
     fn no_periodic_intersection() {
         let shape = LineShape::from_radial("Square", vec![0.49; 4]).unwrap();
         let cell = Cell2::default();
-        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)
@@ -378,7 +378,7 @@ mod cell_tests {
             family: CrystalFamily::Monoclinic,
         };
 
-        let transform = Transform2::new(na::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)

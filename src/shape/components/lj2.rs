@@ -21,7 +21,7 @@ pub struct LJ2 {
 impl Potential for LJ2 {
     fn energy(&self, other: &Self) -> f64 {
         let sigma_squared = self.sigma.powi(2);
-        let r_squared = na::distance_squared(&self.position, &other.position);
+        let r_squared = nalgebra::distance_squared(&self.position, &other.position);
         let sigma2_r2_cubed = (sigma_squared / r_squared).powi(3);
 
         4. * self.epsilon * (sigma2_r2_cubed.powi(2) - sigma2_r2_cubed)
@@ -66,7 +66,7 @@ mod test {
     fn distance_squared_test() {
         let a0 = LJ2::new(0., 0., 1.);
         let a1 = LJ2::new(1., 0., 1.);
-        assert_abs_diff_eq!(na::distance_squared(&a0.position, &a1.position), 1.);
+        assert_abs_diff_eq!(nalgebra::distance_squared(&a0.position, &a1.position), 1.);
         assert_abs_diff_eq!(a0.energy(&a1), 0.);
     }
 

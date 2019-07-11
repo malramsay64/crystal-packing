@@ -85,7 +85,7 @@ impl Shape for LineShape {
 
     fn enclosing_radius(&self) -> f64 {
         self.iter()
-            .map(|p| na::distance(&Point2::origin(), &p.start))
+            .map(|p| nalgebra::distance(&Point2::origin(), &p.start))
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.

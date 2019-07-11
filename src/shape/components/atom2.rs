@@ -22,7 +22,7 @@ impl Intersect for Atom2 {
         let r_squared = (self.radius + other.radius).powi(2);
         // We have an intersection when the distance between the particles is less than the
         // combined radius of the two particles.
-        na::distance_squared(&self.position, &other.position) < r_squared
+        nalgebra::distance_squared(&self.position, &other.position) < r_squared
     }
 
     fn area(&self) -> f64 {
@@ -67,7 +67,7 @@ mod test {
     fn distance_squared_test() {
         let a0 = Atom2::new(0., 0., 1.);
         let a1 = Atom2::new(0.5, 0., 1.);
-        assert_abs_diff_eq!(na::distance_squared(&a0.position, &a1.position), 0.25);
+        assert_abs_diff_eq!(nalgebra::distance_squared(&a0.position, &a1.position), 0.25);
         assert!(a0.intersects(&a1));
     }
 
