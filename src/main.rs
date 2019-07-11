@@ -31,6 +31,7 @@ struct CLIOptions {
     num_start_configs: u64,
     log_level: LevelFilter,
     outfile: path::PathBuf,
+    max_step_size: f64,
 }
 
 enum StateTypes {
@@ -124,6 +125,13 @@ fn cli() -> CLIOptions {
                 .help("The number of steps to use for the optimisation.")
         )
         .arg(
+            Arg::with_name("max_step_size")
+                .long("--max-step")
+                .takes_value(true)
+                .default_value("1.0")
+                .help("The number of steps to use for the optimisation.")
+        )
+        .arg(
             Arg::with_name("replications")
                 .long("--replications")
                 .takes_value(true)
@@ -184,6 +192,7 @@ fn cli() -> CLIOptions {
     };
 
     let steps: u64 = value_t_or_exit!(matches, "steps", u64);
+    let max_step_size: f64 = value_t_or_exit!(matches, "max_step_size", f64);
     let num_start_configs: u64 = value_t_or_exit!(matches, "replications", u64);
     let outfile = value_t_or_exit!(matches, "outfile", path::PathBuf);
 
@@ -203,6 +212,7 @@ fn cli() -> CLIOptions {
         num_start_configs,
         log_level,
         outfile,
+        max_step_size,
     }
 }
 
@@ -211,6 +221,7 @@ fn analyse_state(
     steps: u64,
     start_configs: u64,
     state: impl State,
+    max_step_size: f64,
 ) -> Result<(), &'static str> {
     let mut state_path = outfile.clone();
     state_path.set_extension("json");
@@ -221,7 +232,9 @@ fn analyse_state(
     let mut state_file = File::create(state_path).unwrap();
     let mut plot_file = File::create(plot_path).unwrap();
 
-    let opt = *BuildOptimiser::default().steps(steps);
+    let opt = *BuildOptimiser::default()
+        .steps(steps)
+        .max_step_size(max_step_size);
     let final_state = (0..start_configs)
         .into_par_iter()
         .map(|_| opt.build().optimise_state(state.clone()))
@@ -249,18 +262,21 @@ fn main() -> Result<(), &'static str> {
             options.steps,
             options.num_start_configs,
             state,
+            options.max_step_size,
         )?,
         StateTypes::Polygon(state) => analyse_state(
             options.outfile,
             options.steps,
             options.num_start_configs,
             state,
+            options.max_step_size,
         )?,
         StateTypes::LJTrimer(state) => analyse_state(
             options.outfile,
             options.steps,
             options.num_start_configs,
             state,
+            options.max_step_size,
         )?,
     }
 
