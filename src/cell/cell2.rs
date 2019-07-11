@@ -84,9 +84,6 @@ impl Default for Cell2 {
 }
 
 impl Cell for Cell2 {
-    type Transform = Transform2;
-    type Point = Point2<f64>;
-
     /// Convert a transformation into Cartesian coordinates
     ///
     /// The positions of particles are stored in fractional coordinates, making changes to the
@@ -94,7 +91,7 @@ impl Cell for Cell2 {
     /// and converts the values of the fractional coordinates in the translation to real
     /// Cartesian coordinates based on the current cell parameters.
     ///
-    fn to_cartesian_isometry(&self, transform: &Self::Transform) -> Self::Transform {
+    fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
         let (x, y) = self.to_cartesian(
             transform.translation.vector.x,
             transform.translation.vector.y,
@@ -103,7 +100,7 @@ impl Cell for Cell2 {
     }
 
     /// Convert a point in relative coordinates to real coordinates
-    fn to_cartesian_point(&self, point: Self::Point) -> Self::Point {
+    fn to_cartesian_point(&self, point: Point2<f64>) -> Point2<f64> {
         let (x, y) = self.to_cartesian(point.x, point.y);
         Point2::new(x, y)
     }
@@ -190,7 +187,7 @@ impl Cell for Cell2 {
         }
     }
 
-    fn periodic_images(&self, transform: &Self::Transform, zero: bool) -> Vec<Self::Transform> {
+    fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2> {
         // The periodic images to check. Checking the first and second shells i.e.
         // -2..=2, as this is necessary to ensure no intersections on tilted cells
         // and highly irregular cells.
@@ -212,7 +209,7 @@ impl Cell for Cell2 {
         }
     }
 
-    fn get_corners(&self) -> Vec<Self::Point> {
+    fn get_corners(&self) -> Vec<Point2<f64>> {
         let points = vec![
             Point2::new(-0.5, -0.5),
             Point2::new(-0.5, 0.5),
