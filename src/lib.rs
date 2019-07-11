@@ -8,17 +8,9 @@
 // most of the imports throughout the rest of the crate can just be from the top level and nicely
 // grouped together.
 
-extern crate approx;
-extern crate clap;
-extern crate itertools;
-extern crate log;
-extern crate nalgebra as na;
-extern crate rand;
-
-pub mod ops_macros;
-
 pub mod basis;
 pub mod cell;
+pub mod ops_macros;
 pub mod optimisation;
 pub mod shape;
 pub mod site;
