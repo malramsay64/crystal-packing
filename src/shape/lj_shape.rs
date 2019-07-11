@@ -41,7 +41,6 @@ impl Potential for LJShape2 {
 
 impl Shape for LJShape2 {
     type Component = LJ2;
-    type Transform = Transform2;
 
     fn score(&self, other: &Self) -> Result<f64, &'static str> {
         Ok(iproduct!(self.items.iter(), other.items.iter())
@@ -66,7 +65,7 @@ impl Shape for LJShape2 {
         self.into_iter()
     }
 
-    fn transform(&self, transform: &Self::Transform) -> Self {
+    fn transform(&self, transform: &Transform2) -> Self {
         Self {
             name: self.name.clone(),
             items: self.into_iter().map(|i| i * transform).collect(),

@@ -54,7 +54,6 @@ impl Intersect for MolecularShape2 {
 
 impl Shape for MolecularShape2 {
     type Component = Atom2;
-    type Transform = Transform2;
 
     fn score(&self, other: &Self) -> Result<f64, &'static str> {
         if self.intersects(other) {
@@ -82,7 +81,7 @@ impl Shape for MolecularShape2 {
         self.into_iter()
     }
 
-    fn transform(&self, transform: &Self::Transform) -> Self {
+    fn transform(&self, transform: &Transform2) -> Self {
         Self {
             name: self.name.clone(),
             items: self.into_iter().map(|i| i * transform).collect(),

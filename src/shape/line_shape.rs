@@ -63,14 +63,17 @@ impl Intersect for LineShape {
         let zero = Point2::origin();
         self.iter()
             // Calculate the area of the of triangle made by the line and the origin
-            .map(|p| 0.5 * angle_term * na::distance(&zero, &p.start) * na::distance(&zero, &p.end))
+            .map(|p| {
+                0.5 * angle_term
+                    * nalgebra::distance(&zero, &p.start)
+                    * nalgebra::distance(&zero, &p.end)
+            })
             .sum()
     }
 }
 
 impl Shape for LineShape {
     type Component = Line2;
-    type Transform = Transform2;
 
     fn score(&self, other: &Self) -> Result<f64, &'static str> {
         if self.intersects(other) {
@@ -97,7 +100,7 @@ impl Shape for LineShape {
         self.into_iter()
     }
 
-    fn transform(&self, transform: &Self::Transform) -> Self {
+    fn transform(&self, transform: &Transform2) -> Self {
         Self {
             name: self.name.clone(),
             items: self.into_iter().map(|i| i * transform).collect(),

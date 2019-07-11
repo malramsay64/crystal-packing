@@ -30,13 +30,11 @@ pub struct OccupiedSite {
 }
 
 impl Site for OccupiedSite {
-    type Transform = Transform2;
-
-    fn transform(&self) -> Self::Transform {
+    fn transform(&self) -> Transform2 {
         Transform2::new(Vector2::new(self.x, self.y), self.angle)
     }
 
-    fn positions(&self) -> Vec<Self::Transform> {
+    fn positions(&self) -> Vec<Transform2> {
         let transform = self.transform();
         self.symmetries()
             .iter()

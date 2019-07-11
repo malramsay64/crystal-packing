@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
 use crate::wallpaper::{Wallpaper, WallpaperGroup, WyckoffSite};
-use crate::{Cell2, OccupiedSite, StandardBasis};
+use crate::{Cell2, OccupiedSite, StandardBasis, Transform2};
 
 pub type PackedState2<S> = PackedState<S, Cell2, OccupiedSite>;
 
@@ -21,8 +21,8 @@ pub type PackedState2<S> = PackedState<S, Cell2, OccupiedSite>;
 pub struct PackedState<S, C, T>
 where
     S: Shape + Intersect,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    C: Cell,
+    T: Site,
 {
     pub wallpaper: Wallpaper,
     pub shape: S,
@@ -33,16 +33,16 @@ where
 impl<S, C, T> Eq for PackedState<S, C, T>
 where
     S: Shape + Intersect,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    C: Cell,
+    T: Site,
 {
 }
 
 impl<S, C, T> PartialEq for PackedState<S, C, T>
 where
     S: Shape + Intersect,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    C: Cell,
+    T: Site,
 {
     fn eq(&self, other: &Self) -> bool {
         self.score() == other.score()
@@ -52,8 +52,8 @@ where
 impl<S, C, T> PartialOrd for PackedState<S, C, T>
 where
     S: Shape + Intersect,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    C: Cell,
+    T: Site,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.score().partial_cmp(&other.score())
@@ -63,8 +63,8 @@ where
 impl<S, C, T> Ord for PackedState<S, C, T>
 where
     S: Shape + Intersect,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    C: Cell,
+    T: Site,
 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.score().partial_cmp(&other.score()).unwrap()
@@ -74,8 +74,8 @@ where
 impl<S, C, T> State for PackedState<S, C, T>
 where
     S: Shape + Intersect,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    C: Cell,
+    T: Site,
 {
     fn total_shapes(&self) -> usize {
         self.occupied_sites
@@ -114,17 +114,17 @@ where
 impl<S, C, T> PackedState<S, C, T>
 where
     S: Shape + Intersect,
-    C: Cell<Transform = S::Transform>,
-    T: Site<Transform = S::Transform>,
+    C: Cell,
+    T: Site,
 {
-    pub fn cartesian_positions(&self) -> Vec<T::Transform> {
+    pub fn cartesian_positions(&self) -> Vec<Transform2> {
         self.relative_positions()
             .iter()
             .map(|position| self.cell.to_cartesian_isometry(position))
             .collect()
     }
 
-    fn relative_positions(&self) -> Vec<T::Transform> {
+    fn relative_positions(&self) -> Vec<Transform2> {
         self.occupied_sites
             .iter()
             .flat_map(Site::positions)
