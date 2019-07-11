@@ -122,5 +122,5 @@ pub trait State:
 
 pub trait ToSVG {
     type Value: svg::Node;
-    fn as_svg(&self, scaling: f64) -> Self::Value;
+    fn as_svg(&self) -> Self::Value;
 }
