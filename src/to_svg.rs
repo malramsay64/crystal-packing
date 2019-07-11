@@ -86,7 +86,6 @@ impl ToSVG for Atom2 {
             .set("r", self.radius)
             .set("cx", self.position.x)
             .set("cy", self.position.y)
-            .set("fill", "green")
     }
 }
 
@@ -217,19 +216,38 @@ where
                 ),
             ));
         }
-
         for position in self.relative_positions() {
-            for periodic in self.cell.periodic_images(&position, true) {
-                let abs_pos = self.cell.to_cartesian_isometry(&periodic);
-                doc = doc.add(element::Use::new().set("href", "#mol").set(
-                    "transform",
-                    format!(
-                        "rotate({0}, {1}, {2}) translate({1}, {2})",
-                        abs_pos.rotation.angle() * 180. / std::f64::consts::PI,
-                        abs_pos.translation.vector.x,
-                        abs_pos.translation.vector.y
+            let abs_pos = self.cell.to_cartesian_isometry(&position);
+            doc = doc.add(
+                element::Use::new()
+                    .set("href", "#mol")
+                    .set("fill", "blue")
+                    .set(
+                        "transform",
+                        format!(
+                            "rotate({0}, {1}, {2}) translate({1}, {2})",
+                            abs_pos.rotation.angle() * 180. / std::f64::consts::PI,
+                            abs_pos.translation.vector.x,
+                            abs_pos.translation.vector.y
+                        ),
                     ),
-                ));
+            );
+            for periodic in self.cell.periodic_images(&position, false) {
+                let abs_pos = self.cell.to_cartesian_isometry(&periodic);
+                doc = doc.add(
+                    element::Use::new()
+                        .set("href", "#mol")
+                        .set("fill", "green")
+                        .set(
+                            "transform",
+                            format!(
+                                "rotate({0}, {1}, {2}) translate({1}, {2})",
+                                abs_pos.rotation.angle() * 180. / std::f64::consts::PI,
+                                abs_pos.translation.vector.x,
+                                abs_pos.translation.vector.y
+                            ),
+                        ),
+                );
             }
         }
         doc
