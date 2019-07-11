@@ -34,5 +34,5 @@ pub use crate::shape::*;
 pub use crate::site::*;
 pub use crate::state::*;
 pub use crate::traits::{FromSymmetry, Intersect, Shape};
-pub use crate::transform::*;
+pub use crate::transform::Transform2;
 pub use crate::wallpaper::WallpaperGroup;
