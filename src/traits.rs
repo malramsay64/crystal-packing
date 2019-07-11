@@ -81,7 +81,9 @@ pub trait FromSymmetry: Sized {
     fn from_operations(ops: &str) -> Result<Self, &'static str>;
 }
 
-pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
+pub trait Cell:
+    Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display + ToSVG<Value = Group>
+{
     fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2>;
     fn from_family(group: &CrystalFamily, max_size: f64) -> Self;
     fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;

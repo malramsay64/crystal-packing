@@ -233,6 +233,7 @@ fn analyse_state(
     plot_file
         .write_all(final_state.as_positions().unwrap().as_bytes())
         .unwrap();
+    svg::save("test.svg", &state.as_svg(600.)).unwrap();
     Ok(())
 }
 

@@ -15,6 +15,7 @@ pub mod optimisation;
 pub mod shape;
 pub mod site;
 pub mod state;
+pub mod to_svg;
 pub mod traits;
 pub mod transform;
 pub mod wallpaper;
