@@ -9,6 +9,7 @@ use std::fmt;
 use std::fmt::Write;
 
 use log::debug;
+use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
@@ -139,20 +140,25 @@ where
     ///
     fn check_intersection(&self) -> bool {
         for (index1, position1) in self.relative_positions().iter().enumerate() {
-            let shape_i1 = self
-                .shape
-                .transform(&self.cell.to_cartesian_isometry(position1));
+            let transform1 = &self.cell.to_cartesian_isometry(position1);
+            let shape_i1 = self.shape.transform(&transform1);
+            let radius_sq = shape_i1.enclosing_radius().powi(2);
 
             // We only need to check the positions after that of index, since the previous ones
             // have already been checked, hence `.skip(index)`
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
                 for transform in self.cell.periodic_images(position2, index1 != index2) {
-                    let shape_i2 = self
-                        .shape
-                        .transform(&self.cell.to_cartesian_isometry(&transform));
+                    let transform2 = &self.cell.to_cartesian_isometry(&transform);
 
-                    if shape_i1.intersects(&shape_i2) {
-                        return true;
+                    if nalgebra::distance_squared(
+                        &(transform1.translation * Point2::origin()),
+                        &(transform2.translation * Point2::origin()),
+                    ) < radius_sq
+                    {
+                        let shape_i2 = self.shape.transform(transform2);
+                        if shape_i1.intersects(&shape_i2) {
+                            return true;
+                        }
                     }
                 }
             }
