@@ -124,7 +124,7 @@ where
             .collect()
     }
 
-    fn relative_positions(&self) -> Vec<Transform2> {
+    pub fn relative_positions(&self) -> Vec<Transform2> {
         self.occupied_sites
             .iter()
             .flat_map(Site::positions)
