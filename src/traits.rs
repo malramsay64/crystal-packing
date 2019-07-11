@@ -10,6 +10,8 @@ use nalgebra::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName, Point2, VectorN};
 use rand::Rng;
 use serde::Serialize;
+use svg::node::element::Group;
+use svg::Document;
 
 use crate::wallpaper::WyckoffSite;
 use crate::{CrystalFamily, StandardBasis, Transform2};
@@ -53,7 +55,9 @@ pub trait Potential {
     fn energy(&self, other: &Self) -> f64;
 }
 
-pub trait Shape: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
+pub trait Shape:
+    Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display + ToSVG<Value = Group>
+{
     type Component: Clone
         + Send
         + Sync
@@ -61,6 +65,7 @@ pub trait Shape: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
         + fmt::Debug
         + fmt::Display
         + ops::Mul<Transform2, Output = Self::Component>
+        + ToSVG;
 
     fn score(&self, other: &Self) -> Result<f64, &'static str>;
     fn enclosing_radius(&self) -> f64;
@@ -76,9 +81,7 @@ pub trait FromSymmetry: Sized {
     fn from_operations(ops: &str) -> Result<Self, &'static str>;
 }
 
-pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display + ToSVG {
-    type Point: Clone + Send + Sync + Serialize + fmt::Display;
-
+pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
     fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2>;
     fn from_family(group: &CrystalFamily, max_size: f64) -> Self;
     fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;
@@ -98,10 +101,24 @@ pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {
 }
 
 pub trait State:
-    Eq + PartialEq + PartialOrd + Ord + Clone + Send + Sync + Serialize + fmt::Debug
+    Eq
+    + PartialEq
+    + PartialOrd
+    + Ord
+    + Clone
+    + Send
+    + Sync
+    + Serialize
+    + fmt::Debug
+    + ToSVG<Value = Document>
 {
     fn score(&self) -> Result<f64, &'static str>;
     fn generate_basis(&mut self) -> Vec<StandardBasis>;
     fn total_shapes(&self) -> usize;
     fn as_positions(&self) -> Result<String, fmt::Error>;
+}
+
+pub trait ToSVG {
+    type Value: svg::Node;
+    fn as_svg(&self, scaling: f64) -> Self::Value;
 }
