@@ -165,10 +165,8 @@ where
     /// extracting the rotation and translation components.
     ///
     /// ```
-    /// use packing::{Transform2, Transform3, FromSymmetry};
+    /// use packing::{Transform2, FromSymmetry};
     /// let t2 = Transform2::from_operations("-x, y");
-    ///
-    /// let t3 = Transform3::from_operations("-x, y, z+1/2");
     /// ```
     ///
     fn from_operations(sym_ops: &str) -> Result<Transform<D>, &'static str> {
