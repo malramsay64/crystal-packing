@@ -191,9 +191,9 @@ impl Cell for Cell2 {
         // The periodic images to check. Checking the first and second shells i.e.
         // -2..=2, as this is necessary to ensure no intersections on tilted cells
         // and highly irregular cells.
-        let iter_range = match self.x() / self.y() {
-            p if 0.5 < p && p < 2. => -1..=1,
-            p if 0.3 < p && p < 3. => -2..=2,
+        let iter_range = match (self.x() / self.y(), self.angle()) {
+            (p, a) if 0.5 < p && p < 2. && f64::abs(a - PI / 2.) < 0.2 => -1..=1,
+            (p, a) if 0.3 < p && p < 3. && f64::abs(a - PI / 2.) < 0.5 => -2..=2,
             _ => -3..=3,
         };
 
