@@ -12,7 +12,7 @@ use rand::Rng;
 use serde::Serialize;
 
 use crate::wallpaper::WyckoffSite;
-use crate::{CrystalFamily, StandardBasis};
+use crate::{CrystalFamily, StandardBasis, Transform2};
 
 pub trait Transformer {
     fn as_simple(&self) -> String;
@@ -54,14 +54,13 @@ pub trait Potential {
 }
 
 pub trait Shape: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
-    type Transform: Transformer + Clone + Send + Sync + Serialize + fmt::Debug;
     type Component: Clone
         + Send
         + Sync
         + Serialize
         + fmt::Debug
         + fmt::Display
-        + ops::Mul<Self::Transform, Output = Self::Component>;
+        + ops::Mul<Transform2, Output = Self::Component>
 
     fn score(&self, other: &Self) -> Result<f64, &'static str>;
     fn enclosing_radius(&self) -> f64;
@@ -70,20 +69,19 @@ pub trait Shape: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
         1
     }
     fn iter(&self) -> slice::Iter<'_, Self::Component>;
-    fn transform(&self, transform: &Self::Transform) -> Self;
+    fn transform(&self, transform: &Transform2) -> Self;
 }
 
 pub trait FromSymmetry: Sized {
     fn from_operations(ops: &str) -> Result<Self, &'static str>;
 }
 
-pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display {
-    type Transform: Transformer + Clone + Send + Sync + Serialize + fmt::Debug;
+pub trait Cell: Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display + ToSVG {
     type Point: Clone + Send + Sync + Serialize + fmt::Display;
 
-    fn periodic_images(&self, transform: &Self::Transform, zero: bool) -> Vec<Self::Transform>;
+    fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2>;
     fn from_family(group: &CrystalFamily, max_size: f64) -> Self;
-    fn to_cartesian_isometry(&self, transform: &Self::Transform) -> Self::Transform;
+    fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;
     fn to_cartesian_point(&self, point: Self::Point) -> Self::Point;
     fn get_degrees_of_freedom(&mut self) -> Vec<StandardBasis>;
     fn center(&self) -> Self::Point;
