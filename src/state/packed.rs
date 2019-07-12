@@ -151,11 +151,11 @@ where
                 for transform in self.cell.periodic_images(position2, index1 != index2) {
                     let transform2 = &self.cell.to_cartesian_isometry(&transform);
 
-                    if nalgebra::distance_squared(
+                    let distance = nalgebra::distance_squared(
                         &(transform1.translation * Point2::origin()),
                         &(transform2.translation * Point2::origin()),
-                    ) < radius_sq
-                    {
+                    );
+                    if distance <= radius_sq {
                         let shape_i2 = self.shape.transform(transform2);
                         if shape_i1.intersects(&shape_i2) {
                             return true;
