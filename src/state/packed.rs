@@ -7,6 +7,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Write;
+use std::ops::Mul;
 
 use log::debug;
 use nalgebra::Point2;
@@ -142,7 +143,7 @@ where
         for (index1, position1) in self.relative_positions().iter().enumerate() {
             let transform1 = &self.cell.to_cartesian_isometry(position1);
             let shape_i1 = self.shape.transform(&transform1);
-            let radius_sq = shape_i1.enclosing_radius().powi(2);
+            let radius_sq = shape_i1.enclosing_radius().mul(2.).powi(2);
 
             // We only need to check the positions after that of index, since the previous ones
             // have already been checked, hence `.skip(index)`
