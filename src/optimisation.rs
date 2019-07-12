@@ -114,7 +114,6 @@ impl MCOptimiser {
         let mut rejections: u64 = 0;
 
         let mut kt: f64 = self.kt_start;
-        let total_shapes: u64 = state.total_shapes() as u64;
 
         let mut basis = state.generate_basis();
         let basis_distribution = Uniform::new(0, basis.len() as u64);
