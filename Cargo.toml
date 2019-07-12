@@ -20,6 +20,8 @@ svg = "~0.5.12"
 
 [dev-dependencies]
 criterion = "0.2"
+quickcheck = "0.8"
+quickcheck_macros = "0.8"
 
 [[bench]]
 name = "intersection"

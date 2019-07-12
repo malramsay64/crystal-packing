@@ -80,12 +80,13 @@ pub struct MCOptimiser {
     kt_ratio: f64,
     max_step_size: f64,
     steps: u64,
+    inner_steps: u64,
     seed: u64,
 }
 
 impl MCOptimiser {
-    fn temperature(&self, old: f64, new: f64, kt: f64, num_shapes: u64) -> f64 {
-        f64::exp((1. / old - 1. / new) / kt + num_shapes as f64 * f64::ln(old / new))
+    fn accept_probability(&self, new: f64, old: f64, kt: f64) -> f64 {
+        f64::min(f64::exp((new - old) / kt), 1.)
     }
 
     pub fn optimise_state(&self, mut state: impl State) -> Result<impl State, &'static str> {
@@ -101,54 +102,115 @@ impl MCOptimiser {
         let mut score_prev: f64 = state.score()?;
         let mut score: f64 = 0.;
         let mut score_max: f64 = 0.;
+        let mut step_ratio = 1.;
 
         let mut best_state = state.clone();
 
-        for _ in 0..self.steps {
-            let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
-            if let Some(basis_current) = basis.get_mut(basis_index) {
-                basis_current.set_value(basis_current.sample(&mut rng, self.max_step_size));
-            }
-
-            score = match state.score() {
-                Err(_) => {
-                    trace!("Rejected for invalid score.");
-                    rejections += 1;
-                    score_prev
+        let mut total_steps = 0;
+        for loops in 1..=self.steps / self.inner_steps {
+            let mut loop_rejections: u64 = 0;
+            for _ in 0..self.inner_steps {
+                let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
+                if let Some(basis_current) = basis.get_mut(basis_index) {
+                    basis_current
+                        .set_value(basis_current.sample(&mut rng, self.max_step_size * step_ratio));
                 }
-                Ok(score_new) => {
-                    if rng.gen::<f64>() > self.temperature(score_prev, score_new, kt, total_shapes)
-                    {
-                        trace!(
-                            "Rejected for lowering score at t={:.4}\nscore_prev: {:.4}, score_new: {:.4}, kt: {:.4}",
-                            self.temperature(score_prev, score_new, kt, total_shapes),
-                            score_prev,
-                            score_new,
-                            kt
-                        );
-                        rejections += 1;
-                        basis[basis_index].reset_value();
 
-                        // Set packing to it's previous value
-                        score_prev
-                    } else {
-                        // This is where we update the score cause the test was successful
-                        score_prev = score;
-                        score_new
+                score = match state.score() {
+                    Ok(score_new) => {
+                        // When the new score is better we accept the new state or
+                        // When the score is higher, there is a probability of accepting the new
+                        // score, which is evaluated based on the difference between the new score,
+                        // and the old score along with the temperature value (kt).
+                        // The acceptance occurs when a random number smaller than the acceptance
+                        // probability is drawn.
+                        if score_new > score_prev
+                            || rng.gen::<f64>() < self.accept_probability(score_new, score_prev, kt)
+                        {
+                            trace!("Accepted new score: {}, previous: {}", score_new, score);
+                            score_prev = score;
+                            score_new
+                        }
+                        // If the first two tests fail, then the score is rejected.
+                        else {
+                            trace!(
+                                "Rejected for lowering score at t={:.4}\nscore_prev: {:.4}, score_new: {:.4}, kt: {:.4}",
+                                self.accept_probability(score_prev, score_new, kt),
+                                score_prev,
+                                score_new,
+                                kt
+                            );
+                            loop_rejections += 1;
+                            basis[basis_index].reset_value();
+
+                            // Set packing to it's previous value
+                            score_prev
+                        }
                     }
+                    Err(_) => {
+                        trace!("Rejected for invalid score.");
+                        loop_rejections += 1;
+                        score_prev
+                    }
+                };
+                if score > score_max {
+                    best_state = state.clone();
+                    score_max = score;
                 }
-            };
-            if score > score_max {
-                best_state = state.clone();
-                score_max = score;
             }
+            rejections += loop_rejections;
             kt *= self.kt_ratio;
+            total_steps = loops * self.inner_steps;
+
+            // Scale step ratio with goal of 50% rejections
+            if step_ratio > 1e-3 {
+                step_ratio *= self.inner_steps as f64 / (2. * loop_rejections as f64 + 1.);
+            }
         }
         info!(
-            "Score: {:.4}, Rejections: {:.2} %",
+            "Score: {:.4}, Rejected Fraction: {:.2}%",
             score_max,
-            100. * rejections as f64 / self.steps as f64,
+            100. * rejections as f64 / total_steps as f64,
         );
         Ok(best_state)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    static OPT: MCOptimiser = MCOptimiser {
+        kt_start: 0.,
+        kt_ratio: 0.,
+        max_step_size: 0.,
+        steps: 0,
+        inner_steps: 0,
+        seed: 0,
+    };
+
+    #[quickcheck]
+    fn test_accept_probability(new: f64, old: f64) -> bool {
+        let result = OPT.accept_probability(new, old, 0.);
+        if new < old {
+            result == 0.
+        } else if new >= old {
+            result == 1.
+        } else {
+            false
+        }
+    }
+
+    #[quickcheck]
+    fn test_accept_probability_temperature(new: f64, old: f64) -> bool {
+        let result = OPT.accept_probability(new, old, 0.5);
+        if new < old {
+            0. < result && result < 1.
+        } else if new >= old {
+            result == 1.
+        } else {
+            false
+        }
     }
 }
