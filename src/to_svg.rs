@@ -48,11 +48,13 @@ impl ToSVG for LineShape {
     type Value = element::Group;
 
     fn as_svg(&self) -> Self::Value {
-        let mut data = element::path::Data::new();
+        let start = self.items[0].start;
+        let mut data = element::path::Data::new().move_to((start.x, start.y));
+
         for item in self {
-            data = data.line_by((item.end.x, item.end.y));
+            data = data.line_to((item.end.x, item.end.y));
         }
-        element::Group::new().add(element::Path::new().set("d", data))
+        element::Group::new().add(element::Path::new().set("d", data.close()))
     }
 }
 
