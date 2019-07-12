@@ -45,14 +45,21 @@ fn test_packing_improves() -> Result<(), &'static str> {
     let state =
         PackedState::<LineShape, Cell2, OccupiedSite>::initialise(square, wallpaper, isopointal);
 
-    let init_packing = state.score();
+    let init_packing = state.score()?;
 
-    let opt = BuildOptimiser::default().seed(0).build();
+    let opt = BuildOptimiser::default()
+        .seed(0)
+        .steps(1000)
+        .kt_start(0.)
+        .kt_ratio(Some(0.))
+        .max_step_size(0.001)
+        .build();
 
     let final_state = opt.optimise_state(state);
 
-    let final_packing = final_state?.score();
+    let final_packing = final_state?.score()?;
 
+    println!("Init Score: {} Final score {}", init_packing, final_packing);
     assert!(init_packing < final_packing);
 
     Ok(())
