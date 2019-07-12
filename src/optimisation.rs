@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use log::{info, trace};
+use log::{debug, info, trace};
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand_pcg::Pcg64Mcg;
@@ -14,9 +14,11 @@ use crate::traits::*;
 #[derive(Debug, Clone, Copy)]
 pub struct BuildOptimiser {
     kt_start: f64,
-    kt_finish: f64,
+    kt_finish: Option<f64>,
+    kt_ratio: Option<f64>,
     max_step_size: f64,
     steps: u64,
+    inner_steps: u64,
     seed: Option<u64>,
 }
 
@@ -24,9 +26,11 @@ impl Default for BuildOptimiser {
     fn default() -> Self {
         Self {
             kt_start: 0.1,
-            kt_finish: 0.0005,
+            kt_finish: Some(0.001),
+            kt_ratio: None,
             max_step_size: 0.01,
-            steps: 100,
+            steps: 1000,
+            inner_steps: 1000,
             seed: None,
         }
     }
@@ -39,7 +43,12 @@ impl BuildOptimiser {
     }
 
     pub fn kt_finish(&mut self, kt_finish: f64) -> &mut Self {
-        self.kt_finish = kt_finish;
+        self.kt_finish = Some(kt_finish);
+        self
+    }
+
+    pub fn kt_ratio(&mut self, kt_ratio: Option<f64>) -> &mut Self {
+        self.kt_ratio = kt_ratio;
         self
     }
 
@@ -53,13 +62,23 @@ impl BuildOptimiser {
         self
     }
 
+    pub fn inner_steps(&mut self, inner_steps: u64) -> &mut Self {
+        self.inner_steps = inner_steps;
+        self
+    }
+
     pub fn seed(&mut self, seed: u64) -> &mut Self {
         self.seed = Some(seed);
         self
     }
 
     pub fn build(&self) -> MCOptimiser {
-        let kt_ratio = f64::powf(self.kt_finish / self.kt_start, 1.0 / self.steps as f64);
+        let kt_ratio = match (self.kt_ratio, self.kt_finish) {
+            (Some(ratio), _) => 1. - ratio,
+            (None, Some(finish)) => f64::powf(finish / self.kt_start, 1. / self.steps as f64),
+            (None, None) => 0.1,
+        };
+        debug!("Setting kt_ratio to: {}", kt_ratio);
         let seed = match self.seed {
             None => Pcg64Mcg::from_entropy().gen(),
             Some(x) => x,
@@ -70,6 +89,7 @@ impl BuildOptimiser {
             kt_ratio,
             max_step_size: self.max_step_size,
             steps: self.steps,
+            inner_steps: self.inner_steps,
             seed,
         }
     }

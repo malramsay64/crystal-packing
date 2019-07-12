@@ -13,7 +13,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::{fs, path};
 
-use clap::{value_t_or_exit, App, Arg};
+use clap::{value_t, value_t_or_exit, App, Arg};
 use log::{debug, info};
 use rayon::prelude::*;
 use serde_json;
@@ -32,6 +32,8 @@ struct CLIOptions {
     log_level: LevelFilter,
     outfile: path::PathBuf,
     max_step_size: f64,
+    kt: Option<f64>,
+    kt_ratio: Option<f64>,
 }
 
 enum StateTypes {
@@ -125,6 +127,18 @@ fn cli() -> CLIOptions {
                 .help("The number of steps to use for the optimisation.")
         )
         .arg(
+            Arg::with_name("kt")
+                .long("--kt")
+                .takes_value(true)
+                .help("The initial temperature which guides the acceptance criterita.")
+        )
+        .arg(
+            Arg::with_name("kt_ratio")
+                .long("--ratio")
+                .takes_value(true)
+                .help("The multiplicative factor which reduces the temperature.")
+        )
+        .arg(
             Arg::with_name("max_step_size")
                 .long("--max-step")
                 .takes_value(true)
@@ -181,7 +195,7 @@ fn cli() -> CLIOptions {
                 }
             }
             Some("polygon") => {
-                let sides: usize = value_t_or_exit!(matches, "num_sides", usize);
+                let sides: usize = value_t_or_exit!(matches, "sides", usize);
                 StateTypes::Polygon(PackedState2::from_group(
                     LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
                     &group,
@@ -193,6 +207,8 @@ fn cli() -> CLIOptions {
 
     let steps: u64 = value_t_or_exit!(matches, "steps", u64);
     let max_step_size: f64 = value_t_or_exit!(matches, "max_step_size", f64);
+    let kt_ratio: Option<f64> = value_t!(matches, "kt_ratio", f64).ok();
+    let kt: Option<f64> = value_t!(matches, "kt", f64).ok();
     let num_start_configs: u64 = value_t_or_exit!(matches, "replications", u64);
     let outfile = value_t_or_exit!(matches, "outfile", path::PathBuf);
 
@@ -213,41 +229,37 @@ fn cli() -> CLIOptions {
         log_level,
         outfile,
         max_step_size,
+        kt,
+        kt_ratio,
     }
 }
 
 fn analyse_state(
     outfile: path::PathBuf,
-    steps: u64,
     start_configs: u64,
     state: impl State,
-    max_step_size: f64,
+    optimiser: &BuildOptimiser,
 ) -> Result<(), &'static str> {
-    let mut state_path = outfile.clone();
-    state_path.set_extension("json");
-
-    let mut plot_path = outfile.clone();
-    plot_path.set_extension("txt");
-
-    let mut state_file = File::create(state_path).unwrap();
-    let mut plot_file = File::create(plot_path).unwrap();
-
-    let opt = *BuildOptimiser::default()
-        .steps(steps)
-        .max_step_size(max_step_size);
     let final_state = (0..start_configs)
         .into_par_iter()
-        .map(|_| opt.build().optimise_state(state.clone()))
-        .max()
-        .unwrap()?;
-    info!("Final score: {}", final_state.score().unwrap());
-    let serialised = serde_json::to_string(&final_state).unwrap();
-    state_file.write_all(&serialised.as_bytes()).unwrap();
-    plot_file
-        .write_all(final_state.as_positions().unwrap().as_bytes())
-        .unwrap();
-    svg::save("test.svg", &final_state.as_svg()).unwrap();
-    Ok(())
+        .map(|_| optimiser.build().optimise_state(state.clone()))
+        .max();
+
+    if let Some(Ok(s)) = final_state {
+        if let Ok(score) = s.score() {
+            info!("Final score: {}", score);
+
+            let serialised = serde_json::to_string(&s).unwrap();
+
+            let mut state_path = outfile.clone();
+            state_path.set_extension("json");
+            let mut state_file = File::create(state_path).unwrap();
+            state_file.write_all(&serialised.as_bytes()).unwrap();
+            svg::save("test.svg", &s.as_svg()).unwrap();
+            return Ok(());
+        }
+    }
+    Err("Final state contains invalid configuration.")
 }
 
 fn main() -> Result<(), &'static str> {
@@ -256,28 +268,24 @@ fn main() -> Result<(), &'static str> {
 
     debug!("Logging Level: {}", options.log_level);
 
+    let mut opt = *BuildOptimiser::default()
+        .steps(options.steps)
+        .max_step_size(options.max_step_size)
+        .kt_ratio(options.kt_ratio);
+    if let Some(kt) = options.kt {
+        opt.kt_start(kt);
+    }
+
     match options.state {
-        StateTypes::Circle(state) | StateTypes::Trimer(state) => analyse_state(
-            options.outfile,
-            options.steps,
-            options.num_start_configs,
-            state,
-            options.max_step_size,
-        )?,
-        StateTypes::Polygon(state) => analyse_state(
-            options.outfile,
-            options.steps,
-            options.num_start_configs,
-            state,
-            options.max_step_size,
-        )?,
-        StateTypes::LJTrimer(state) => analyse_state(
-            options.outfile,
-            options.steps,
-            options.num_start_configs,
-            state,
-            options.max_step_size,
-        )?,
+        StateTypes::Circle(state) | StateTypes::Trimer(state) => {
+            analyse_state(options.outfile, options.num_start_configs, state, &opt)?
+        }
+        StateTypes::Polygon(state) => {
+            analyse_state(options.outfile, options.num_start_configs, state, &opt)?
+        }
+        StateTypes::LJTrimer(state) => {
+            analyse_state(options.outfile, options.num_start_configs, state, &opt)?
+        }
     }
 
     Ok(())
