@@ -199,6 +199,7 @@ impl MCOptimiser {
 mod test {
     use super::*;
     use quickcheck_macros::quickcheck;
+    use approx::abs_diff_eq;
 
     static OPT: MCOptimiser = MCOptimiser {
         kt_start: 0.,
@@ -213,9 +214,9 @@ mod test {
     fn test_accept_probability(new: f64, old: f64) -> bool {
         let result = OPT.accept_probability(new, old, 0.);
         if new < old {
-            result == 0.
+            abs_diff_eq!(result, 0.)
         } else if new >= old {
-            result == 1.
+            abs_diff_eq!(result, 1.)
         } else {
             false
         }
@@ -227,7 +228,7 @@ mod test {
         if new < old {
             0. < result && result < 1.
         } else if new >= old {
-            result == 1.
+            abs_diff_eq!(result, 1.)
         } else {
             false
         }
