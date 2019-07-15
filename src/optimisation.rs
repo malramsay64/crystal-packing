@@ -198,8 +198,8 @@ impl MCOptimiser {
 #[cfg(test)]
 mod test {
     use super::*;
-    use quickcheck_macros::quickcheck;
     use approx::abs_diff_eq;
+    use quickcheck_macros::quickcheck;
 
     static OPT: MCOptimiser = MCOptimiser {
         kt_start: 0.,
