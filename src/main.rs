@@ -242,7 +242,17 @@ fn analyse_state(
 ) -> Result<(), &'static str> {
     let final_state = (0..start_configs)
         .into_par_iter()
-        .map(|_| optimiser.build().optimise_state(state.clone()))
+        // Create collection of quickly optimised initial states
+        .map(|seed| {
+            optimiser
+                .clone()
+                .steps(1000)
+                .kt_start(0.)
+                .seed(seed)
+                .build()
+                .optimise_state(state.clone())
+        })
+        .map(|opt_state| optimiser.build().optimise_state(opt_state))
         .max();
 
     if let Some(s) = final_state {
