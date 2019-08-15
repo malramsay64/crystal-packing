@@ -57,7 +57,7 @@ fn test_packing_improves() -> Result<(), &'static str> {
 
     let final_state = opt.optimise_state(state);
 
-    let final_packing = final_state?.score()?;
+    let final_packing = final_state.score()?;
 
     println!("Init Score: {} Final score {}", init_packing, final_packing);
     assert!(init_packing < final_packing);

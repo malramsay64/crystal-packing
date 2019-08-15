@@ -245,7 +245,7 @@ fn analyse_state(
         .map(|_| optimiser.build().optimise_state(state.clone()))
         .max();
 
-    if let Some(Ok(s)) = final_state {
+    if let Some(s) = final_state {
         if let Ok(score) = s.score() {
             info!("Final score: {}", score);
 

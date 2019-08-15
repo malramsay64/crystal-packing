@@ -48,7 +48,7 @@ fn test_score_improves() -> Result<(), &'static str> {
 
     let final_state = opt.optimise_state(state);
 
-    let final_score = final_state?.score()?;
+    let final_score = final_state.score()?;
 
     println!("Init Score: {}, Final Score: {}", init_score, final_score);
     assert!(init_score < final_score);

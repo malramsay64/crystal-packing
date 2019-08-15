@@ -109,7 +109,12 @@ impl MCOptimiser {
         f64::min(f64::exp((new - old) / kt), 1.)
     }
 
-    pub fn optimise_state(&self, mut state: impl State) -> Result<impl State, &'static str> {
+    pub fn optimise_state(&self, mut state: impl State) -> impl State {
+        let mut score_prev = match state.score() {
+            Ok(score) => score,
+            _ => panic!("Invalid configuration passed to function, exiting."),
+        };
+
         let mut rng = Pcg64Mcg::seed_from_u64(self.seed);
         let mut rejections: u64 = 0;
 
@@ -118,7 +123,6 @@ impl MCOptimiser {
         let mut basis = state.generate_basis();
         let basis_distribution = Uniform::new(0, basis.len() as u64);
 
-        let mut score_prev: f64 = state.score()?;
         let mut score: f64 = 0.;
         let mut score_max: f64 = 0.;
         let mut step_ratio = 1.;
@@ -191,7 +195,12 @@ impl MCOptimiser {
             score_max,
             100. * rejections as f64 / total_steps as f64,
         );
-        Ok(best_state)
+
+        assert!(
+            best_state.score().is_ok(),
+            "Final score is invalid, this shouldn't occur in normal operation"
+        );
+        best_state
     }
 }
 
