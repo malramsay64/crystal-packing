@@ -151,10 +151,13 @@ where
                     .set(
                         "transform",
                         format!(
-                            "rotate({0}, {1}, {2}) translate({1}, {2})",
-                            abs_pos.rotation.angle() * 180. / std::f64::consts::PI,
-                            abs_pos.translation.vector.x,
-                            abs_pos.translation.vector.y
+                            "matrix({0} {1} {2} {3} {4} {5})",
+                            abs_pos.rotation[(0, 0)],
+                            abs_pos.rotation[(1, 0)],
+                            abs_pos.rotation[(0, 1)],
+                            abs_pos.rotation[(1, 1)],
+                            abs_pos.rotation[(0, 2)],
+                            abs_pos.rotation[(1, 2)],
                         ),
                     ),
             );
