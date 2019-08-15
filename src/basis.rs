@@ -8,11 +8,37 @@ use rand::Rng;
 
 use crate::traits::Basis;
 
-/// A Value which can be modified in many places
+/// A pointer to a value so it can be modified in many places
 ///
-/// Rust's ownership rules preclude multiple mutable borrows from taking place. The SharedValue
-/// struct is a wrapper around some of Rust's built in methods of handling this, providing a
-/// nicer interface for that tasks I require.
+/// Rust's ownership rules preclude multiple mutable borrows from taking place. The basis interface
+/// is designed around the assumption that this is possible. This provides an abstraction around
+/// handling a value that is accessible in multiple locations.
+///
+/// This abstracts away the implementation details, allowing for a range of different methods to be
+/// tested and implemented. The current implementation, based on using unsafe pointers, has the
+/// best performance by a significant factor.
+///
+/// Using unsafe, does have a number of disadvantages, most notably there are no lifetime checks
+/// for the pointer.
+///
+/// ```
+/// use packing::SharedValue;
+/// let mut x = 1.;
+/// let shared_x = SharedValue::new(&mut x);
+///
+/// assert!(shared_x.get_value() == 1.);
+/// assert!(shared_x.get_value() == x);
+///
+/// // Updating the SharedValue will update the linked variable
+/// shared_x.set_value(2.);
+/// assert!(shared_x.get_value() == x);
+/// assert!(shared_x.get_value() == 2.);
+/// assert!(x == 2.);
+///
+/// // When updating x, the SharedValue will also update
+/// x = 10.;
+/// assert!(shared_x.get_value() == x);
+/// ```
 ///
 #[derive(Debug)]
 pub struct SharedValue {
@@ -20,21 +46,79 @@ pub struct SharedValue {
 }
 
 impl Clone for SharedValue {
+    /// Allow a value to be updated in another location
+    ///
+    /// This allows read/write access to the value being pointed to in an additional location.
+    ///
+    /// ```
+    /// use packing::SharedValue;
+    /// let mut x = 1.;
+    /// let shared_x = SharedValue::new(&mut x);
+    /// let shared_y = shared_x.clone();
+    ///
+    /// assert!(shared_x.get_value() == x);
+    /// assert!(shared_y.get_value() == x);
+    ///
+    /// // Updating the value in one place will update all values
+    /// x = 2.;
+    /// assert!(shared_x.get_value() == x);
+    /// assert!(shared_y.get_value() == x);
+    /// ```
+    ///
     fn clone(&self) -> Self {
         Self { value: self.value }
     }
 }
 
 impl SharedValue {
+    /// Get the value of the variable being shared
     pub fn get_value(&self) -> f64 {
         unsafe { *self.value }
     }
+
+    /// This updates the value which is being shared
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The new value to assign to the shared value
+    ///
+    /// # Remarks
+    ///
+    /// This breaks the single mutability rules of rust, and is consequently unsafe to use in
+    /// threaded code.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use packing::SharedValue;
+    /// let mut x = 1.;
+    /// let shared_x = SharedValue::new(&mut x);
+    ///
+    /// // Update the value of x through shared_x
+    /// shared_x.set_value(2.);
+    ///
+    /// // The values of both x and shared_x will be updated
+    /// assert!(x == 2.);
+    /// assert!(shared_x.get_value() == 2.);
+    /// ```
+    ///
     pub fn set_value(&self, value: f64) {
         unsafe {
             *self.value = value;
         }
     }
 
+    /// Create a SharedValue allowing modification of the given value
+    ///
+    /// # Arguments
+    ///
+    /// * `val` - A mutable reference to a f64 value which can be updated in multiple locations
+    ///
+    /// # Remarks
+    ///
+    /// This provides a highly performant access to modifying the value of a variable in multiple
+    /// locations.
+    ///
     pub fn new(val: &mut f64) -> Self {
         Self {
             value: val as *mut f64,
@@ -51,7 +135,14 @@ mod shared_value_tests {
     #[test]
     fn new() {
         let value = SharedValue::new(&mut 1.);
-        assert_abs_diff_eq!(value.get_value(), 1.);
+        assert_eq!(value.get_value(), 1.);
+    }
+
+    #[test]
+    fn new_from_var() {
+        let mut x = 1.;
+        let value = SharedValue::new(&mut x);
+        assert_eq!(value.get_value(), x);
     }
 
     #[test]
@@ -59,19 +150,68 @@ mod shared_value_tests {
         let value = SharedValue::new(&mut 1.);
         assert_abs_diff_eq!(value.get_value(), 1.);
         value.set_value(0.5);
-        assert_abs_diff_eq!(value.get_value(), 0.5);
+        assert_eq!(value.get_value(), 0.5);
+    }
+
+    #[test]
+    fn set_value_var() {
+        // Setup
+        let mut x = 1.;
+        let value = SharedValue::new(&mut x);
+        assert_eq!(value.get_value(), 1.);
+        assert_eq!(value.get_value(), x);
+
+        // Set from shared value
+        value.set_value(0.5);
+        assert_eq!(value.get_value(), x);
+        assert_eq!(value.get_value(), 0.5);
+        assert_eq!(x, 0.5);
+
+        // Set from variable
+        x = 2.;
+        assert_eq!(value.get_value(), x);
+        assert_eq!(value.get_value(), 2.);
+        assert_eq!(x, 2.);
     }
 
     #[test]
     fn clone() {
         let value1 = SharedValue::new(&mut 1.);
         let value2 = value1.clone();
-        assert_abs_diff_eq!(value1.get_value(), 1.);
-        assert_abs_diff_eq!(value2.get_value(), 1.);
+        assert_eq!(value1.get_value(), 1.);
+        assert_eq!(value2.get_value(), 1.);
 
         value2.set_value(0.5);
-        assert_abs_diff_eq!(value1.get_value(), 0.5);
-        assert_abs_diff_eq!(value2.get_value(), 0.5);
+        assert_eq!(value1.get_value(), 0.5);
+        assert_eq!(value2.get_value(), 0.5);
+    }
+
+    #[test]
+    fn clone_var() {
+        // Setup
+        let mut x = 1.;
+        let value1 = SharedValue::new(&mut x);
+        let value2 = value1.clone();
+        assert_eq!(value1.get_value(), x);
+        assert_eq!(value2.get_value(), x);
+
+        // Set from value1
+        value1.set_value(0.);
+        assert_eq!(x, 0.);
+        assert_eq!(value1.get_value(), x);
+        assert_eq!(value2.get_value(), x);
+
+        // Set from value2
+        value2.set_value(0.5);
+        assert_eq!(x, 0.5);
+        assert_eq!(value1.get_value(), x);
+        assert_eq!(value2.get_value(), x);
+
+        // Set from x
+        x = 3.;
+        assert_eq!(x, 3.);
+        assert_eq!(value1.get_value(), x);
+        assert_eq!(value2.get_value(), x);
     }
 }
 
