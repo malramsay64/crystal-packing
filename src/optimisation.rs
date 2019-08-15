@@ -173,6 +173,7 @@ impl MCOptimiser {
                     Err(_) => {
                         trace!("Rejected for invalid score.");
                         loop_rejections += 1;
+                        basis[basis_index].reset_value();
                         score_prev
                     }
                 };
