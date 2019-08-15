@@ -71,6 +71,23 @@ impl Clone for SharedValue {
 }
 
 impl SharedValue {
+    /// Create a SharedValue allowing modification of the given value
+    ///
+    /// # Arguments
+    ///
+    /// * `val` - A mutable reference to a f64 value which can be updated in multiple locations
+    ///
+    /// # Remarks
+    ///
+    /// This provides a highly performant access to modifying the value of a variable in multiple
+    /// locations.
+    ///
+    pub fn new(val: &mut f64) -> Self {
+        Self {
+            value: val as *mut f64,
+        }
+    }
+
     /// Get the value of the variable being shared
     pub fn get_value(&self) -> f64 {
         unsafe { *self.value }
@@ -105,23 +122,6 @@ impl SharedValue {
     pub fn set_value(&self, value: f64) {
         unsafe {
             *self.value = value;
-        }
-    }
-
-    /// Create a SharedValue allowing modification of the given value
-    ///
-    /// # Arguments
-    ///
-    /// * `val` - A mutable reference to a f64 value which can be updated in multiple locations
-    ///
-    /// # Remarks
-    ///
-    /// This provides a highly performant access to modifying the value of a variable in multiple
-    /// locations.
-    ///
-    pub fn new(val: &mut f64) -> Self {
-        Self {
-            value: val as *mut f64,
         }
     }
 }
