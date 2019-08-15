@@ -7,15 +7,15 @@
 use std::fmt;
 
 use approx::{AbsDiffEq, RelativeEq};
-use nalgebra::Point2;
+use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::Intersect;
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Line2 {
-    pub start: Point2<f64>,
-    pub end: Point2<f64>,
+    pub start: Vector2<f64>,
+    pub end: Vector2<f64>,
 }
 
 impl Intersect for Line2 {
@@ -99,8 +99,8 @@ impl fmt::Display for Line2 {
 impl Line2 {
     pub fn new(start: (f64, f64), end: (f64, f64)) -> Self {
         Self {
-            start: Point2::new(start.0, start.1),
-            end: Point2::new(end.0, end.1),
+            start: Vector2::new(start.0, start.1),
+            end: Vector2::new(end.0, end.1),
         }
     }
 
@@ -126,8 +126,8 @@ mod test {
     #[test]
     fn new() {
         let line = Line2::new((1., 0.), (0., 1.));
-        assert_eq!(line.start, Point2::new(1., 0.));
-        assert_eq!(line.end, Point2::new(0., 1.));
+        assert_eq!(line.start, Vector2::new(1., 0.));
+        assert_eq!(line.end, Vector2::new(0., 1.));
     }
 
     #[test]
@@ -159,7 +159,7 @@ mod test {
         let line = Line2::new((1., 1.), (0., 0.));
         assert_eq!(line * ident, line);
 
-        let trans: Transform2 = Transform2::new(Vector2::new(1., 1.), 0.);
+        let trans: Transform2 = Transform2::new(1., 1., 0.);
         assert_eq!(line * trans, Line2::new((2., 2.), (1., 1.)));
     }
 

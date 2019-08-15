@@ -7,7 +7,7 @@
 use std::{fmt, ops, slice};
 
 use nalgebra::allocator::Allocator;
-use nalgebra::{DefaultAllocator, DimName, Point2, VectorN};
+use nalgebra::{DefaultAllocator, DimName, Vector2, VectorN};
 use rand::Rng;
 use serde::Serialize;
 use svg::node::element::Group;
@@ -87,11 +87,11 @@ pub trait Cell:
     fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2>;
     fn from_family(group: &CrystalFamily, max_size: f64) -> Self;
     fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;
-    fn to_cartesian_point(&self, point: Point2<f64>) -> Point2<f64>;
+    fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64>;
     fn get_degrees_of_freedom(&mut self) -> Vec<StandardBasis>;
-    fn center(&self) -> Point2<f64>;
+    fn center(&self) -> Vector2<f64>;
     fn area(&self) -> f64;
-    fn get_corners(&self) -> Vec<Point2<f64>>;
+    fn get_corners(&self) -> Vec<Vector2<f64>>;
 }
 
 pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {

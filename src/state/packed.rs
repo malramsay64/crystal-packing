@@ -10,7 +10,7 @@ use std::fmt::Write;
 use std::ops::Mul;
 
 use log::debug;
-use nalgebra::Point2;
+use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
@@ -108,7 +108,7 @@ where
         writeln!(&mut output, "Positions")?;
 
         for transform in self.cartesian_positions() {
-            writeln!(&mut output, "{}", transform.as_simple())?;
+            writeln!(&mut output, "{:?}", transform)?;
         }
         Ok(output)
     }
@@ -151,10 +151,7 @@ where
                 for transform in self.cell.periodic_images(position2, index1 != index2) {
                     let transform2 = &self.cell.to_cartesian_isometry(&transform);
 
-                    let distance = nalgebra::distance_squared(
-                        &(transform1.translation * Point2::origin()),
-                        &(transform2.translation * Point2::origin()),
-                    );
+                    let distance = (transform1.position() - transform2.position()).norm_squared();
                     if distance <= radius_sq {
                         let shape_i2 = self.shape.transform(transform2);
                         if shape_i1.intersects(&shape_i2) {

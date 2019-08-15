@@ -7,7 +7,7 @@
 use std::f64::consts::PI;
 
 use itertools::iproduct;
-use nalgebra::{Point2, Translation2, Vector2};
+use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
@@ -92,17 +92,13 @@ impl Cell for Cell2 {
     /// Cartesian coordinates based on the current cell parameters.
     ///
     fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
-        let (x, y) = self.to_cartesian(
-            transform.translation.vector.x,
-            transform.translation.vector.y,
-        );
-        Transform2::from_parts(Translation2::new(x, y), transform.rotation)
+        transform.set_position(self.to_cartesian_point(transform.position()))
     }
 
     /// Convert a point in relative coordinates to real coordinates
-    fn to_cartesian_point(&self, point: Point2<f64>) -> Point2<f64> {
+    fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64> {
         let (x, y) = self.to_cartesian(point.x, point.y);
-        Point2::new(x, y)
+        Vector2::new(x, y)
     }
 
     /// This finds the values of the unit cell which are allowed to be changed and how
@@ -150,9 +146,9 @@ impl Cell for Cell2 {
     /// calculations that this is required, when trying to plot the unit cell it should be plotted
     /// with the center at the appropriate position.
     ///
-    fn center(&self) -> Point2<f64> {
+    fn center(&self) -> Vector2<f64> {
         let (x, y) = self.to_cartesian(0.5, 0.5);
-        Point2::new(x, y)
+        Vector2::new(x, y)
     }
 
     /// Calculates the area of the cell
@@ -199,22 +195,22 @@ impl Cell for Cell2 {
 
         if zero {
             iproduct!(iter_range.clone(), iter_range.clone())
-                .map(|(x, y)| transform.adjust_period(Vector2::new(f64::from(x), f64::from(y))))
+                .map(|(x, y)| self.to_cartesian_translate(transform, x, y))
                 .collect()
         } else {
             iproduct!(iter_range.clone(), iter_range.clone())
                 .filter(|&(x, y)| !(x == 0 && y == 0))
-                .map(|(x, y)| transform.adjust_period(Vector2::new(f64::from(x), f64::from(y))))
+                .map(|(x, y)| self.to_cartesian_translate(transform, x, y))
                 .collect()
         }
     }
 
-    fn get_corners(&self) -> Vec<Point2<f64>> {
+    fn get_corners(&self) -> Vec<Vector2<f64>> {
         let points = vec![
-            Point2::new(-0.5, -0.5),
-            Point2::new(-0.5, 0.5),
-            Point2::new(0.5, 0.5),
-            Point2::new(0.5, -0.5),
+            Vector2::new(-0.5, -0.5),
+            Vector2::new(-0.5, 0.5),
+            Vector2::new(0.5, 0.5),
+            Vector2::new(0.5, -0.5),
         ];
 
         points
@@ -225,6 +221,13 @@ impl Cell for Cell2 {
 }
 
 impl Cell2 {
+    fn to_cartesian_translate(&self, transform: &Transform2, x: i64, y: i64) -> Transform2 {
+        let mut position = transform.position();
+        position.x += x as f64;
+        position.y += y as f64;
+        transform.set_position(self.to_cartesian_point(position))
+    }
+
     /// The $x$ component of the cell, also known as $a$
     ///
     /// This is the interface for accessing the length of the first crystallographic dimension of
@@ -276,15 +279,13 @@ mod cell_tests {
     #[test]
     fn to_cartesian_test() {
         let mut cell = Cell2::default();
-        let trans = Transform2::new(nalgebra::Vector2::new(0.5, 0.5), 0.);
+        let trans = Transform2::new(0.5, 0.5, 0.);
 
         assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
         cell.angles.x = PI / 4.;
-        let expected = Transform2::new(
-            nalgebra::Vector2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
-            0.,
-        );
+        let expected =
+            Transform2::new(0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.), 0.);
         assert_abs_diff_eq!(cell.to_cartesian_isometry(&trans), expected);
     }
 
@@ -292,7 +293,7 @@ mod cell_tests {
     fn periodic_intersection() {
         let shape = LineShape::from_radial("Square", vec![1.; 4]).unwrap();
         let cell = Cell2::default();
-        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(0., 0., 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)
@@ -306,7 +307,7 @@ mod cell_tests {
     fn periodic_edge_intersection() {
         let shape = LineShape::from_radial("Square", vec![0.5; 4]).unwrap();
         let cell = Cell2::default();
-        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(0., 0., 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)
@@ -320,7 +321,7 @@ mod cell_tests {
     fn no_periodic_intersection() {
         let shape = LineShape::from_radial("Square", vec![0.49; 4]).unwrap();
         let cell = Cell2::default();
-        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(0., 0., 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)
@@ -333,39 +334,39 @@ mod cell_tests {
     #[test]
     fn periodic_images_nozero() {
         let translations = vec![
-            Translation2::new(-1., -1.),
-            Translation2::new(-1., 0.),
-            Translation2::new(-1., 1.),
-            Translation2::new(0., -1.),
-            Translation2::new(0., 1.),
-            Translation2::new(1., -1.),
-            Translation2::new(1., -0.),
-            Translation2::new(1., 1.),
+            Vector2::new(-1., -1.),
+            Vector2::new(-1., 0.),
+            Vector2::new(-1., 1.),
+            Vector2::new(0., -1.),
+            Vector2::new(0., 1.),
+            Vector2::new(1., -1.),
+            Vector2::new(1., -0.),
+            Vector2::new(1., 1.),
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
         for (calculated, expected) in izip!(cell.periodic_images(&transform, false), translations) {
-            assert_abs_diff_eq!(calculated.translation, expected);
+            assert_abs_diff_eq!(calculated.position(), expected);
         }
     }
 
     #[test]
     fn periodic_images() {
         let translations = vec![
-            Translation2::new(-1., -1.),
-            Translation2::new(-1., 0.),
-            Translation2::new(-1., 1.),
-            Translation2::new(0., -1.),
-            Translation2::new(0., 0.),
-            Translation2::new(0., 1.),
-            Translation2::new(1., -1.),
-            Translation2::new(1., -0.),
-            Translation2::new(1., 1.),
+            Vector2::new(-1., -1.),
+            Vector2::new(-1., 0.),
+            Vector2::new(-1., 1.),
+            Vector2::new(0., -1.),
+            Vector2::new(0., 0.),
+            Vector2::new(0., 1.),
+            Vector2::new(1., -1.),
+            Vector2::new(1., -0.),
+            Vector2::new(1., 1.),
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
         for (calculated, expected) in izip!(cell.periodic_images(&transform, true), translations) {
-            assert_abs_diff_eq!(calculated.translation, expected);
+            assert_abs_diff_eq!(calculated.position(), expected);
         }
     }
 
@@ -378,7 +379,7 @@ mod cell_tests {
             family: CrystalFamily::Monoclinic,
         };
 
-        let transform = Transform2::new(nalgebra::Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(0., 0., 0.);
 
         let intersection = cell
             .periodic_images(&transform, false)

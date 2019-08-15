@@ -118,7 +118,7 @@ where
         writeln!(&mut output, "Positions")?;
 
         for transform in self.cartesian_positions() {
-            writeln!(&mut output, "{}", transform.as_simple())?;
+            writeln!(&mut output, "{:?}", transform)?;
         }
         Ok(output)
     }

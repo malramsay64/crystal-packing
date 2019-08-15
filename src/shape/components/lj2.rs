@@ -6,14 +6,14 @@
 
 use std::fmt;
 
-use nalgebra::Point2;
+use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::Potential;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct LJ2 {
-    pub position: Point2<f64>,
+    pub position: Vector2<f64>,
     pub sigma: f64,
     pub epsilon: f64,
 }
@@ -21,7 +21,7 @@ pub struct LJ2 {
 impl Potential for LJ2 {
     fn energy(&self, other: &Self) -> f64 {
         let sigma_squared = self.sigma.powi(2);
-        let r_squared = nalgebra::distance_squared(&self.position, &other.position);
+        let r_squared = (&self.position - &other.position).norm_squared();
         let sigma2_r2_cubed = (sigma_squared / r_squared).powi(3);
 
         4. * self.epsilon * (sigma2_r2_cubed.powi(2) - sigma2_r2_cubed)
@@ -41,7 +41,7 @@ impl fmt::Display for LJ2 {
 impl LJ2 {
     pub fn new(x: f64, y: f64, sigma: f64) -> Self {
         LJ2 {
-            position: Point2::<f64>::new(x, y),
+            position: Vector2::new(x, y),
             sigma,
             epsilon: 1.,
         }
@@ -66,7 +66,7 @@ mod test {
     fn distance_squared_test() {
         let a0 = LJ2::new(0., 0., 1.);
         let a1 = LJ2::new(1., 0., 1.);
-        assert_abs_diff_eq!(nalgebra::distance_squared(&a0.position, &a1.position), 1.);
+        assert_abs_diff_eq!((a0.position - a1.position).norm_squared(), 1.);
         assert_abs_diff_eq!(a0.energy(&a1), 0.);
     }
 

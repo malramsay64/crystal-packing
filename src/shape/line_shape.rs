@@ -10,7 +10,6 @@ use std::slice;
 use std::vec;
 
 use itertools::{iproduct, Itertools};
-use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
 use super::Line2;
@@ -60,14 +59,9 @@ impl Intersect for LineShape {
         // This is the sine of the angle between each point, this is used for every calculation
         // so pre-calculate here.
         let angle_term: f64 = f64::sin(2. * PI / self.items.len() as f64);
-        let zero = Point2::origin();
         self.iter()
             // Calculate the area of the of triangle made by the line and the origin
-            .map(|p| {
-                0.5 * angle_term
-                    * nalgebra::distance(&zero, &p.start)
-                    * nalgebra::distance(&zero, &p.end)
-            })
+            .map(|p| 0.5 * angle_term * p.start.norm() * p.end.norm())
             .sum()
     }
 }
@@ -85,7 +79,7 @@ impl Shape for LineShape {
 
     fn enclosing_radius(&self) -> f64 {
         self.iter()
-            .map(|p| nalgebra::distance(&Point2::origin(), &p.start))
+            .map(|p| p.start.norm())
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
@@ -179,28 +173,28 @@ mod test {
     #[test]
     fn intersection() {
         let square = create_square();
-        let transform = Transform2::new(Vector2::new(1., 1.), 0.);
+        let transform = Transform2::new(1., 1., 0.);
         assert!(square.intersects(&square.transform(&transform)));
     }
 
     #[test]
     fn corner_no_intersection() {
         let square = create_square();
-        let transform = Transform2::new(Vector2::new(2., 2.), 0.);
+        let transform = Transform2::new(2., 2., 0.);
         assert!(!square.intersects(&square.transform(&transform)));
     }
 
     #[test]
     fn self_intersection() {
         let square = create_square();
-        let transform = Transform2::new(Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(0., 0., 0.);
         assert!(square.intersects(&square.transform(&transform)));
     }
 
     #[test]
     fn no_intersection() {
         let square = create_square();
-        let transform = Transform2::new(Vector2::new(2.01, 2.01), 0.);
+        let transform = Transform2::new(2.01, 2.01, 0.);
         assert!(!square.intersects(&square.transform(&transform)));
     }
 

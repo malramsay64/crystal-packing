@@ -15,8 +15,7 @@ use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
 use packing::{
-    BuildOptimiser, Cell2, CrystalFamily, FromSymmetry, LJShape2, OccupiedSite, PotentialState,
-    Transform2,
+    BuildOptimiser, Cell2, CrystalFamily, LJShape2, OccupiedSite, PotentialState, Transform2,
 };
 
 #[test]

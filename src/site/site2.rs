@@ -31,7 +31,7 @@ pub struct OccupiedSite {
 
 impl Site for OccupiedSite {
     fn transform(&self) -> Transform2 {
-        Transform2::new(Vector2::new(self.x, self.y), self.angle)
+        Transform2::new(self.x, self.y, self.angle)
     }
 
     fn positions(&self) -> Vec<Transform2> {
@@ -39,7 +39,7 @@ impl Site for OccupiedSite {
         self.symmetries()
             .iter()
             .map(|sym| sym * transform)
-            .map(|sym| sym.periodic(1.))
+            .map(|sym| sym.periodic(1., -0.5))
             .collect()
     }
 

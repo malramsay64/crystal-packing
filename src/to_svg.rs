@@ -4,6 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
+use nalgebra::Matrix3;
 use svg::node::element;
 use svg::Document;
 
@@ -132,18 +133,15 @@ where
                 .add(self.shape.as_svg().set("id", "mol")),
         );
         for position in self.cell.periodic_images(&Transform2::identity(), true) {
-            let abs_pos = self.cell.to_cartesian_isometry(&position);
+            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
             doc = doc.add(element::Use::new().set("href", "#cell").set(
                 "transform",
-                format!(
-                    "translate({}, {})",
-                    abs_pos.translation.vector.x, abs_pos.translation.vector.y
-                ),
+                format!("translate({}, {})", abs_pos[(2, 0)], abs_pos[(2, 1)],),
             ));
         }
 
         for position in self.relative_positions() {
-            let abs_pos = self.cell.to_cartesian_isometry(&position);
+            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
             doc = doc.add(
                 element::Use::new()
                     .set("href", "#mol")
@@ -152,17 +150,17 @@ where
                         "transform",
                         format!(
                             "matrix({0} {1} {2} {3} {4} {5})",
-                            abs_pos.rotation[(0, 0)],
-                            abs_pos.rotation[(1, 0)],
-                            abs_pos.rotation[(0, 1)],
-                            abs_pos.rotation[(1, 1)],
-                            abs_pos.rotation[(0, 2)],
-                            abs_pos.rotation[(1, 2)],
+                            abs_pos[(0, 0)],
+                            abs_pos[(1, 0)],
+                            abs_pos[(0, 1)],
+                            abs_pos[(1, 1)],
+                            abs_pos[(0, 2)],
+                            abs_pos[(1, 2)],
                         ),
                     ),
             );
             for periodic in self.cell.periodic_images(&position, false) {
-                let abs_pos = self.cell.to_cartesian_isometry(&periodic);
+                let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&periodic).into();
                 doc = doc.add(
                     element::Use::new()
                         .set("href", "#mol")
@@ -170,10 +168,13 @@ where
                         .set(
                             "transform",
                             format!(
-                                "rotate({0}, {1}, {2}) translate({1}, {2})",
-                                abs_pos.rotation.angle() * 180. / std::f64::consts::PI,
-                                abs_pos.translation.vector.x,
-                                abs_pos.translation.vector.y
+                                "matrix({0} {1} {2} {3} {4} {5})",
+                                abs_pos[(0, 0)],
+                                abs_pos[(1, 0)],
+                                abs_pos[(0, 1)],
+                                abs_pos[(1, 1)],
+                                abs_pos[(0, 2)],
+                                abs_pos[(1, 2)],
                             ),
                         ),
                 );
@@ -212,17 +213,14 @@ where
                 .add(self.shape.as_svg().set("id", "mol")),
         );
         for position in self.cell.periodic_images(&Transform2::identity(), true) {
-            let abs_pos = self.cell.to_cartesian_isometry(&position);
+            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
             doc = doc.add(element::Use::new().set("href", "#cell").set(
                 "transform",
-                format!(
-                    "translate({}, {})",
-                    abs_pos.translation.vector.x, abs_pos.translation.vector.y
-                ),
+                format!("translate({}, {})", abs_pos[(2, 0)], abs_pos[(2, 1)]),
             ));
         }
         for position in self.relative_positions() {
-            let abs_pos = self.cell.to_cartesian_isometry(&position);
+            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
             doc = doc.add(
                 element::Use::new()
                     .set("href", "#mol")
@@ -230,15 +228,18 @@ where
                     .set(
                         "transform",
                         format!(
-                            "rotate({0}, {1}, {2}) translate({1}, {2})",
-                            abs_pos.rotation.angle() * 180. / std::f64::consts::PI,
-                            abs_pos.translation.vector.x,
-                            abs_pos.translation.vector.y
+                            "matrix({0} {1} {2} {3} {4} {5})",
+                            abs_pos[(0, 0)],
+                            abs_pos[(1, 0)],
+                            abs_pos[(0, 1)],
+                            abs_pos[(1, 1)],
+                            abs_pos[(0, 2)],
+                            abs_pos[(1, 2)],
                         ),
                     ),
             );
             for periodic in self.cell.periodic_images(&position, false) {
-                let abs_pos = self.cell.to_cartesian_isometry(&periodic);
+                let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&periodic).into();
                 doc = doc.add(
                     element::Use::new()
                         .set("href", "#mol")
@@ -246,10 +247,13 @@ where
                         .set(
                             "transform",
                             format!(
-                                "rotate({0}, {1}, {2}) translate({1}, {2})",
-                                abs_pos.rotation.angle() * 180. / std::f64::consts::PI,
-                                abs_pos.translation.vector.x,
-                                abs_pos.translation.vector.y
+                                "matrix({0} {1} {2} {3} {4} {5})",
+                                abs_pos[(0, 0)],
+                                abs_pos[(1, 0)],
+                                abs_pos[(0, 1)],
+                                abs_pos[(1, 1)],
+                                abs_pos[(0, 2)],
+                                abs_pos[(1, 2)],
                             ),
                         ),
                 );

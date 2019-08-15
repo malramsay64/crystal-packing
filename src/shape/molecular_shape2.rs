@@ -8,7 +8,6 @@ use std::f64::consts::PI;
 use std::{fmt, slice, vec};
 
 use itertools::{iproduct, Itertools};
-use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
 use super::{Atom2, Transform2};
@@ -66,7 +65,7 @@ impl Shape for MolecularShape2 {
     fn enclosing_radius(&self) -> f64 {
         self.items
             .iter()
-            .map(|p| nalgebra::distance(&Point2::origin(), &p.position) + p.radius)
+            .map(|p| p.position.norm() + p.radius)
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
@@ -105,7 +104,7 @@ impl MolecularShape2 {
     }
 
     fn circle_overlap(a1: &Atom2, a2: &Atom2) -> f64 {
-        let distance = nalgebra::distance(&a1.position, &a2.position);
+        let distance = (a1.position - a2.position).norm();
         // There is some overlap between the circles which needs to be calculated
         if distance < a1.radius + a2.radius {
             let d1 = (distance.powi(2) + a1.radius.powi(2) - a2.radius.powi(2)) / (2. * distance);
@@ -191,20 +190,20 @@ mod test {
         let shape = MolecularShape2::from_trimer(1., PI, 1.);
         assert_eq!(shape.items.len(), 3);
 
-        assert_abs_diff_eq!(shape.items[0].position, Point2::new(0., 0.));
-        assert_abs_diff_eq!(shape.items[1].position, Point2::new(-1., 0.));
-        assert_abs_diff_eq!(shape.items[2].position, Point2::new(1., 0.));
+        assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., 0.));
+        assert_abs_diff_eq!(shape.items[1].position, Vector2::new(-1., 0.));
+        assert_abs_diff_eq!(shape.items[2].position, Vector2::new(1., 0.));
 
         let shape = MolecularShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
-        assert_abs_diff_eq!(shape.items[0].position, Point2::new(0., -1. / 3.));
+        assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., -1. / 3.));
         assert_abs_diff_eq!(
             shape.items[1].position,
-            Point2::new(-0.866, 1. / 6.),
+            Vector2::new(-0.866, 1. / 6.),
             epsilon = 1e-3,
         );
         assert_abs_diff_eq!(
             shape.items[2].position,
-            Point2::new(0.866, 1. / 6.),
+            Vector2::new(0.866, 1. / 6.),
             epsilon = 1e-3,
         );
     }
@@ -222,35 +221,35 @@ mod test {
     #[test]
     fn intersection() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(Vector2::new(1.0, 1.0), 0.);
+        let transform = Transform2::new(1.0, 1.0, 0.);
         assert!(mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn no_intersection_edge() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(Vector2::new(2., 0.), 0.);
+        let transform = Transform2::new(2., 0., 0.);
         assert!(!mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn self_intersection() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(Vector2::new(0., 0.), 0.);
+        let transform = Transform2::new(0., 0., 0.);
         assert!(mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn no_intersection() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(Vector2::new(2.01, 0.), 0.);
+        let transform = Transform2::new(2.01, 0., 0.);
         assert!(!mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn no_intersection_corner() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(Vector2::new(2., 2.), 0.);
+        let transform = Transform2::new(2., 2., 0.);
         assert!(!mol.intersects(&mol.transform(&transform)));
     }
 
