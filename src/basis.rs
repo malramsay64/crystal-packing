@@ -4,6 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
+
 use rand::Rng;
 
 use crate::traits::Basis;
@@ -128,6 +129,9 @@ impl SharedValue {
 
 #[cfg(test)]
 mod shared_value_tests {
+    // The floating point values should be the same, so using standard equality is valid.
+    #![allow(clippy::float_cmp)]
+
     use approx::assert_abs_diff_eq;
 
     use super::*;
