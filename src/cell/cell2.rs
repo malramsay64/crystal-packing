@@ -56,8 +56,9 @@ mod crystal_family_test {
 ///
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cell2 {
-    points: Vector2<f64>,
-    angles: Vector2<f64>,
+    a: f64,
+    b: f64,
+    angle: f64,
     family: CrystalFamily,
 }
 
@@ -65,10 +66,8 @@ impl std::fmt::Display for Cell2 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "Cell2 {{ x: {}, y: {}, angle: {} }}",
-            self.x(),
-            self.y(),
-            self.angle()
+            "Cell2 {{ a: {}, b: {}, angle: {} }}",
+            self.a, self.b, self.angle
         )
     }
 }
@@ -76,8 +75,9 @@ impl std::fmt::Display for Cell2 {
 impl Default for Cell2 {
     fn default() -> Self {
         Self {
-            points: Vector2::new(1., 1.),
-            angles: Vector2::new(PI / 2., 0.),
+            a: 1.,
+            b: 1.,
+            angle: PI / 2.,
             family: CrystalFamily::Monoclinic,
         }
     }
@@ -96,6 +96,18 @@ impl Cell for Cell2 {
     }
 
     /// Convert a point in relative coordinates to real coordinates
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use packing::traits::Cell;
+    /// use packing::{Cell2, CrystalFamily};
+    /// use nalgebra::Vector2;
+    /// let cell = Cell2::from_family(&CrystalFamily::Monoclinic, 8.);
+    /// let point = cell.to_cartesian_point(Vector2::new(0.5, 0.5));
+    /// assert_eq!(point, Vector2::new(4., 4.));
+    /// ```
+    ///
     fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64> {
         let (x, y) = self.to_cartesian(point.x, point.y);
         Vector2::new(x, y)
@@ -111,25 +123,25 @@ impl Cell for Cell2 {
 
         // All cells have at least a single variable cell length
         basis.push(StandardBasis::new(
-            SharedValue::new(&mut self.points.x),
+            SharedValue::new(&mut self.a),
             0.01,
-            self.x(),
+            self.a,
         ));
 
         // Both the Orthorhombic and Monoclinic cells have a second variable cell length. This is
         // indicated by the presence of the optional value.
-        if self.points.y != 0. {
+        if self.b != 0. {
             basis.push(StandardBasis::new(
-                SharedValue::new(&mut self.points.y),
+                SharedValue::new(&mut self.b),
                 0.01,
-                self.y(),
+                self.b,
             ));
         }
 
         // The Monoclinic family is the only one to have a variable cell angle.
         if self.family == CrystalFamily::Monoclinic {
             basis.push(StandardBasis::new(
-                SharedValue::new(&mut self.angles.x),
+                SharedValue::new(&mut self.angle),
                 PI / 4.,
                 3. * PI / 4.,
             ));
@@ -153,9 +165,11 @@ impl Cell for Cell2 {
 
     /// Calculates the area of the cell
     ///
-    /// The general formula for the area of a rhombus.
+    /// This uses the general formula for the area of a rhombus which is
+    /// $ A = xy\sin(\theta) $
+    ///
     fn area(&self) -> f64 {
-        self.angle().sin() * self.x() * self.y()
+        self.angle.sin() * self.a * self.b
     }
 
     /// Initialise a Cell instance from the CrystalFamily the cell belongs to
@@ -165,7 +179,7 @@ impl Cell for Cell2 {
     /// cell are the same length, or restricting the angle to a specific value.
     ///
     fn from_family(family: &CrystalFamily, length: f64) -> Cell2 {
-        let (x_len, y_len, angle) = match family {
+        let (a, b, angle) = match family {
             // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
             CrystalFamily::Hexagonal => (length, 0., PI / 3.),
             // The Tetragonal Crystal has both sides equal with a fixed angle of 90 degrees.
@@ -177,8 +191,9 @@ impl Cell for Cell2 {
             CrystalFamily::Monoclinic => (length, length, PI / 2.),
         };
         Cell2 {
-            points: Vector2::new(x_len, y_len),
-            angles: Vector2::new(angle, 0.),
+            a,
+            b,
+            angle,
             family: family.clone(),
         }
     }
@@ -187,7 +202,7 @@ impl Cell for Cell2 {
         // The periodic images to check. Checking the first and second shells i.e.
         // -2..=2, as this is necessary to ensure no intersections on tilted cells
         // and highly irregular cells.
-        let iter_range = match (self.x() / self.y(), self.angle()) {
+        let iter_range = match (self.a / self.b, self.angle) {
             (p, a) if 0.5 < p && p < 2. && f64::abs(a - PI / 2.) < 0.2 => -1..=1,
             (p, a) if 0.3 < p && p < 3. && f64::abs(a - PI / 2.) < 0.5 => -2..=2,
             _ => -3..=3,
@@ -228,37 +243,22 @@ impl Cell2 {
         transform.set_position(self.to_cartesian_point(position))
     }
 
-    /// The $x$ component of the cell, also known as $a$
-    ///
-    /// This is the interface for accessing the length of the first crystallographic dimension of
-    /// the unit cell.
-    pub fn x(&self) -> f64 {
-        self.points.x
-    }
-
-    /// The $y$ component of the cell, also known as $a$
-    ///
-    /// This is the interface for accessing the length of the first crystallographic dimension of
-    /// the unit cell.
-    pub fn y(&self) -> f64 {
-        if self.points.y == 0. {
-            return self.points.x;
-        }
-        self.points.y
-    }
-
-    /// The angle between the $x$ and $y$ components of the cell
-    ///
-    /// This is typically labelled $\theta$.
-    pub fn angle(&self) -> f64 {
-        self.angles.x
-    }
-
     /// Convert two values in relative coordinates to real coordinates
+    ///
+    /// ```
+    /// use packing::traits::Cell;
+    /// use packing::{Cell2, CrystalFamily};
+    /// let cell = Cell2::from_family(&CrystalFamily::Monoclinic, 8.);
+    /// let point = cell.to_cartesian(0.25, 0.25);
+    /// assert_eq!(point, (2., 2.));
+    /// assert_eq!(cell.to_cartesian(0., 0.,), (0., 0.));
+    /// assert_eq!(cell.to_cartesian(1., 1.,), (8., 8.));
+    /// ```
+    ///
     pub fn to_cartesian(&self, x: f64, y: f64) -> (f64, f64) {
         (
-            x * self.x() + y * self.y() * self.angle().cos(),
-            y * self.y() * self.angle().sin(),
+            x * self.a + y * self.b * self.angle.cos(),
+            y * self.b * self.angle.sin(),
         )
     }
 }
@@ -283,7 +283,7 @@ mod cell_tests {
 
         assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
-        cell.angles.x = PI / 4.;
+        cell.angle = PI / 4.;
         let expected = Transform2::new(
             0.,
             (0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
@@ -376,8 +376,9 @@ mod cell_tests {
     fn invalid_intersection() {
         let shape = LineShape::from_radial("Square", vec![1.; 4]).unwrap();
         let cell = Cell2 {
-            points: Vector2::new(1.32, 1.59),
-            angles: Vector2::new(1.21, 0.),
+            a: 1.32,
+            b: 1.59,
+            angle: 1.21,
             family: CrystalFamily::Monoclinic,
         };
 
