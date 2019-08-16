@@ -307,6 +307,8 @@ mod test {
         }
 
         #[quickcheck]
+        // The value should be exact in this case
+        #[allow(clippy::float_cmp)]
         fn rotation_and_trans_value(rotation: f64, translation: (f64, f64)) -> bool {
             let t = Transform2::new(rotation, translation);
             dbg!(t * t);
