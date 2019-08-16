@@ -6,7 +6,8 @@
 
 use std::fmt;
 
-use approx::{AbsDiffEq, RelativeEq};
+#[cfg(test)]
+use approx::AbsDiffEq;
 use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +59,7 @@ impl Intersect for Line2 {
     }
 }
 
+#[cfg(test)]
 impl AbsDiffEq for Line2 {
     type Epsilon = f64;
 
@@ -67,22 +69,6 @@ impl AbsDiffEq for Line2 {
 
     fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
         self.start.abs_diff_eq(&other.start, epsilon) && self.end.abs_diff_eq(&other.end, epsilon)
-    }
-}
-
-impl RelativeEq for Line2 {
-    fn default_max_relative() -> Self::Epsilon {
-        std::f64::EPSILON
-    }
-
-    fn relative_eq(
-        &self,
-        other: &Self,
-        epsilon: Self::Epsilon,
-        max_relative: Self::Epsilon,
-    ) -> bool {
-        self.start.relative_eq(&other.start, epsilon, max_relative)
-            && self.end.relative_eq(&other.end, epsilon, max_relative)
     }
 }
 

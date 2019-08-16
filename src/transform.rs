@@ -7,6 +7,7 @@
 use log::warn;
 use std::ops::Mul;
 
+#[cfg(test)]
 use approx::AbsDiffEq;
 use nalgebra::{Matrix3, Vector2, Vector3};
 use serde::{Deserialize, Serialize};
@@ -44,6 +45,7 @@ impl Into<Matrix3<f64>> for Transform2 {
     }
 }
 
+#[cfg(test)]
 impl AbsDiffEq for Transform2 {
     type Epsilon = f64;
 
