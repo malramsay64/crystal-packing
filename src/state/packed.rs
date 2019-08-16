@@ -171,7 +171,7 @@ where
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
         let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
-        let cell = C::from_family(&wallpaper.family, max_cell_size);
+        let cell = C::from_family(wallpaper.family, max_cell_size);
 
         debug!("Cell: {:?}", cell);
 

@@ -85,7 +85,7 @@ pub trait Cell:
     Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display + ToSVG<Value = Group>
 {
     fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2>;
-    fn from_family(group: &CrystalFamily, max_size: f64) -> Self;
+    fn from_family(group: CrystalFamily, max_size: f64) -> Self;
     fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;
     fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64>;
     fn get_degrees_of_freedom(&mut self) -> Vec<StandardBasis>;

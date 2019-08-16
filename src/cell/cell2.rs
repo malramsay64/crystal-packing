@@ -17,7 +17,7 @@ use crate::{SharedValue, StandardBasis, Transform2};
 ///
 /// These are all the valid types of crystal symmetries which are valid in a 2D space.
 ///
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum CrystalFamily {
     Monoclinic,
     Orthorhombic,
@@ -103,7 +103,7 @@ impl Cell for Cell2 {
     /// use packing::traits::Cell;
     /// use packing::{Cell2, CrystalFamily};
     /// use nalgebra::Vector2;
-    /// let cell = Cell2::from_family(&CrystalFamily::Monoclinic, 8.);
+    /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
     /// let point = cell.to_cartesian_point(Vector2::new(0.5, 0.5));
     /// assert_eq!(point, Vector2::new(4., 4.));
     /// ```
@@ -178,7 +178,7 @@ impl Cell for Cell2 {
     /// crystal family impose upon the unit cell. This includes ensuring both sides of the unit
     /// cell are the same length, or restricting the angle to a specific value.
     ///
-    fn from_family(family: &CrystalFamily, length: f64) -> Cell2 {
+    fn from_family(family: CrystalFamily, length: f64) -> Cell2 {
         let (a, b, angle) = match family {
             // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
             CrystalFamily::Hexagonal => (length, 0., PI / 3.),
@@ -248,7 +248,7 @@ impl Cell2 {
     /// ```
     /// use packing::traits::Cell;
     /// use packing::{Cell2, CrystalFamily};
-    /// let cell = Cell2::from_family(&CrystalFamily::Monoclinic, 8.);
+    /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
     /// let point = cell.to_cartesian(0.25, 0.25);
     /// assert_eq!(point, (2., 2.));
     /// assert_eq!(cell.to_cartesian(0., 0.,), (0., 0.));
