@@ -38,6 +38,24 @@ macro_rules! _binop_impl(
 /// [nalgebra](https://github.com/rustsim/nalgebra/blob/911ddca588d2c89e4f7ec9b45aa0aa7f787209c4/src/geometry/isometry_ops.rs)
 /// source code.
 ///
+/// # Example
+///
+/// ```
+/// # use crate::ops_macros::binop_impl_all;
+/// struct Wrapper(f64);
+///
+/// binop_impl_all!(
+///     Mul, mul;
+///     self: Wrapper, rhs: f64, Output = f64;
+///     [ref ref] => self * rhs
+/// )
+///
+///
+/// let w = Wrapper(8.);
+/// w * 2.
+/// # assert!(w * 2. == 16.)
+///
+/// ```
 macro_rules! binop_impl_all(
     // The trait we implementing, along with the function required to implement the trait
     ($Op: ident, $op: ident;
@@ -47,25 +65,22 @@ macro_rules! binop_impl_all(
      // These are the expressions used to perform each of the operations on the different
      // combinations of value and reference. When implementing, by converting all values to the
      // form ref * ref, there is only a single implementation required.
-     [val val] => $action_val_val: expr;
-     [ref val] => $action_ref_val: expr;
-     [val ref] => $action_val_ref: expr;
      [ref ref] => $action_ref_ref: expr;) => {
         // This is the block where the transformation actually occurs.
         _binop_impl!(
             $Op, $op;
             $lhs: $Lhs, $rhs: $Rhs, Output = $Output;
-            $action_val_val; );
+            &$lhs * &$rhs; );
 
         _binop_impl!(
             $Op, $op;
             $lhs: &'a $Lhs, $rhs: $Rhs, Output = $Output;
-            $action_ref_val; 'a);
+            $lhs * &$rhs; 'a);
 
         _binop_impl!(
             $Op, $op;
             $lhs: $Lhs, $rhs: &'b $Rhs, Output = $Output;
-            $action_val_ref; 'b);
+            &$lhs * $rhs; 'b);
 
         _binop_impl!(
             $Op, $op;

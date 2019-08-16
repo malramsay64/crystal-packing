@@ -14,9 +14,6 @@ use crate::Transform2;
 binop_impl_all!(
     Mul, mul;
     self: Transform2, rhs: Atom2, Output = Atom2;
-    [val val] => &self * &rhs;
-    [ref val] => self * &rhs;
-    [val ref] => &self * rhs;
     [ref ref] => {
         Atom2 {
             position: self * rhs.position,
@@ -28,9 +25,6 @@ binop_impl_all!(
 binop_impl_all!(
     Mul, mul;
     self: Atom2, rhs: Transform2, Output = Atom2;
-    [val val] => &self * &rhs;
-    [ref val] => self * &rhs;
-    [val ref] => &self * rhs;
     [ref ref] => {
         Atom2 {
             position: rhs * self.position,

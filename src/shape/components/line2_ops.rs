@@ -13,9 +13,6 @@ use crate::Transform2;
 binop_impl_all!(
     Mul, mul;
     self: Transform2, rhs: Line2, Output = Line2;
-    [val val] => &self * &rhs;
-    [ref val] => self * &rhs;
-    [val ref] => &self * rhs;
     [ref ref] => {
         Line2 {
             start: self * rhs.start,
@@ -27,9 +24,6 @@ binop_impl_all!(
 binop_impl_all!(
     Mul, mul;
     self: Line2, rhs: Transform2, Output = Line2;
-    [val val] => &self * &rhs;
-    [ref val] => self * &rhs;
-    [val ref] => &self * rhs;
     [ref ref] => {
         Line2 {
             start: rhs * self.start,

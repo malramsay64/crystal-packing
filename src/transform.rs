@@ -5,6 +5,7 @@
 //
 
 use log::warn;
+use std::ops::Mul;
 
 use approx::AbsDiffEq;
 use nalgebra::{Matrix3, Vector2, Vector3};
@@ -37,65 +38,22 @@ impl AbsDiffEq for Transform2 {
     }
 }
 
-impl std::ops::Mul<Vector2<f64>> for Transform2 {
-    type Output = Vector2<f64>;
-    fn mul(self, other: Vector2<f64>) -> Self::Output {
-        let result = self.0 * Vector3::new(other.x, other.y, 1.);
+binop_impl_all!(
+    Mul, mul;
+    self: Transform2, rhs: Vector2<f64>, Output = Vector2<f64>;
+    [ref ref] => {
+        let result = self.0 * Vector3::new(rhs.x, rhs.y, 1.);
         result.xy()
-    }
-}
+    };
+);
 
-impl std::ops::Mul<Vector2<f64>> for &Transform2 {
-    type Output = Vector2<f64>;
-    fn mul(self, other: Vector2<f64>) -> Self::Output {
-        let result = self.0 * Vector3::new(other.x, other.y, 1.);
-        result.xy()
-    }
-}
-
-impl std::ops::Mul<&Vector2<f64>> for Transform2 {
-    type Output = Vector2<f64>;
-    fn mul(self, other: &Vector2<f64>) -> Self::Output {
-        let result = self.0 * Vector3::new(other.x, other.y, 1.);
-        result.xy()
-    }
-}
-
-impl std::ops::Mul<&Vector2<f64>> for &Transform2 {
-    type Output = Vector2<f64>;
-    fn mul(self, other: &Vector2<f64>) -> Self::Output {
-        let result = self.0 * Vector3::new(other.x, other.y, 1.);
-        result.xy()
-    }
-}
-
-impl std::ops::Mul<&Transform2> for &Transform2 {
-    type Output = Transform2;
-    fn mul(self, other: &Transform2) -> Self::Output {
-        Transform2::from(self.0 * other.0)
-    }
-}
-
-impl std::ops::Mul<Transform2> for &Transform2 {
-    type Output = Transform2;
-    fn mul(self, other: Transform2) -> Self::Output {
-        self * &other
-    }
-}
-
-impl std::ops::Mul<&Transform2> for Transform2 {
-    type Output = Transform2;
-    fn mul(self, other: &Transform2) -> Self::Output {
-        &self * other
-    }
-}
-
-impl std::ops::Mul<Transform2> for Transform2 {
-    type Output = Transform2;
-    fn mul(self, other: Transform2) -> Self::Output {
-        &self * &other
-    }
-}
+binop_impl_all!(
+    Mul, mul;
+    self: Transform2, rhs: Transform2, Output = Transform2;
+    [ref ref] => {
+        Transform2::from(self.0 * rhs.0)
+    };
+);
 
 impl Transform2 {
     pub fn new(x: f64, y: f64, angle: f64) -> Transform2 {
