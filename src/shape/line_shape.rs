@@ -143,7 +143,6 @@ impl LineShape {
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
-    use nalgebra::Vector2;
 
     use super::*;
 

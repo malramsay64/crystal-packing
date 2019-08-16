@@ -79,7 +79,7 @@ impl Transform2 {
     }
 
     pub fn set_position(&self, position: Vector2<f64>) -> Transform2 {
-        let mut transform = self.clone();
+        let mut transform = *self;
         transform.0[(0, 2)] = position.x;
         transform.0[(1, 2)] = position.y;
         transform

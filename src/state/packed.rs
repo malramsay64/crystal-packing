@@ -10,7 +10,6 @@ use std::fmt::Write;
 use std::ops::Mul;
 
 use log::debug;
-use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::*;

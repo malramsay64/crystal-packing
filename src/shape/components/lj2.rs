@@ -21,7 +21,7 @@ pub struct LJ2 {
 impl Potential for LJ2 {
     fn energy(&self, other: &Self) -> f64 {
         let sigma_squared = self.sigma.powi(2);
-        let r_squared = (&self.position - &other.position).norm_squared();
+        let r_squared = (self.position - other.position).norm_squared();
         let sigma2_r2_cubed = (sigma_squared / r_squared).powi(3);
 
         4. * self.epsilon * (sigma2_r2_cubed.powi(2) - sigma2_r2_cubed)

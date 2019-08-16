@@ -67,7 +67,7 @@ mod test {
     fn distance_squared_test() {
         let a0 = Atom2::new(0., 0., 1.);
         let a1 = Atom2::new(0.5, 0., 1.);
-        assert_abs_diff_eq!((&a0.position - &a1.position).norm_squared(), 0.25);
+        assert_abs_diff_eq!((a0.position - a1.position).norm_squared(), 0.25);
         assert!(a0.intersects(&a1));
     }
 

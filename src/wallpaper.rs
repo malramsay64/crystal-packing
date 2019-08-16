@@ -10,7 +10,6 @@
 use clap::arg_enum;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::*;
 use crate::{CrystalFamily, Transform2};
 
 #[derive(Clone, Serialize, Deserialize)]

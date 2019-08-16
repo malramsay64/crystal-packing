@@ -13,7 +13,6 @@
 
 use std::f64::consts::PI;
 
-use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::basis::{SharedValue, StandardBasis};
