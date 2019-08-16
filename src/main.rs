@@ -135,6 +135,7 @@ fn cli() -> CLIOptions {
         .arg(
             Arg::with_name("kt_ratio")
                 .long("--ratio")
+                .default_value("0.1")
                 .takes_value(true)
                 .help("The multiplicative factor which reduces the temperature.")
         )
