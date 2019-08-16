@@ -4,7 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-
 use rand::Rng;
 
 use crate::traits::Basis;
