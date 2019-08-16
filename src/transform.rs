@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 ///
 /// The order of rotation, followed by translation is followed in the initialisation, with the
-/// rotation being the first argument, and the translation being the second argument.
+/// angular rotation being the first argument, and the translation being the second argument.
 ///
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Transform2(Matrix3<f64>);
@@ -187,27 +187,76 @@ impl Transform2 {
 
 #[cfg(test)]
 mod test {
-    use approx::assert_abs_diff_eq;
+    use approx::{abs_diff_eq, assert_abs_diff_eq};
     use std::f64;
 
     use super::*;
+    use quickcheck_macros::quickcheck;
 
+    /// Init new with zeros should be the same as identity
     #[test]
-    fn identity_transform() {
+    fn new_zeros() {
+        assert_eq!(Transform2::new(0., (0., 0.)), Transform2::identity())
+    }
+
+    /// Ensure init with translation is same as returned
+    #[quickcheck]
+    fn new_translation(x: f64, y: f64) -> bool {
+        let t = Transform2::new(0., (x, y));
+        t.position() == Vector2::new(x, y)
+    }
+
+    /// Check get position is same as set
+    #[quickcheck]
+    fn set_get_translation(x: f64, y: f64) -> bool {
+        let pos = Vector2::new(x, y);
+        let t = Transform2::identity().set_position(pos);
+        t.position() == pos
+    }
+
+    /// Transformation by identity matrix gives same result
+    #[quickcheck]
+    fn identity_transform(x: f64, y: f64) -> bool {
         let identity = Transform2::identity();
-        let point = Vector2::new(0.2, 0.2);
-        assert_eq!(identity * point, point);
+        let point = Vector2::new(x, y);
+        identity * point == point
+    }
+
+    /// Rotation keeps point same distance from origin
+    #[quickcheck]
+    fn rotation_length(angle: f64) -> bool {
+        let t = Transform2::new(angle, (0., 0.));
+        let point = Vector2::new(1., 0.);
+        abs_diff_eq!((t * point).norm(), 1.)
+    }
+
+    /// Translation from origin puts point in same location
+    #[quickcheck]
+    fn translation_from_origin(x: f64, y: f64) -> bool {
+        let t = Transform2::new(0., (x, y));
+        let origin = Vector2::zeros();
+        t * origin == t.position()
+    }
+
+    /// Rotation followed by Translation is in circle about translation
+    #[quickcheck]
+    fn rotation_translation(rotation: f64, translation: (f64, f64)) -> bool {
+        let t = Transform2::new(rotation, translation);
+        let point = Vector2::new(1., 0.);
+        abs_diff_eq!(
+            (t * point - t.position()).norm(),
+            1.,
+            // Large transformations will have larger errors which this accounts for
+            epsilon = t.position().norm() * Transform2::default_epsilon()
+        )
     }
 
     #[test]
     fn transform() {
-        let isometry = Transform2::new(f64::consts::PI / 2., (1., 1.));
+        let t = Transform2::new(f64::consts::PI / 2., (1., 1.));
 
         let point = Vector2::new(0.2, 0.2);
-        assert_eq!(isometry * point, Vector2::new(0.8, 1.2));
-
-        let vec = Vector2::new(0.2, 0.2);
-        assert_eq!(isometry * vec, Vector2::new(-0.2, 0.2));
+        assert_eq!(t * point, Vector2::new(0.8, 1.2));
     }
 
     #[test]
