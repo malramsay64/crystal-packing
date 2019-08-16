@@ -104,6 +104,26 @@ impl ToSVG for MolecularShape2 {
     }
 }
 
+impl ToSVG for Transform2 {
+    type Value = element::Use;
+
+    fn as_svg(&self) -> Self::Value {
+        let matrix: Matrix3<f64> = self.clone().into();
+        element::Use::new().set(
+            "transform",
+            format!(
+                "matrix({0} {1} {2} {3} {4} {5})",
+                matrix[(0, 0)],
+                matrix[(1, 0)],
+                matrix[(0, 1)],
+                matrix[(1, 1)],
+                matrix[(0, 2)],
+                matrix[(1, 2)],
+            ),
+        )
+    }
+}
+
 impl<S, C, T> ToSVG for PotentialState<S, C, T>
 where
     S: Shape + Potential,
@@ -141,43 +161,10 @@ where
         }
 
         for position in self.relative_positions() {
-            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
-            doc = doc.add(
-                element::Use::new()
-                    .set("href", "#mol")
-                    .set("fill", "blue")
-                    .set(
-                        "transform",
-                        format!(
-                            "matrix({0} {1} {2} {3} {4} {5})",
-                            abs_pos[(0, 0)],
-                            abs_pos[(1, 0)],
-                            abs_pos[(0, 1)],
-                            abs_pos[(1, 1)],
-                            abs_pos[(0, 2)],
-                            abs_pos[(1, 2)],
-                        ),
-                    ),
-            );
+            let transform = self.cell.to_cartesian_isometry(&position);
+            doc = doc.add(transform.as_svg().set("href", "#mol").set("fill", "blue"));
             for periodic in self.cell.periodic_images(&position, false) {
-                let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&periodic).into();
-                doc = doc.add(
-                    element::Use::new()
-                        .set("href", "#mol")
-                        .set("fill", "green")
-                        .set(
-                            "transform",
-                            format!(
-                                "matrix({0} {1} {2} {3} {4} {5})",
-                                abs_pos[(0, 0)],
-                                abs_pos[(1, 0)],
-                                abs_pos[(0, 1)],
-                                abs_pos[(1, 1)],
-                                abs_pos[(0, 2)],
-                                abs_pos[(1, 2)],
-                            ),
-                        ),
-                );
+                doc = doc.add(periodic.as_svg().set("href", "#mol").set("fill", "green"));
             }
         }
         doc
@@ -212,7 +199,6 @@ where
                 .add(self.cell.as_svg().set("id", "cell"))
                 .add(self.shape.as_svg().set("id", "mol")),
         );
-        dbg!(&self.cell);
         for transform in self.cell.periodic_images(&Transform2::identity(), true) {
             let position = transform.position();
             doc = doc.add(element::Use::new().set("href", "#cell").set(
@@ -221,43 +207,10 @@ where
             ));
         }
         for position in self.relative_positions() {
-            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
-            doc = doc.add(
-                element::Use::new()
-                    .set("href", "#mol")
-                    .set("fill", "blue")
-                    .set(
-                        "transform",
-                        format!(
-                            "matrix({0} {1} {2} {3} {4} {5})",
-                            abs_pos[(0, 0)],
-                            abs_pos[(1, 0)],
-                            abs_pos[(0, 1)],
-                            abs_pos[(1, 1)],
-                            abs_pos[(0, 2)],
-                            abs_pos[(1, 2)],
-                        ),
-                    ),
-            );
+            let matrix = self.cell.to_cartesian_isometry(&position);
+            doc = doc.add(matrix.as_svg().set("href", "#mol").set("fill", "blue"));
             for transform in self.cell.periodic_images(&position, false) {
-                let abs_pos: Matrix3<f64> = transform.into();
-                doc = doc.add(
-                    element::Use::new()
-                        .set("href", "#mol")
-                        .set("fill", "green")
-                        .set(
-                            "transform",
-                            format!(
-                                "matrix({0} {1} {2} {3} {4} {5})",
-                                abs_pos[(0, 0)],
-                                abs_pos[(1, 0)],
-                                abs_pos[(0, 1)],
-                                abs_pos[(1, 1)],
-                                abs_pos[(0, 2)],
-                                abs_pos[(1, 2)],
-                            ),
-                        ),
-                );
+                doc = doc.add(transform.as_svg().set("href", "#mol").set("fill", "green"));
             }
         }
         doc
