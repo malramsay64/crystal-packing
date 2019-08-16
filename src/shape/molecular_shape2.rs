@@ -221,35 +221,35 @@ mod test {
     #[test]
     fn intersection() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(1.0, 1.0, 0.);
+        let transform = Transform2::new(0., (1.0, 1.0));
         assert!(mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn no_intersection_edge() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(2., 0., 0.);
+        let transform = Transform2::new(0., (2., 0.));
         assert!(!mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn self_intersection() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(0., 0., 0.);
+        let transform = Transform2::new(0., (0., 0.));
         assert!(mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn no_intersection() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(2.01, 0., 0.);
+        let transform = Transform2::new(0., (2.01, 0.));
         assert!(!mol.intersects(&mol.transform(&transform)));
     }
 
     #[test]
     fn no_intersection_corner() {
         let mol = MolecularShape2::circle();
-        let transform = Transform2::new(2., 2., 0.);
+        let transform = Transform2::new(0., (2., 2.));
         assert!(!mol.intersects(&mol.transform(&transform)));
     }
 

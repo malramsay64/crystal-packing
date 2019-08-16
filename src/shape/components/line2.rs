@@ -159,7 +159,7 @@ mod test {
         let line = Line2::new((1., 1.), (0., 0.));
         assert_eq!(line * ident, line);
 
-        let trans: Transform2 = Transform2::new(1., 1., 0.);
+        let trans: Transform2 = Transform2::new(0., (1., 1.));
         assert_eq!(line * trans, Line2::new((2., 2.), (1., 1.)));
     }
 

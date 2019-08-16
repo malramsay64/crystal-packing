@@ -172,28 +172,28 @@ mod test {
     #[test]
     fn intersection() {
         let square = create_square();
-        let transform = Transform2::new(1., 1., 0.);
+        let transform = Transform2::new(0., (1., 1.));
         assert!(square.intersects(&square.transform(&transform)));
     }
 
     #[test]
     fn corner_no_intersection() {
         let square = create_square();
-        let transform = Transform2::new(2., 2., 0.);
+        let transform = Transform2::new(0., (2., 2.));
         assert!(!square.intersects(&square.transform(&transform)));
     }
 
     #[test]
     fn self_intersection() {
         let square = create_square();
-        let transform = Transform2::new(0., 0., 0.);
+        let transform = Transform2::new(0., (0., 0.));
         assert!(square.intersects(&square.transform(&transform)));
     }
 
     #[test]
     fn no_intersection() {
         let square = create_square();
-        let transform = Transform2::new(2.01, 2.01, 0.);
+        let transform = Transform2::new(0., (2.01, 2.01));
         assert!(!square.intersects(&square.transform(&transform)));
     }
 

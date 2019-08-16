@@ -61,8 +61,8 @@ fn shape_check_intersection(c: &mut Criterion) {
         "Shape Intersection Scaling",
         |b, &param| {
             let shape = create_polygon(param).unwrap();
-            let si1 = shape.transform(&Transform2::new(0.2, -5.3, PI / 3.));
-            let si2 = shape.transform(&Transform2::new(-0.2, 5.3, -PI / 3.));
+            let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
+            let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
             b.iter(|| si1.intersects(&si2))
         },
         parameters,
@@ -77,7 +77,7 @@ fn create_shape_instance(c: &mut Criterion) {
         "Creation of ShapeInstance",
         |b, &param| {
             let shape = create_polygon(param).unwrap();
-            let trans = Transform2::new(0.2, -5.3, PI / 3.);
+            let trans = Transform2::new(PI / 3., (0.2, -5.3));
             b.iter(|| shape.transform(&trans))
         },
         parameters,

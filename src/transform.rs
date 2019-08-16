@@ -11,6 +11,24 @@ use approx::AbsDiffEq;
 use nalgebra::{Matrix3, Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 
+/// Perform coordinate tranforms on a point in space
+///
+/// This allows for defining a transformation of a point in space and allow for translations,
+/// rotations, mirror planes, and any combination of the above.
+///
+/// Rotations and translations are the most common method with a simple construction, and when they
+/// are the only transformations present this is known as an Isometric transform, or Isometry.
+/// Which is a rotation, followed by a translation
+///
+/// ```
+/// use packing::Transform2;
+/// // Create a transform
+/// let t = Transform2::new(0., (1., 1.))
+/// ```
+///
+/// The order of rotation, followed by translation is followed in the initialisation, with the
+/// rotation being the first argument, and the translation being the second argument.
+///
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Transform2(Matrix3<f64>);
 
@@ -56,14 +74,14 @@ binop_impl_all!(
 );
 
 impl Transform2 {
-    pub fn new(x: f64, y: f64, angle: f64) -> Transform2 {
+    pub fn new(rotation: f64, translation: (f64, f64)) -> Transform2 {
         Transform2::from(Matrix3::new(
-            angle.cos(),
-            -angle.sin(),
-            x,
-            angle.sin(),
-            angle.cos(),
-            y,
+            rotation.cos(),
+            -rotation.sin(),
+            translation.0,
+            rotation.sin(),
+            rotation.cos(),
+            translation.1,
             0.,
             0.,
             1.,
@@ -183,7 +201,7 @@ mod test {
 
     #[test]
     fn transform() {
-        let isometry = Transform2::new(1., 1., f64::consts::PI / 2.);
+        let isometry = Transform2::new(f64::consts::PI / 2., (1., 1.));
 
         let point = Vector2::new(0.2, 0.2);
         assert_eq!(isometry * point, Vector2::new(0.8, 1.2));

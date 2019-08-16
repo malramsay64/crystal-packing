@@ -30,7 +30,7 @@ pub struct OccupiedSite {
 
 impl Site for OccupiedSite {
     fn transform(&self) -> Transform2 {
-        Transform2::new(self.x, self.y, self.angle)
+        Transform2::new(self.angle, (self.x, self.y))
     }
 
     fn positions(&self) -> Vec<Transform2> {
