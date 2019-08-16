@@ -194,7 +194,7 @@ impl Cell for Cell2 {
             a,
             b,
             angle,
-            family: family.clone(),
+            family,
         }
     }
 

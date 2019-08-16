@@ -33,7 +33,7 @@ impl Wallpaper {
     pub fn new(group: &WallpaperGroup) -> Wallpaper {
         Wallpaper {
             name: String::from(group.name),
-            family: group.family.clone(),
+            family: group.family,
         }
     }
 }
