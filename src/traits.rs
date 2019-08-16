@@ -84,7 +84,11 @@ pub trait FromSymmetry: Sized {
 pub trait Cell:
     Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display + ToSVG<Value = Group>
 {
-    fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2>;
+    fn periodic_images<'a>(
+        &'a self,
+        transform: Transform2,
+        zero: bool,
+    ) -> Box<dyn Iterator<Item = Transform2> + 'a>;
     fn from_family(group: CrystalFamily, max_size: f64) -> Self;
     fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;
     fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64>;

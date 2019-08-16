@@ -197,8 +197,11 @@ impl Cell for Cell2 {
             family,
         }
     }
-
-    fn periodic_images(&self, transform: &Transform2, zero: bool) -> Vec<Transform2> {
+    fn periodic_images<'a>(
+        &'a self,
+        transform: Transform2,
+        zero: bool,
+    ) -> Box<dyn Iterator<Item = Transform2> + 'a> {
         // The periodic images to check. Checking the first and second shells i.e.
         // -2..=2, as this is necessary to ensure no intersections on tilted cells
         // and highly irregular cells.
@@ -209,14 +212,16 @@ impl Cell for Cell2 {
         };
 
         if zero {
-            iproduct!(iter_range.clone(), iter_range.clone())
-                .map(|(x, y)| self.to_cartesian_translate(transform, x, y))
-                .collect()
+            Box::new(
+                iproduct!(iter_range.clone(), iter_range.clone())
+                    .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y)),
+            )
         } else {
-            iproduct!(iter_range.clone(), iter_range.clone())
-                .filter(|&(x, y)| !(x == 0 && y == 0))
-                .map(|(x, y)| self.to_cartesian_translate(transform, x, y))
-                .collect()
+            Box::new(
+                iproduct!(iter_range.clone(), iter_range.clone())
+                    .filter(|&(x, y)| !(x == 0 && y == 0))
+                    .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y)),
+            )
         }
     }
 
@@ -298,9 +303,8 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(&transform, false)
-            .iter()
-            .any(|t| shape.intersects(&shape.transform(t)));
+            .periodic_images(transform, false)
+            .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(intersection)
     }
@@ -312,9 +316,8 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(&transform, false)
-            .iter()
-            .any(|t| shape.intersects(&shape.transform(t)));
+            .periodic_images(transform, false)
+            .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(intersection)
     }
@@ -326,9 +329,8 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(&transform, false)
-            .iter()
-            .any(|t| shape.intersects(&shape.transform(t)));
+            .periodic_images(transform, false)
+            .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(!intersection)
     }
@@ -347,7 +349,7 @@ mod cell_tests {
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
-        for (calculated, expected) in izip!(cell.periodic_images(&transform, false), translations) {
+        for (calculated, expected) in izip!(cell.periodic_images(transform, false), translations) {
             assert_abs_diff_eq!(calculated.position(), expected);
         }
     }
@@ -367,7 +369,7 @@ mod cell_tests {
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
-        for (calculated, expected) in izip!(cell.periodic_images(&transform, true), translations) {
+        for (calculated, expected) in izip!(cell.periodic_images(transform, true), translations) {
             assert_abs_diff_eq!(calculated.position(), expected);
         }
     }
@@ -385,9 +387,8 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(&transform, false)
-            .iter()
-            .any(|t| shape.intersects(&shape.transform(t)));
+            .periodic_images(transform, false)
+            .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(intersection)
     }

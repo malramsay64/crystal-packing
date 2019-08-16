@@ -152,7 +152,7 @@ where
                 .add(self.cell.as_svg().set("id", "cell"))
                 .add(self.shape.as_svg().set("id", "mol")),
         );
-        for transform in self.cell.periodic_images(&Transform2::identity(), true) {
+        for transform in self.cell.periodic_images(Transform2::identity(), true) {
             let position = self.cell.to_cartesian_point(transform.position());
             doc = doc.add(element::Use::new().set("href", "#cell").set(
                 "transform",
@@ -163,7 +163,7 @@ where
         for position in self.relative_positions() {
             let transform = self.cell.to_cartesian_isometry(&position);
             doc = doc.add(transform.as_svg().set("href", "#mol").set("fill", "blue"));
-            for periodic in self.cell.periodic_images(&position, false) {
+            for periodic in self.cell.periodic_images(position, false) {
                 doc = doc.add(periodic.as_svg().set("href", "#mol").set("fill", "green"));
             }
         }
@@ -199,7 +199,7 @@ where
                 .add(self.cell.as_svg().set("id", "cell"))
                 .add(self.shape.as_svg().set("id", "mol")),
         );
-        for transform in self.cell.periodic_images(&Transform2::identity(), true) {
+        for transform in self.cell.periodic_images(Transform2::identity(), true) {
             let position = transform.position();
             doc = doc.add(element::Use::new().set("href", "#cell").set(
                 "transform",
@@ -209,7 +209,7 @@ where
         for position in self.relative_positions() {
             let matrix = self.cell.to_cartesian_isometry(&position);
             doc = doc.add(matrix.as_svg().set("href", "#mol").set("fill", "blue"));
-            for transform in self.cell.periodic_images(&position, false) {
+            for transform in self.cell.periodic_images(position, false) {
                 doc = doc.add(transform.as_svg().set("href", "#mol").set("fill", "green"));
             }
         }
