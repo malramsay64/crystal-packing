@@ -186,10 +186,10 @@ impl MCOptimiser {
             kt *= self.kt_ratio;
             total_steps = loops * self.inner_steps;
 
-            // Scale step ratio with goal of 50% rejections
-            if step_ratio > 1e-3 {
-                step_ratio *= self.inner_steps as f64 / (2. * loop_rejections as f64 + 1.);
-            }
+            // Scale step ratio with goal of 75% rejections
+            // Taking shinking the cell as an example, 50% of steps will  increase the cell, so
+            // we want 50% of the steps which can improve the performance to be accepted.
+            step_ratio *= self.inner_steps as f64 / (loop_rejections as f64 + 1.);
         }
         info!(
             "Score: {:.4}, Rejected Fraction: {:.2}%",
