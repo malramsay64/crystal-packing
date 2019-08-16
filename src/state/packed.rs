@@ -144,15 +144,13 @@ where
             let shape_i1 = self.shape.transform(&transform1);
             let radius_sq = shape_i1.enclosing_radius().mul(2.).powi(2);
 
-            // We only need to check the positions after that of index, since the previous ones
+            // We only need to check the positions after the current index, since the previous ones
             // have already been checked, hence `.skip(index)`
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
-                for transform in self.cell.periodic_images(position2, index1 != index2) {
-                    let transform2 = &self.cell.to_cartesian_isometry(&transform);
-
+                for transform2 in self.cell.periodic_images(position2, index1 != index2) {
                     let distance = (transform1.position() - transform2.position()).norm_squared();
                     if distance <= radius_sq {
-                        let shape_i2 = self.shape.transform(transform2);
+                        let shape_i2 = self.shape.transform(&transform2);
                         if shape_i1.intersects(&shape_i2) {
                             return true;
                         }

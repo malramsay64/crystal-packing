@@ -132,11 +132,11 @@ where
                 .add(self.cell.as_svg().set("id", "cell"))
                 .add(self.shape.as_svg().set("id", "mol")),
         );
-        for position in self.cell.periodic_images(&Transform2::identity(), true) {
-            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
+        for transform in self.cell.periodic_images(&Transform2::identity(), true) {
+            let position = self.cell.to_cartesian_point(transform.position());
             doc = doc.add(element::Use::new().set("href", "#cell").set(
                 "transform",
-                format!("translate({}, {})", abs_pos[(2, 0)], abs_pos[(2, 1)],),
+                format!("translate({}, {})", position.x, position.y),
             ));
         }
 
@@ -212,11 +212,12 @@ where
                 .add(self.cell.as_svg().set("id", "cell"))
                 .add(self.shape.as_svg().set("id", "mol")),
         );
-        for position in self.cell.periodic_images(&Transform2::identity(), true) {
-            let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&position).into();
+        dbg!(&self.cell);
+        for transform in self.cell.periodic_images(&Transform2::identity(), true) {
+            let position = transform.position();
             doc = doc.add(element::Use::new().set("href", "#cell").set(
                 "transform",
-                format!("translate({}, {})", abs_pos[(2, 0)], abs_pos[(2, 1)]),
+                format!("translate({}, {})", position.x, position.y),
             ));
         }
         for position in self.relative_positions() {
@@ -238,8 +239,8 @@ where
                         ),
                     ),
             );
-            for periodic in self.cell.periodic_images(&position, false) {
-                let abs_pos: Matrix3<f64> = self.cell.to_cartesian_isometry(&periodic).into();
+            for transform in self.cell.periodic_images(&position, false) {
+                let abs_pos: Matrix3<f64> = transform.into();
                 doc = doc.add(
                     element::Use::new()
                         .set("href", "#mol")

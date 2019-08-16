@@ -94,9 +94,7 @@ where
                 .transform(&self.cell.to_cartesian_isometry(position1));
             for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
                 for transform in self.cell.periodic_images(position2, index1 != index2) {
-                    let shape2 = self
-                        .shape
-                        .transform(&self.cell.to_cartesian_isometry(&transform));
+                    let shape2 = self.shape.transform(&transform);
                     sum += shape1.energy(&shape2)
                 }
             }
