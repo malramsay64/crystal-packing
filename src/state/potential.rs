@@ -88,11 +88,11 @@ where
 
     fn score(&self) -> Result<f64, &'static str> {
         let mut sum = 0.;
-        for (index1, position1) in self.relative_positions().iter().enumerate() {
+        for (index1, position1) in self.relative_positions().enumerate() {
             let shape1 = self
                 .shape
-                .transform(&self.cell.to_cartesian_isometry(position1));
-            for (index2, position2) in self.relative_positions().iter().enumerate().skip(index1) {
+                .transform(&self.cell.to_cartesian_isometry(&position1));
+            for (index2, position2) in self.relative_positions().enumerate().skip(index1) {
                 for transform in self.cell.periodic_images(position2, index1 != index2) {
                     let shape2 = self.shape.transform(&transform);
                     sum += shape1.energy(&shape2)
@@ -128,18 +128,13 @@ where
     C: Cell,
     T: Site,
 {
-    pub fn cartesian_positions(&self) -> Vec<Transform2> {
+    pub fn cartesian_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
         self.relative_positions()
-            .iter()
-            .map(|position| self.cell.to_cartesian_isometry(position))
-            .collect()
+            .map(move |position| self.cell.to_cartesian_isometry(&position))
     }
 
-    pub fn relative_positions(&self) -> Vec<Transform2> {
-        self.occupied_sites
-            .iter()
-            .flat_map(Site::positions)
-            .collect()
+    pub fn relative_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
+        self.occupied_sites.iter().flat_map(Site::positions)
     }
 
     pub fn from_group(shape: S, group: &WallpaperGroup) -> Self {
