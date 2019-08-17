@@ -42,7 +42,7 @@ fn setup_state(points: usize) -> PackedState<LineShape, Cell2, OccupiedSite> {
 }
 
 fn state_check_intersection(c: &mut Criterion) {
-    let parameters: Vec<usize> = (2..6).map(|x| 2_u64.pow(x) as usize).collect();
+    let parameters: Vec<usize> = (1..=4).map(|x| 2_u64.pow(x * 2) as usize).collect();
     let benchmark = ParameterizedBenchmark::new(
         "State Intersection Scaling",
         |b, &param| {
@@ -55,7 +55,7 @@ fn state_check_intersection(c: &mut Criterion) {
 }
 
 fn shape_check_intersection(c: &mut Criterion) {
-    let parameters: Vec<usize> = (2..6).map(|x| 2_u64.pow(x) as usize).collect();
+    let parameters: Vec<usize> = (1..=4).map(|x| 2_u64.pow(x * 2) as usize).collect();
 
     let benchmark = ParameterizedBenchmark::new(
         "Shape Intersection Scaling",
@@ -71,10 +71,10 @@ fn shape_check_intersection(c: &mut Criterion) {
 }
 
 fn create_shape_instance(c: &mut Criterion) {
-    let parameters: Vec<usize> = (2..6).map(|x| 2_u64.pow(x) as usize).collect();
+    let parameters: Vec<usize> = (1..=4).map(|x| 2_u64.pow(x * 2) as usize).collect();
 
     let benchmark = ParameterizedBenchmark::new(
-        "Creation of ShapeInstance",
+        "Transforming Shape",
         |b, &param| {
             let shape = create_polygon(param).unwrap();
             let trans = Transform2::new(PI / 3., (0.2, -5.3));
