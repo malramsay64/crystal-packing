@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use log::{debug, info, trace};
+use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand_pcg::Pcg64Mcg;
@@ -105,12 +105,41 @@ pub struct MCOptimiser {
 }
 
 impl MCOptimiser {
-    fn accept_probability(&self, new: f64, old: f64, kt: f64) -> f64 {
+    #[inline]
+    fn energy_surface(&self, new: f64, old: f64, kt: f64) -> f64 {
         f64::min(f64::exp((new - old) / kt), 1.)
     }
 
+    #[inline]
+    fn test_acceptance(&self, threshold: f64, new: f64, old: f64, kt: f64) -> bool {
+        threshold < self.energy_surface(new, old, kt)
+    }
+
+    fn accept_score<R: Rng + ?Sized>(
+        &self,
+        new: Result<f64, &'static str>,
+        old: f64,
+        kt: f64,
+        rng: &mut R,
+    ) -> Option<f64> {
+        let threshold: f64 = rng.gen();
+
+        match new {
+            // New score is better, keep updated state
+            Ok(new_score) if new_score > old => Some(new_score),
+            // When the score increases, there is a probability of accepting the new
+            // score, which is evaluated based on the difference between the new score,
+            // and the old score along with the temperature value (kt).
+            // The acceptance occurs when a random number smaller than the acceptance
+            // probability is drawn.
+            Ok(new_score) if self.test_acceptance(threshold, new_score, old, kt) => Some(new_score),
+            // If the first two tests fail, then the score is rejected.
+            _ => None,
+        }
+    }
+
     pub fn optimise_state(&self, mut state: impl State) -> impl State {
-        let mut score_prev = match state.score() {
+        let mut score_current = match state.score() {
             Ok(score) => score,
             _ => panic!("Invalid configuration passed to function, exiting."),
         };
@@ -121,70 +150,45 @@ impl MCOptimiser {
         let mut kt: f64 = self.kt_start;
 
         let mut basis = state.generate_basis();
-        let basis_distribution = Uniform::new(0, basis.len() as u64);
+        let basis_distribution = Uniform::new(0, basis.len() as usize);
 
-        let mut score: f64 = 0.;
-        let mut score_max: f64 = 0.;
         let mut step_ratio = 1.;
 
-        let mut best_state = state.clone();
-
-        let mut total_steps = 0;
-        for loops in 1..=self.steps / self.inner_steps {
+        for _ in 1..=(self.steps / self.inner_steps) {
             let mut loop_rejections: u64 = 0;
             for _ in 0..self.inner_steps {
-                let basis_index: usize = basis_distribution.sample(&mut rng) as usize;
-                if let Some(basis_current) = basis.get_mut(basis_index) {
-                    basis_current
-                        .set_value(basis_current.sample(&mut rng, self.max_step_size * step_ratio));
-                }
+                // Choose a basis at random to modify
+                // This is needed later if we need to undo the change
+                let basis_index: usize = basis_distribution.sample(&mut rng);
 
-                score = match state.score() {
-                    Ok(score_new) => {
-                        // When the new score is better we accept the new state or
-                        // When the score is higher, there is a probability of accepting the new
-                        // score, which is evaluated based on the difference between the new score,
-                        // and the old score along with the temperature value (kt).
-                        // The acceptance occurs when a random number smaller than the acceptance
-                        // probability is drawn.
-                        if score_new > score_prev
-                            || rng.gen::<f64>() < self.accept_probability(score_new, score_prev, kt)
-                        {
-                            trace!("Accepted new score: {}, previous: {}", score_new, score);
-                            score_prev = score;
-                            score_new
-                        }
-                        // If the first two tests fail, then the score is rejected.
-                        else {
-                            trace!(
-                                "Rejected for lowering score at t={:.4}\nscore_prev: {:.4}, score_new: {:.4}, kt: {:.4}",
-                                self.accept_probability(score_prev, score_new, kt),
-                                score_prev,
-                                score_new,
-                                kt
-                            );
-                            loop_rejections += 1;
-                            basis[basis_index].reset_value();
+                // Make a random modification to the selected basis
+                basis
+                    .get_mut(basis_index)
+                    // There was some error in accessing the basis,
+                    // This should never occur in normal operation so panic and exit
+                    .expect("Trying to access basis which doesn't exist")
+                    .set_sampled(&mut rng, self.max_step_size * step_ratio);
 
-                            // Set packing to it's previous value
-                            score_prev
-                        }
-                    }
-                    Err(_) => {
-                        trace!("Rejected for invalid score.");
+                // Check if modification was good
+                score_current = match self.accept_score(state.score(), score_current, kt, &mut rng)
+                {
+                    Some(score) => score,
+                    // Score was rejected so we have to undo the change
+                    None => {
+                        basis
+                            .get(basis_index)
+                            // There was some error in accessing the basis,
+                            // This should never occur in normal operation so panic and exit
+                            .expect("Trying to access basis which doesn't exist.")
+                            .reset_value();
+                        // Increment counter of rejections
                         loop_rejections += 1;
-                        basis[basis_index].reset_value();
-                        score_prev
+                        score_current
                     }
                 };
-                if score > score_max {
-                    best_state = state.clone();
-                    score_max = score;
-                }
             }
             rejections += loop_rejections;
             kt *= self.kt_ratio;
-            total_steps = loops * self.inner_steps;
 
             // Scale step ratio with goal of 75% rejections
             // Taking shinking the cell as an example, 50% of steps will  increase the cell, so
@@ -194,17 +198,17 @@ impl MCOptimiser {
                 step_ratio *= self.inner_steps as f64 / (loop_rejections as f64 + 1.);
             }
         }
-        info!(
+        debug!(
             "Score: {:.4}, Rejected Fraction: {:.2}%",
-            score_max,
-            100. * rejections as f64 / total_steps as f64,
+            score_current,
+            100. * rejections as f64 / self.steps as f64,
         );
 
         assert!(
-            best_state.score().is_ok(),
+            state.score().is_ok(),
             "Final score is invalid, this shouldn't occur in normal operation"
         );
-        best_state
+        state
     }
 }
 
@@ -224,8 +228,8 @@ mod test {
     };
 
     #[quickcheck]
-    fn test_accept_probability(new: f64, old: f64) -> bool {
-        let result = OPT.accept_probability(new, old, 0.);
+    fn test_energy_surface(new: f64, old: f64) -> bool {
+        let result = OPT.energy_surface(new, old, 0.);
         if new < old {
             abs_diff_eq!(result, 0.)
         } else if new >= old {
@@ -236,8 +240,8 @@ mod test {
     }
 
     #[quickcheck]
-    fn test_accept_probability_temperature(new: f64, old: f64) -> bool {
-        let result = OPT.accept_probability(new, old, 0.5);
+    fn test_energy_surface_temperature(new: f64, old: f64) -> bool {
+        let result = OPT.energy_surface(new, old, 0.5);
         if new < old {
             0. < result && result < 1.
         } else if new >= old {
