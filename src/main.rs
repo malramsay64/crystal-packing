@@ -244,16 +244,35 @@ fn analyse_state(
     let final_state = (0..start_configs)
         .into_par_iter()
         // Create collection of quickly optimised initial states
-        .map(|seed| {
-            optimiser
+        .map(|index| {
+            let result = optimiser
                 .clone()
                 .steps(1000)
                 .kt_start(0.)
-                .seed(seed)
+                .seed(index)
                 .build()
-                .optimise_state(state.clone())
+                .optimise_state(state.clone());
+            (index, result)
         })
-        .map(|opt_state| optimiser.build().optimise_state(opt_state))
+        // Perform Monte carlo optimisation
+        .map(|(index, opt_state)| {
+            let result = optimiser
+                .clone()
+                .seed(index)
+                .build()
+                .optimise_state(opt_state);
+            (index, result)
+        })
+        // Final optimsation to help find the minimum
+        .map(|(index, opt_state)| {
+            let result = optimiser
+                .clone()
+                .kt_start(0.)
+                .seed(index)
+                .build()
+                .optimise_state(opt_state);
+            result
+        })
         .max();
 
     if let Some(s) = final_state {
