@@ -100,7 +100,7 @@ pub trait Cell:
 
 pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {
     fn transform(&self) -> Transform2;
-    fn positions(&self) -> Vec<Transform2>;
+    fn positions<'a>(&'a self) -> Box<dyn Iterator<Item = Transform2> + 'a>;
     fn multiplicity(&self) -> usize;
     fn from_wyckoff(wyckoff: &WyckoffSite) -> Self;
     fn get_basis(&mut self, rot_symmetry: u64) -> Vec<StandardBasis>;

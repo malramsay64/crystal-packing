@@ -4,13 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-//
-// site.rs
-// Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
-// Distributed under terms of the MIT license.
-//
-//
-
 use std::f64::consts::PI;
 
 use serde::{Deserialize, Serialize};
@@ -33,13 +26,13 @@ impl Site for OccupiedSite {
         Transform2::new(self.angle, (self.x, self.y))
     }
 
-    fn positions(&self) -> Vec<Transform2> {
+    fn positions<'a>(&'a self) -> Box<dyn Iterator<Item = Transform2> + 'a> {
         let transform = self.transform();
-        self.symmetries()
-            .iter()
-            .map(|sym| sym * transform)
-            .map(|sym| sym.periodic(1., -0.5))
-            .collect()
+        Box::new(
+            self.symmetries()
+                .map(move |sym| sym * transform)
+                .map(|sym| sym.periodic(1., -0.5)),
+        )
     }
 
     fn multiplicity(&self) -> usize {
@@ -82,7 +75,7 @@ impl Site for OccupiedSite {
 }
 
 impl OccupiedSite {
-    fn symmetries(&self) -> &[Transform2] {
-        &self.wyckoff.symmetries
+    fn symmetries<'a>(&'a self) -> impl Iterator<Item = &Transform2> + 'a {
+        self.wyckoff.symmetries.iter()
     }
 }
