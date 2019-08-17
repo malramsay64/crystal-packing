@@ -27,7 +27,7 @@ impl Intersect for Line2 {
     /// Wikipedia article for more information on the algorithm used for this calculation.
     ///
     fn intersects(&self, other: &Self) -> bool {
-        // See below links for other implementations of this algorithm
+        // Also see below links for other implementations of this algorithm
         // - https://github.com/georust/geo/blob/96c7846d703a74f59ba68e68929415cbce4a68d9/geo/src/algorithm/intersects.rs#L142
         // - https://github.com/brandonxiang/geojson-python-utils/blob/33b4c00c6cf27921fb296052d0c0341bd6ca1af2/geojson_utils.py
         // - http://www.kevlindev.com/gui/math/intersection/Intersection.js
@@ -39,9 +39,10 @@ impl Intersect for Line2 {
             return false;
         }
 
-        let dstart = self.start - other.start;
-        let ua_t = other.dx() * (dstart.y) - other.dy() * (dstart.x);
-        let ub_t = self.dx() * (dstart.y) - self.dy() * (dstart.x);
+        let ua_t = other.dx() * (self.start.y - other.start.y)
+            - other.dy() * (self.start.x - other.start.x);
+        let ub_t =
+            self.dx() * (self.start.y - other.start.y) - self.dy() * (self.start.x - other.start.x);
 
         let ua = ua_t / u_b;
         let ub = ub_t / u_b;
@@ -97,14 +98,6 @@ impl Line2 {
     /// The difference in the y values over the line.
     pub fn dy(&self) -> f64 {
         self.end.y - self.start.y
-    }
-
-    pub fn length_squared(&self) -> f64 {
-        (self.end - self.start).norm_squared()
-    }
-
-    pub fn length(&self) -> f64 {
-        (self.end - self.start).norm()
     }
 }
 
