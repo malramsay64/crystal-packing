@@ -262,6 +262,10 @@ impl Basis for StandardBasis {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64 {
         self.get_value() + step_size * self.value_range() * rng.gen_range(-0.5, 0.5)
     }
+
+    fn set_sampled<R: Rng + ?Sized>(&mut self, rng: &mut R, step_size: f64) {
+        self.set_value(self.sample(rng, step_size));
+    }
 }
 
 #[cfg(test)]

@@ -25,6 +25,7 @@ pub trait Basis {
     fn get_value(&self) -> f64;
     fn reset_value(&self);
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64;
+    fn set_sampled<R: Rng + ?Sized>(&mut self, rng: &mut R, step_size: f64);
 }
 
 pub trait Periodic<Rhs = Self> {
