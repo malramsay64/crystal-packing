@@ -20,7 +20,7 @@ svg = "~0.5.12"
 [dev-dependencies]
 approx = "~0.3.0"
 criterion = "0.2"
-quickcheck = "0.8"
+quickcheck = "0.9"
 quickcheck_macros = "0.8"
 
 [[bench]]
