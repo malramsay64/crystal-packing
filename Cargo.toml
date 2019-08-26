@@ -9,7 +9,7 @@ nalgebra = {version="~0.18.0", features=["serde-serialize"]}
 rand = "~0.7.0"
 rand_pcg = "0.2.0"
 log = "~0.4.8"
-simplelog = "~0.7.0"
+simplelog = "~0.7.1"
 clap = "~2.33.0"
 rayon = "~1.1.0"
 itertools = "~0.8.0"
