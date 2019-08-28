@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 /// The order of rotation, followed by translation is followed in the initialisation, with the
 /// angular rotation being the first argument, and the translation being the second argument.
 ///
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Transform2(Matrix3<f64>);
 
 impl From<Matrix3<f64>> for Transform2 {
@@ -99,7 +99,7 @@ impl Transform2 {
     }
 
     pub fn set_position(&self, position: Vector2<f64>) -> Transform2 {
-        let mut transform = *self;
+        let mut transform = self.clone();
         transform.0[(0, 2)] = position.x;
         transform.0[(1, 2)] = position.y;
         transform
@@ -240,7 +240,7 @@ mod test {
         /// Translation from origin puts point in same location
         #[quickcheck]
         fn translation_from_origin(x: f64, y: f64) -> bool {
-            let t = Transform2::new(0., (x, y));
+            let t = &Transform2::new(0., (x, y));
             let origin = Vector2::zeros();
             t * origin == t.position()
         }
@@ -248,7 +248,7 @@ mod test {
         /// Rotation followed by Translation is in circle about translation
         #[quickcheck]
         fn rotation_translation(rotation: f64, translation: (f64, f64)) -> bool {
-            let t = Transform2::new(rotation, translation);
+            let t = &Transform2::new(rotation, translation);
             let point = Vector2::new(1., 0.);
             abs_diff_eq!(
                 (t * point - t.position()).norm(),
@@ -266,15 +266,15 @@ mod test {
         /// Translations with no rotations should be added
         #[quickcheck]
         fn mult_transform_translation(x: f64, y: f64) -> bool {
-            let t = Transform2::new(0., (x, y));
+            let t = &Transform2::new(0., (x, y));
             abs_diff_eq!((t * t).position(), 2. * Vector2::new(x, y))
         }
 
         /// Translations should be added
         #[quickcheck]
         fn mult_transform_translations(t1: (f64, f64), t2: (f64, f64)) -> bool {
-            let tf1 = Transform2::new(0., t1);
-            let tf2 = Transform2::new(0., t2);
+            let tf1 = &Transform2::new(0., t1);
+            let tf2 = &Transform2::new(0., t2);
             abs_diff_eq!((tf1 * tf2).position(), tf1.position() + tf2.position())
         }
 
@@ -289,8 +289,8 @@ mod test {
         /// Rotate a translation
         #[quickcheck]
         fn rotate_translation(rotation: f64, translation: (f64, f64)) -> bool {
-            let tf1 = Transform2::new(rotation, (0., 0.));
-            let tf2 = Transform2::new(0., translation);
+            let tf1 = &Transform2::new(rotation, (0., 0.));
+            let tf2 = &Transform2::new(0., translation);
             let rotated = tf1 * Vector2::new(translation.0, translation.1);
             abs_diff_eq!(tf1 * tf2, Transform2::new(rotation, (rotated.x, rotated.y)))
         }
@@ -298,8 +298,8 @@ mod test {
         /// Rotations should be added
         #[quickcheck]
         fn combine_rotations(r1: f64, r2: f64) -> bool {
-            let tf1 = Transform2::new(r1, (0., 0.));
-            let tf2 = Transform2::new(r2, (0., 0.));
+            let tf1 = &Transform2::new(r1, (0., 0.));
+            let tf2 = &Transform2::new(r2, (0., 0.));
             dbg!((tf1 * tf2).0 - Transform2::new(r1 + r2, (0., 0.)).0);
             abs_diff_eq!(
                 tf1 * tf2,
@@ -312,14 +312,14 @@ mod test {
         // The value should be exact in this case
         #[allow(clippy::float_cmp)]
         fn rotation_and_trans_value(rotation: f64, translation: (f64, f64)) -> bool {
-            let t = Transform2::new(rotation, translation);
+            let t = &Transform2::new(rotation, translation);
             dbg!(t * t);
             t.0[(2, 2)] == 1.
         }
 
         #[quickcheck]
         fn rotation_and_trans(rotation: f64, translation: (f64, f64)) -> bool {
-            let t = Transform2::new(rotation, translation);
+            let t = &Transform2::new(rotation, translation);
             let position = t * Vector2::new(translation.0, translation.1);
             // dbg!(position);
             println!("rotation: {}, translation: {:?}", rotation, translation);
@@ -338,8 +338,8 @@ mod test {
 
         #[quickcheck]
         fn rotation_and_trans_different(r1: f64, r2: f64, t1: (f64, f64), t2: (f64, f64)) -> bool {
-            let tf1 = Transform2::new(r1, t1);
-            let tf2 = Transform2::new(r2, t2);
+            let tf1 = &Transform2::new(r1, t1);
+            let tf2 = &Transform2::new(r2, t2);
             let position = tf1 * Vector2::new(t2.0, t2.1);
             println!("r1: {}, r2: {}, t1: {:?}, t2: {:?}", r1, r2, t1, t2);
             dbg!(

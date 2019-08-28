@@ -30,7 +30,7 @@ impl Site for OccupiedSite {
         let transform = self.transform();
         Box::new(
             self.symmetries()
-                .map(move |sym| sym * transform)
+                .map(move |sym| sym * &transform)
                 .map(|sym| sym.periodic(1., -0.5)),
         )
     }
