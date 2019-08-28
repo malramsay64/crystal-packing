@@ -14,7 +14,9 @@ use criterion::Criterion;
 
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WyckoffSite};
-use packing::{Cell2, CrystalFamily, LineShape, OccupiedSite, PackedState, Transform2};
+use packing::{
+    Cell2, CrystalFamily, LineShape, MolecularShape2, OccupiedSite, PackedState, Transform2,
+};
 
 static BENCH_SIDES: &[usize] = &[4, 16, 64, 256];
 
@@ -71,6 +73,24 @@ fn shape_check_intersection(c: &mut Criterion) {
             },
         );
     }
+    group.bench_with_input(
+        BenchmarkId::new("Molecule", 1),
+        &MolecularShape2::circle(),
+        |b, shape| {
+            let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
+            let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
+            b.iter(|| si1.intersects(&si2))
+        },
+    );
+    group.bench_with_input(
+        BenchmarkId::new("Molecule", 3),
+        &MolecularShape2::from_trimer(0.637556, std::f64::consts::PI, 1.0),
+        |b, shape| {
+            let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
+            let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
+            b.iter(|| si1.intersects(&si2))
+        },
+    );
     group.finish()
 }
 
@@ -82,11 +102,27 @@ fn create_shape_instance(c: &mut Criterion) {
             BenchmarkId::new("Polygon", sides),
             &LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
             |b, shape| {
-                let trans = Transform2::new(PI / 3., (0.2, -5.3));
-                b.iter(|| shape.transform(&trans))
+                let trans = &Transform2::new(PI / 3., (0.2, -5.3));
+                b.iter(|| shape.transform(trans))
             },
         );
     }
+    group.bench_with_input(
+        BenchmarkId::new("Molecule", 1),
+        &MolecularShape2::circle(),
+        |b, shape| {
+            let trans = &Transform2::new(PI / 3., (0.2, -5.3));
+            b.iter(|| shape.transform(trans))
+        },
+    );
+    group.bench_with_input(
+        BenchmarkId::new("Molecule", 3),
+        &MolecularShape2::from_trimer(0.637556, std::f64::consts::PI, 1.0),
+        |b, shape| {
+            let trans = &Transform2::new(PI / 3., (0.2, -5.3));
+            b.iter(|| shape.transform(trans))
+        },
+    );
     group.finish()
 }
 
