@@ -9,18 +9,21 @@ use std::f64::consts::PI;
 #[macro_use]
 extern crate criterion;
 
-use criterion::{Criterion, ParameterizedBenchmark};
+use criterion::BenchmarkId;
+use criterion::Criterion;
 
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WyckoffSite};
 use packing::{Cell2, CrystalFamily, LineShape, OccupiedSite, PackedState, Transform2};
 
-fn create_polygon(sides: usize) -> Result<LineShape, &'static str> {
-    LineShape::from_radial("Polygon", vec![1.; sides])
-}
+static BENCH_SIDES: &[usize] = &[4, 16, 64, 256];
 
-fn setup_state(points: usize) -> PackedState<LineShape, Cell2, OccupiedSite> {
-    let shape = create_polygon(points).unwrap();
+/// Utility function to create a Packed State
+///
+/// This creates a packed state from the number of points used to create a shape.
+///
+fn create_packed_state(points: usize) -> PackedState<LineShape, Cell2, OccupiedSite> {
+    let shape = LineShape::from_radial("Polygon", vec![1.; points]).unwrap();
 
     let wallpaper = Wallpaper {
         name: String::from("p2"),
@@ -42,47 +45,49 @@ fn setup_state(points: usize) -> PackedState<LineShape, Cell2, OccupiedSite> {
 }
 
 fn state_check_intersection(c: &mut Criterion) {
-    let parameters: Vec<usize> = (1..=4).map(|x| 2_u64.pow(x * 2) as usize).collect();
-    let benchmark = ParameterizedBenchmark::new(
-        "State Intersection Scaling",
-        |b, &param| {
-            let state = setup_state(param);
-            b.iter(|| state.score())
-        },
-        parameters,
-    );
-    c.bench("test_bench_param", benchmark);
+    let mut group = c.benchmark_group("State Score");
+
+    for &sides in BENCH_SIDES.iter() {
+        group.bench_with_input(
+            BenchmarkId::new("Polygon", sides),
+            &create_packed_state(sides),
+            |b, state| b.iter(|| state.score()),
+        );
+    }
+    group.finish()
 }
 
 fn shape_check_intersection(c: &mut Criterion) {
-    let parameters: Vec<usize> = (1..=4).map(|x| 2_u64.pow(x * 2) as usize).collect();
+    let mut group = c.benchmark_group("Shape Intersection");
 
-    let benchmark = ParameterizedBenchmark::new(
-        "Shape Intersection Scaling",
-        |b, &param| {
-            let shape = create_polygon(param).unwrap();
-            let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
-            let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
-            b.iter(|| si1.intersects(&si2))
-        },
-        parameters,
-    );
-    c.bench("test_bench_param", benchmark);
+    for &sides in BENCH_SIDES.iter() {
+        group.bench_with_input(
+            BenchmarkId::new("Polygon", sides),
+            &LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
+            |b, shape| {
+                let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
+                let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
+                b.iter(|| si1.intersects(&si2))
+            },
+        );
+    }
+    group.finish()
 }
 
 fn create_shape_instance(c: &mut Criterion) {
-    let parameters: Vec<usize> = (1..=4).map(|x| 2_u64.pow(x * 2) as usize).collect();
+    let mut group = c.benchmark_group("Transform Shape");
 
-    let benchmark = ParameterizedBenchmark::new(
-        "Transforming Shape",
-        |b, &param| {
-            let shape = create_polygon(param).unwrap();
-            let trans = Transform2::new(PI / 3., (0.2, -5.3));
-            b.iter(|| shape.transform(&trans))
-        },
-        parameters,
-    );
-    c.bench("create_shape_instance", benchmark);
+    for &sides in BENCH_SIDES.iter() {
+        group.bench_with_input(
+            BenchmarkId::new("Polygon", sides),
+            &LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
+            |b, shape| {
+                let trans = Transform2::new(PI / 3., (0.2, -5.3));
+                b.iter(|| shape.transform(&trans))
+            },
+        );
+    }
+    group.finish()
 }
 
 criterion_group!(
