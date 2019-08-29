@@ -126,10 +126,32 @@ fn create_shape_instance(c: &mut Criterion) {
     group.finish()
 }
 
+fn site_positions(c: &mut Criterion) {
+    let site = OccupiedSite::from_wyckoff(&WyckoffSite {
+        letter: 'd',
+        symmetries: vec![
+            Transform2::from_operations("x,y").unwrap(),
+            Transform2::from_operations("-x,-y").unwrap(),
+        ],
+        num_rotations: 1,
+        mirror_primary: false,
+        mirror_secondary: false,
+    });
+
+    c.bench_function("Site Positions", |b| {
+        b.iter(|| {
+            for _ in site.positions() {
+                criterion::black_box(0);
+            }
+        })
+    });
+}
+
 criterion_group!(
     intersections,
     shape_check_intersection,
     create_shape_instance,
     state_check_intersection,
+    site_positions,
 );
 criterion_main!(intersections);
