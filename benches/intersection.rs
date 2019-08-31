@@ -147,6 +147,22 @@ fn site_positions(c: &mut Criterion) {
     });
 }
 
+fn state_modify_basis(c: &mut Criterion) {
+    let state = create_packed_state(256);
+    let mut basis = state.generate_basis();
+
+    c.bench_function("Modify Basis", |b| {
+        b.iter(|| {
+            for _ in 0..1000 {
+                for value in basis.iter_mut() {
+                    value.set_value(value.get_value() + 0.1);
+                    value.reset_value();
+                }
+            }
+        })
+    });
+}
+
 criterion_group!(
     intersections,
     shape_check_intersection,
@@ -154,4 +170,7 @@ criterion_group!(
     state_check_intersection,
     site_positions,
 );
-criterion_main!(intersections);
+
+criterion_group!(general, site_positions, state_modify_basis,);
+
+criterion_main!(intersections, general);
