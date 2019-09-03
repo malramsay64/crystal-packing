@@ -265,13 +265,12 @@ fn analyse_state(
         })
         // Final optimsation to help find the minimum
         .map(|(index, opt_state)| {
-            let result = optimiser
+            optimiser
                 .clone()
                 .kt_start(0.)
                 .seed(index)
                 .build()
-                .optimise_state(opt_state);
-            result
+                .optimise_state(opt_state)
         })
         .max();
 

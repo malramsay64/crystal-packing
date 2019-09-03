@@ -54,12 +54,23 @@ mod crystal_family_test {
 /// addition to the contained angles. Each cell belongs to one of the Crystal Families which
 /// dictate the degrees of freedom the cell can take.
 ///
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Cell2 {
-    a: f64,
-    b: f64,
-    angle: f64,
+    a: SharedValue,
+    b: SharedValue,
+    angle: SharedValue,
     family: CrystalFamily,
+}
+
+impl Clone for Cell2 {
+    fn clone(&self) -> Self {
+        Cell2 {
+            a: SharedValue::new(self.a.get_value()),
+            b: SharedValue::new(self.b.get_value()),
+            angle: SharedValue::new(self.angle.get_value()),
+            family: self.family,
+        }
+    }
 }
 
 impl std::fmt::Display for Cell2 {
@@ -67,7 +78,9 @@ impl std::fmt::Display for Cell2 {
         write!(
             f,
             "Cell2 {{ a: {}, b: {}, angle: {} }}",
-            self.a, self.b, self.angle
+            self.a.get_value(),
+            self.b.get_value(),
+            self.angle.get_value()
         )
     }
 }
@@ -75,9 +88,9 @@ impl std::fmt::Display for Cell2 {
 impl Default for Cell2 {
     fn default() -> Self {
         Self {
-            a: 1.,
-            b: 1.,
-            angle: PI / 2.,
+            a: SharedValue::new(1.),
+            b: SharedValue::new(1.),
+            angle: SharedValue::new(PI / 2.),
             family: CrystalFamily::Monoclinic,
         }
     }
@@ -118,33 +131,21 @@ impl Cell for Cell2 {
     /// Each of the different crystal families impose different restrictions on the degrees of
     /// freedom of a unit cell. This compiles these degrees of freedom into a vector of Bases,
     /// which is the data structure used to modify the values.
-    fn get_degrees_of_freedom(&mut self) -> Vec<StandardBasis> {
+    fn get_degrees_of_freedom(&self) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
 
         // All cells have at least a single variable cell length
-        basis.push(StandardBasis::new(
-            SharedValue::new(&mut self.a),
-            0.01,
-            self.a,
-        ));
+        basis.push(StandardBasis::new(&self.a, 0.01, self.a.get_value()));
 
         // Both the Orthorhombic and Monoclinic cells have a second variable cell length. This is
         // indicated by the presence of the optional value.
-        if self.b != 0. {
-            basis.push(StandardBasis::new(
-                SharedValue::new(&mut self.b),
-                0.01,
-                self.b,
-            ));
+        if self.b.get_value() != 0. {
+            basis.push(StandardBasis::new(&self.b, 0.01, self.b.get_value()));
         }
 
         // The Monoclinic family is the only one to have a variable cell angle.
         if self.family == CrystalFamily::Monoclinic {
-            basis.push(StandardBasis::new(
-                SharedValue::new(&mut self.angle),
-                PI / 4.,
-                3. * PI / 4.,
-            ));
+            basis.push(StandardBasis::new(&self.angle, PI / 4., 3. * PI / 4.));
         }
 
         basis
@@ -169,7 +170,7 @@ impl Cell for Cell2 {
     /// $ A = xy\sin(\theta) $
     ///
     fn area(&self) -> f64 {
-        self.angle.sin() * self.a * self.b
+        self.angle.get_value().sin() * self.a.get_value() * self.b.get_value()
     }
 
     /// Initialise a Cell instance from the CrystalFamily the cell belongs to
@@ -191,9 +192,9 @@ impl Cell for Cell2 {
             CrystalFamily::Monoclinic => (length, length, PI / 2.),
         };
         Cell2 {
-            a,
-            b,
-            angle,
+            a: SharedValue::new(a),
+            b: SharedValue::new(b),
+            angle: SharedValue::new(angle),
             family,
         }
     }
@@ -205,7 +206,10 @@ impl Cell for Cell2 {
         // The periodic images to check. Checking the first and second shells i.e.
         // -2..=2, as this is necessary to ensure no intersections on tilted cells
         // and highly irregular cells.
-        let iter_range = match (self.a / self.b, self.angle) {
+        let iter_range = match (
+            self.a.get_value() / self.b.get_value(),
+            self.angle.get_value(),
+        ) {
             (p, a) if 0.5 < p && p < 2. && f64::abs(a - PI / 2.) < 0.2 => -1..=1,
             (p, a) if 0.3 < p && p < 3. && f64::abs(a - PI / 2.) < 0.5 => -2..=2,
             _ => -3..=3,
@@ -262,8 +266,8 @@ impl Cell2 {
     ///
     pub fn to_cartesian(&self, x: f64, y: f64) -> (f64, f64) {
         (
-            x * self.a + y * self.b * self.angle.cos(),
-            y * self.b * self.angle.sin(),
+            x * self.a.get_value() + y * self.b.get_value() * self.angle.get_value().cos(),
+            y * self.b.get_value() * self.angle.get_value().sin(),
         )
     }
 }
@@ -283,12 +287,12 @@ mod cell_tests {
 
     #[test]
     fn to_cartesian_test() {
-        let mut cell = Cell2::default();
+        let cell = Cell2::default();
         let trans = Transform2::new(0., (0.5, 0.5));
 
         assert_eq!(cell.to_cartesian_isometry(&trans), trans);
 
-        cell.angle = PI / 4.;
+        cell.angle.set_value(PI / 4.);
         let expected = Transform2::new(
             0.,
             (0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
@@ -378,9 +382,9 @@ mod cell_tests {
     fn invalid_intersection() {
         let shape = LineShape::from_radial("Square", vec![1.; 4]).unwrap();
         let cell = Cell2 {
-            a: 1.32,
-            b: 1.59,
-            angle: 1.21,
+            a: SharedValue::new(1.32),
+            b: SharedValue::new(1.59),
+            angle: SharedValue::new(1.21),
             family: CrystalFamily::Monoclinic,
         };
 
