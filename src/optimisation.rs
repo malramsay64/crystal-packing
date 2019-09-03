@@ -138,7 +138,7 @@ impl MCOptimiser {
         }
     }
 
-    pub fn optimise_state(&self, mut state: impl State) -> impl State {
+    pub fn optimise_state(&self, state: impl State) -> impl State {
         let mut score_current = match state.score() {
             Ok(score) => score,
             _ => panic!("Invalid configuration passed to function, exiting."),

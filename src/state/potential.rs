@@ -77,10 +77,10 @@ where
     C: Cell,
     T: Site,
 {
-    fn generate_basis(&mut self) -> Vec<StandardBasis> {
+    fn generate_basis(&self) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
         basis.append(&mut self.cell.get_degrees_of_freedom());
-        for site in self.occupied_sites.iter_mut() {
+        for site in self.occupied_sites.iter() {
             basis.append(&mut site.get_basis(1));
         }
         basis

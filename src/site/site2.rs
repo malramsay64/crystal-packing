@@ -13,17 +13,31 @@ use crate::traits::*;
 use crate::wallpaper::WyckoffSite;
 use crate::Transform2;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OccupiedSite {
     wyckoff: WyckoffSite,
-    x: f64,
-    y: f64,
-    angle: f64,
+    x: SharedValue,
+    y: SharedValue,
+    angle: SharedValue,
+}
+
+impl Clone for OccupiedSite {
+    fn clone(&self) -> Self {
+        OccupiedSite {
+            wyckoff: self.wyckoff.clone(),
+            x: SharedValue::new(self.x.get_value()),
+            y: SharedValue::new(self.y.get_value()),
+            angle: SharedValue::new(self.angle.get_value()),
+        }
+    }
 }
 
 impl Site for OccupiedSite {
     fn transform(&self) -> Transform2 {
-        Transform2::new(self.angle, (self.x, self.y))
+        Transform2::new(
+            self.angle.get_value(),
+            (self.x.get_value(), self.y.get_value()),
+        )
     }
 
     fn positions<'a>(&'a self) -> Box<dyn Iterator<Item = Transform2> + 'a> {
@@ -41,9 +55,9 @@ impl Site for OccupiedSite {
 
     fn from_wyckoff(wyckoff: &WyckoffSite) -> Self {
         let position = -0.5 + 0.5 / wyckoff.multiplicity() as f64;
-        let x = position;
-        let y = position;
-        let angle = 0.;
+        let x = SharedValue::new(position);
+        let y = SharedValue::new(position);
+        let angle = SharedValue::new(0.);
 
         OccupiedSite {
             wyckoff: wyckoff.clone(),
@@ -53,19 +67,19 @@ impl Site for OccupiedSite {
         }
     }
 
-    fn get_basis(&mut self, rot_symmetry: u64) -> Vec<StandardBasis> {
+    fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
         let dof = self.wyckoff.degrees_of_freedom();
 
         if dof[0] {
-            basis.push(StandardBasis::new(SharedValue::new(&mut self.x), -0.5, 0.5));
+            basis.push(StandardBasis::new(&self.x, -0.5, 0.5));
         }
         if dof[1] {
-            basis.push(StandardBasis::new(SharedValue::new(&mut self.y), -0.5, 0.5));
+            basis.push(StandardBasis::new(&self.y, -0.5, 0.5));
         }
         if dof[2] {
             basis.push(StandardBasis::new(
-                SharedValue::new(&mut self.angle),
+                &self.angle,
                 0.,
                 2. * PI / rot_symmetry as f64,
             ));

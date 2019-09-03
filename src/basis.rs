@@ -4,9 +4,39 @@
 // Distributed under terms of the MIT license.
 //
 
+use std::cell::UnsafeCell;
+
 use rand::Rng;
 
 use crate::traits::Basis;
+use std::fmt;
+
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+struct F64Visitor;
+
+impl<'de> Visitor<'de> for F64Visitor {
+    type Value = f64;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a float")
+    }
+
+    fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value as f64)
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value)
+    }
+}
 
 /// A pointer to a value so it can be modified in many places
 ///
@@ -18,79 +48,78 @@ use crate::traits::Basis;
 /// tested and implemented. The current implementation, based on using unsafe pointers, has the
 /// best performance by a significant factor.
 ///
-/// Using unsafe, does have a number of disadvantages, most notably there are no lifetime checks
-/// for the pointer.
 ///
 /// ```
 /// use packing::SharedValue;
-/// let mut x = 1.;
-/// let shared_x = SharedValue::new(&mut x);
+/// let x = SharedValue::new(1.);
+/// let shared_x = &x;
 ///
 /// assert!(shared_x.get_value() == 1.);
-/// assert!(shared_x.get_value() == x);
+/// assert!(shared_x.get_value() == x.get_value());
 ///
 /// // Updating the SharedValue will update the linked variable
 /// shared_x.set_value(2.);
-/// assert!(shared_x.get_value() == x);
+/// assert!(shared_x.get_value() == x.get_value());
 /// assert!(shared_x.get_value() == 2.);
-/// assert!(x == 2.);
+/// assert!(x.get_value() == 2.);
 ///
-/// // When updating x, the SharedValue will also update
-/// x = 10.;
-/// assert!(shared_x.get_value() == x);
 /// ```
 ///
 #[derive(Debug)]
 pub struct SharedValue {
-    value: *mut f64,
+    value: UnsafeCell<f64>,
 }
 
-impl Clone for SharedValue {
-    /// Allow a value to be updated in another location
-    ///
-    /// This allows read/write access to the value being pointed to in an additional location.
-    ///
-    /// ```
-    /// use packing::SharedValue;
-    /// let mut x = 1.;
-    /// let shared_x = SharedValue::new(&mut x);
-    /// let shared_y = shared_x.clone();
-    ///
-    /// assert!(shared_x.get_value() == x);
-    /// assert!(shared_y.get_value() == x);
-    ///
-    /// // Updating the value in one place will update all values
-    /// x = 2.;
-    /// assert!(shared_x.get_value() == x);
-    /// assert!(shared_y.get_value() == x);
-    /// ```
-    ///
-    fn clone(&self) -> Self {
-        Self { value: self.value }
+impl Serialize for SharedValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_f64(self.get_value())
     }
 }
+
+impl<'de> Deserialize<'de> for SharedValue {
+    fn deserialize<D>(deserializer: D) -> Result<SharedValue, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer
+            .deserialize_f64(F64Visitor)
+            .map(|x| SharedValue::new(x))
+    }
+}
+
+unsafe impl Send for SharedValue {}
+unsafe impl Sync for SharedValue {}
 
 impl SharedValue {
     /// Create a SharedValue allowing modification of the given value
     ///
     /// # Arguments
     ///
-    /// * `val` - A mutable reference to a f64 value which can be updated in multiple locations
+    /// * `val` - A reference to a f64 value which can be updated in multiple locations
     ///
     /// # Remarks
     ///
     /// This provides a highly performant access to modifying the value of a variable in multiple
     /// locations.
     ///
-    pub fn new(val: &mut f64) -> Self {
-        Self {
-            value: val as *mut f64,
+    /// modifying the value will result in a runtime memory fault. An alternative implementation
+    /// which takes `&mut f64` would not suffer from the same issues, however this then has issues
+    /// with mutability of lifetimes.
+    ///
+    ///
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    pub fn new(val: f64) -> SharedValue {
+        SharedValue {
+            value: UnsafeCell::new(val),
         }
     }
 
     /// Get the value of the variable being shared
     pub fn get_value(&self) -> f64 {
-        unsafe { *self.value }
+        unsafe { *self.value.get() }
     }
 
     /// This updates the value which is being shared
@@ -108,20 +137,20 @@ impl SharedValue {
     ///
     /// ```
     /// use packing::SharedValue;
-    /// let mut x = 1.;
-    /// let shared_x = SharedValue::new(&mut x);
+    /// let x = SharedValue::new(1.);
+    /// let shared_x = &x;
     ///
     /// // Update the value of x through shared_x
     /// shared_x.set_value(2.);
     ///
     /// // The values of both x and shared_x will be updated
-    /// assert!(x == 2.);
-    /// assert!(shared_x.get_value() == 2.);
+    /// assert_eq!(x.get_value(), 2.);
+    /// assert_eq!(shared_x.get_value(), 2.);
     /// ```
     ///
     pub fn set_value(&self, value: f64) {
         unsafe {
-            *self.value = value;
+            self.value.get().write(value);
         }
     }
 }
@@ -137,20 +166,14 @@ mod shared_value_tests {
 
     #[test]
     fn new() {
-        let value = SharedValue::new(&mut 1.);
+        let x = 1.;
+        let value = SharedValue::new(x);
         assert_eq!(value.get_value(), 1.);
     }
 
     #[test]
-    fn new_from_var() {
-        let mut x = 1.;
-        let value = SharedValue::new(&mut x);
-        assert_eq!(value.get_value(), x);
-    }
-
-    #[test]
     fn set_value() {
-        let value = SharedValue::new(&mut 1.);
+        let value = SharedValue::new(1.);
         assert_abs_diff_eq!(value.get_value(), 1.);
         value.set_value(0.5);
         assert_eq!(value.get_value(), 0.5);
@@ -159,28 +182,19 @@ mod shared_value_tests {
     #[test]
     fn set_value_var() {
         // Setup
-        let mut x = 1.;
-        let value = SharedValue::new(&mut x);
+        let value = SharedValue::new(1.);
         assert_eq!(value.get_value(), 1.);
-        assert_eq!(value.get_value(), x);
+        assert_eq!(value.get_value(), 1.);
 
         // Set from shared value
         value.set_value(0.5);
-        assert_eq!(value.get_value(), x);
         assert_eq!(value.get_value(), 0.5);
-        assert_eq!(x, 0.5);
-
-        // Set from variable
-        x = 2.;
-        assert_eq!(value.get_value(), x);
-        assert_eq!(value.get_value(), 2.);
-        assert_eq!(x, 2.);
     }
 
     #[test]
-    fn clone() {
-        let value1 = SharedValue::new(&mut 1.);
-        let value2 = value1.clone();
+    fn pointers() {
+        let value1 = SharedValue::new(1.);
+        let value2 = &value1;
         assert_eq!(value1.get_value(), 1.);
         assert_eq!(value2.get_value(), 1.);
 
@@ -192,42 +206,33 @@ mod shared_value_tests {
     #[test]
     fn clone_var() {
         // Setup
-        let mut x = 1.;
-        let value1 = SharedValue::new(&mut x);
-        let value2 = value1.clone();
-        assert_eq!(value1.get_value(), x);
-        assert_eq!(value2.get_value(), x);
+        let value1 = SharedValue::new(1.0);
+        let value2 = &value1;
+        assert_eq!(value1.get_value(), 1.0);
+        assert_eq!(value2.get_value(), 1.0);
 
         // Set from value1
         value1.set_value(0.);
-        assert_eq!(x, 0.);
-        assert_eq!(value1.get_value(), x);
-        assert_eq!(value2.get_value(), x);
+        assert_eq!(value1.get_value(), 0.);
+        assert_eq!(value2.get_value(), 0.);
 
         // Set from value2
         value2.set_value(0.5);
-        assert_eq!(x, 0.5);
-        assert_eq!(value1.get_value(), x);
-        assert_eq!(value2.get_value(), x);
-
-        // Set from x
-        x = 3.;
-        assert_eq!(x, 3.);
-        assert_eq!(value1.get_value(), x);
-        assert_eq!(value2.get_value(), x);
+        assert_eq!(value1.get_value(), 0.5);
+        assert_eq!(value2.get_value(), 0.5);
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct StandardBasis {
-    value: SharedValue,
+pub struct StandardBasis<'a> {
+    value: &'a SharedValue,
     old: f64,
     min: f64,
     max: f64,
 }
 
-impl StandardBasis {
-    pub fn new(value: SharedValue, min: f64, max: f64) -> Self {
+impl<'a> StandardBasis<'a> {
+    pub fn new(value: &'a SharedValue, min: f64, max: f64) -> Self {
         Self {
             old: value.get_value(),
             value,
@@ -241,7 +246,7 @@ impl StandardBasis {
     }
 }
 
-impl Basis for StandardBasis {
+impl<'a> Basis for StandardBasis<'a> {
     fn get_value(&self) -> f64 {
         self.value.get_value()
     }
@@ -277,8 +282,8 @@ mod standard_basis_tests {
 
     #[test]
     fn get_value() {
-        let value = SharedValue::new(&mut 1.);
-        let mut basis = StandardBasis::new(value.clone(), 0., 1.);
+        let value = SharedValue::new(1.);
+        let mut basis = StandardBasis::new(&value, 0., 1.);
         basis.set_value(0.5);
         assert_abs_diff_eq!(basis.get_value(), 0.5);
         assert_abs_diff_eq!(value.get_value(), 0.5);
@@ -286,8 +291,8 @@ mod standard_basis_tests {
 
     #[test]
     fn set_value_limits() {
-        let value = SharedValue::new(&mut 1.);
-        let mut basis = StandardBasis::new(value, 0., 1.);
+        let value = SharedValue::new(1.);
+        let mut basis = StandardBasis::new(&value, 0., 1.);
 
         // Over maximum value
         basis.set_value(1.1);
@@ -300,8 +305,8 @@ mod standard_basis_tests {
 
     #[test]
     fn reset_value() {
-        let value = SharedValue::new(&mut 1.);
-        let mut basis = StandardBasis::new(value, 0., 1.);
+        let value = SharedValue::new(1.);
+        let mut basis = StandardBasis::new(&value, 0., 1.);
         basis.set_value(0.5);
         assert_abs_diff_eq!(basis.get_value(), 0.5);
         basis.reset_value();
@@ -310,8 +315,8 @@ mod standard_basis_tests {
 
     #[test]
     fn sample() {
-        let value = SharedValue::new(&mut 1.);
-        let basis = StandardBasis::new(value, 0., 1.);
+        let value = SharedValue::new(1.);
+        let basis = StandardBasis::new(&value, 0., 1.);
         let mut rng = thread_rng();
         for _ in 0..100 {
             let val = basis.sample(&mut rng, 1.);

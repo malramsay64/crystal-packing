@@ -93,7 +93,7 @@ pub trait Cell:
     fn from_family(group: CrystalFamily, max_size: f64) -> Self;
     fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;
     fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64>;
-    fn get_degrees_of_freedom(&mut self) -> Vec<StandardBasis>;
+    fn get_degrees_of_freedom(&self) -> Vec<StandardBasis>;
     fn center(&self) -> Vector2<f64>;
     fn area(&self) -> f64;
     fn get_corners(&self) -> Vec<Vector2<f64>>;
@@ -104,7 +104,7 @@ pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {
     fn positions<'a>(&'a self) -> Box<dyn Iterator<Item = Transform2> + 'a>;
     fn multiplicity(&self) -> usize;
     fn from_wyckoff(wyckoff: &WyckoffSite) -> Self;
-    fn get_basis(&mut self, rot_symmetry: u64) -> Vec<StandardBasis>;
+    fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis>;
 }
 
 pub trait State:
@@ -120,7 +120,7 @@ pub trait State:
     + ToSVG<Value = Document>
 {
     fn score(&self) -> Result<f64, &'static str>;
-    fn generate_basis(&mut self) -> Vec<StandardBasis>;
+    fn generate_basis(&self) -> Vec<StandardBasis>;
     fn total_shapes(&self) -> usize;
     fn as_positions(&self) -> Result<String, fmt::Error>;
 }
