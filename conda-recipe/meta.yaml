@@ -1,0 +1,31 @@
+{% set version = "0.2.0" %}
+
+package:
+  name: packing
+  version: {{ version }}
+
+source:
+  url: https://github.com/malramsay64/packing/archive/v{{ version }}.tar.gz
+
+build:
+  number: 0
+
+requirements:
+  build:
+    - rust==1.37.0
+
+test:
+  commands:
+    - packing --help
+    - packing p2 Trimer -s 10
+
+about:
+  home: https://github.com/malramsay64/packing
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: Finding best crystal structures for molecules and shapes.
+
+extra:
+  recipe-maintainers:
+    - malramsay64
