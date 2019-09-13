@@ -45,7 +45,7 @@ enum StateTypes {
 
 fn cli() -> CLIOptions {
     let matches = App::new("packing")
-        .version("0.3.0")
+        .version("0.3.1")
         .author("Malcolm Ramsay <malramsay64@gmail.com")
         .about("Find best tilings of 2d shapes")
         .arg(
