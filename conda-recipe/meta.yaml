@@ -17,7 +17,7 @@ requirements:
 test:
   commands:
     - packing --help
-    - packing p2 Trimer -s 10
+    - packing trimer p2 -s 10
 
 about:
   home: https://github.com/malramsay64/packing
