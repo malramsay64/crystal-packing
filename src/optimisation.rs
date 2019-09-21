@@ -9,17 +9,41 @@ use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand_pcg::Pcg64Mcg;
+use structopt::StructOpt;
 
 use crate::traits::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(StructOpt, Debug, Clone, Copy)]
 pub struct BuildOptimiser {
-    kt_start: f64,
-    kt_finish: Option<f64>,
-    kt_ratio: Option<f64>,
-    max_step_size: f64,
+    /// The number of steps to run the Monte-Carlo Optimisation.
+    #[structopt(short, long, default_value = "100")]
     steps: u64,
+
+    /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
+    /// a move can be yet still be accepted.
+    #[structopt(long, default_value = "0.1")]
+    kt_start: f64,
+
+    /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
+    /// a move can be yet still be accepted.
+    #[structopt(long)]
+    kt_finish: Option<f64>,
+
+    /// The ratio the temperature is reduced every inner_steps
+    #[structopt(long)]
+    kt_ratio: Option<f64>,
+
+    /// The maximum size of a Monte-Carlo move
+    #[structopt(long, default_value = "0.01")]
+    max_step_size: f64,
+
+    /// The number of steps to run before reducing the temperature. This also defines the number of
+    /// steps before the step size is updated.
+    #[structopt(long, default_value = "1000")]
     inner_steps: u64,
+
+    /// This option is skipped on the command line and filled in when setting up the iterations.
+    #[structopt(skip)]
     seed: Option<u64>,
 }
 
@@ -90,7 +114,7 @@ impl BuildOptimiser {
             kt_ratio,
             max_step_size: self.max_step_size,
             steps: self.steps,
-            inner_steps: self.inner_steps,
+            inner_steps: u64::min(self.inner_steps, self.steps),
             seed,
         }
     }
