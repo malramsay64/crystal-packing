@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use log::warn;
+use failure::{bail, Error};
 use std::ops::Mul;
 
 #[cfg(test)]
@@ -122,7 +122,7 @@ impl Transform2 {
     /// let t2 = Transform2::from_operations("-x, y");
     /// ```
     ///
-    pub fn from_operations(sym_ops: &str) -> Result<Transform2, &'static str> {
+    pub fn from_operations(sym_ops: &str) -> Result<Transform2, Error> {
         let braces: &[_] = &['(', ')'];
         let operations: Vec<&str> = sym_ops
             // Remove braces from front and back
@@ -132,8 +132,8 @@ impl Transform2 {
             .collect();
 
         match operations.len() {
-            x if x < 2 => return Err("Not enough dimensions in input"),
-            x if x > 2 => return Err("Too many dimensions in input"),
+            x if x < 2 => bail!("Not enough dimensions in input"),
+            x if x > 2 => bail!("Too many dimensions in input"),
             _ => (),
         }
 
@@ -176,8 +176,7 @@ impl Transform2 {
                     ' ' | '+' => (),
                     // Default is do nothing (shouldn't encounter this at all)
                     x => {
-                        warn!("Found '{}'", x);
-                        return Err("Invalid value found");
+                        bail!("Found invalid value: '{}'", x)
                     }
                 };
             }

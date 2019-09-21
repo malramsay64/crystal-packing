@@ -5,10 +5,10 @@
 //
 
 use std::cmp::Ordering;
-use std::fmt;
 use std::fmt::Write;
 use std::ops::Mul;
 
+use failure::{err_msg, Error};
 use log::debug;
 use serde::{Deserialize, Serialize};
 
@@ -46,7 +46,10 @@ where
     T: Site,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.score() == other.score()
+        match (self.score(), other.score()) {
+            (Ok(s), Ok(o)) => s.eq(&o),
+            (_, _) => false,
+        }
     }
 }
 
@@ -57,7 +60,10 @@ where
     T: Site,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.score().partial_cmp(&other.score())
+        match (self.score(), other.score()) {
+            (Ok(s), Ok(o)) => s.partial_cmp(&o),
+            (_, _) => None,
+        }
     }
 }
 
@@ -68,7 +74,7 @@ where
     T: Site,
 {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.score().partial_cmp(&other.score()).unwrap()
+        self.partial_cmp(other).unwrap()
     }
 }
 
@@ -84,9 +90,9 @@ where
             .fold(0, |sum, site| sum + site.multiplicity())
     }
 
-    fn score(&self) -> Result<f64, &'static str> {
+    fn score(&self) -> Result<f64, Error> {
         if self.check_intersection() {
-            Err("Intersection in packing")
+            Err(err_msg("Intersection in packing"))
         } else {
             Ok((self.shape.area() * self.total_shapes() as f64) / self.cell.area())
         }
@@ -101,7 +107,7 @@ where
         basis
     }
 
-    fn as_positions(&self) -> Result<String, fmt::Error> {
+    fn as_positions(&self) -> Result<String, Error> {
         let mut output = String::new();
         writeln!(&mut output, "{}", self.cell)?;
         writeln!(&mut output, "Positions")?;

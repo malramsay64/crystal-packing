@@ -4,6 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
+use failure::Error;
 use packing;
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
@@ -13,7 +14,7 @@ use packing::{
 };
 
 #[test]
-fn test_packing_improves() -> Result<(), &'static str> {
+fn test_packing_improves() -> Result<(), Error> {
     let square = LineShape::from_radial("Square", vec![1., 1., 1., 1.]).unwrap();
 
     let wallpaper = Wallpaper {

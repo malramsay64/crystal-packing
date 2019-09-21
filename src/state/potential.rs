@@ -8,6 +8,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Write;
 
+use failure::Error;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +46,10 @@ where
     T: Site,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.score() == other.score()
+        match (self.score(), other.score()) {
+            (Ok(s), Ok(o)) => s.eq(&o),
+            (_, _) => false,
+        }
     }
 }
 
@@ -56,7 +60,10 @@ where
     T: Site,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.score().partial_cmp(&other.score())
+        match (self.score(), other.score()) {
+            (Ok(s), Ok(o)) => s.partial_cmp(&o),
+            (_, _) => None,
+        }
     }
 }
 
@@ -67,7 +74,7 @@ where
     T: Site,
 {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.score().partial_cmp(&other.score()).unwrap()
+        self.partial_cmp(&other).unwrap()
     }
 }
 
@@ -86,7 +93,7 @@ where
         basis
     }
 
-    fn score(&self) -> Result<f64, &'static str> {
+    fn score(&self) -> Result<f64, Error> {
         let mut sum = 0.;
         for (index1, position1) in self.relative_positions().enumerate() {
             let shape1 = self
@@ -110,7 +117,7 @@ where
             .fold(0, |sum, site| sum + site.multiplicity())
     }
 
-    fn as_positions(&self) -> Result<String, fmt::Error> {
+    fn as_positions(&self) -> Result<String, Error> {
         let mut output = String::new();
         writeln!(&mut output, "{}", self.cell)?;
         writeln!(&mut output, "Positions")?;

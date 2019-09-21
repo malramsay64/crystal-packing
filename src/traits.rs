@@ -6,6 +6,7 @@
 
 use std::{fmt, ops, slice};
 
+use failure::Error;
 use nalgebra::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName, Vector2, VectorN};
 use rand::Rng;
@@ -68,7 +69,7 @@ pub trait Shape:
         + ops::Mul<Transform2, Output = Self::Component>
         + ToSVG;
 
-    fn score(&self, other: &Self) -> Result<f64, &'static str>;
+    fn score(&self, other: &Self) -> Result<f64, Error>;
     fn enclosing_radius(&self) -> f64;
     fn get_items(&self) -> Vec<Self::Component>;
     fn rotational_symmetries(&self) -> u64 {
@@ -79,7 +80,7 @@ pub trait Shape:
 }
 
 pub trait FromSymmetry: Sized {
-    fn from_operations(ops: &str) -> Result<Self, &'static str>;
+    fn from_operations(ops: &str) -> Result<Self, Error>;
 }
 
 pub trait Cell:
@@ -119,10 +120,10 @@ pub trait State:
     + fmt::Debug
     + ToSVG<Value = Document>
 {
-    fn score(&self) -> Result<f64, &'static str>;
+    fn score(&self) -> Result<f64, Error>;
     fn generate_basis(&self) -> Vec<StandardBasis>;
     fn total_shapes(&self) -> usize;
-    fn as_positions(&self) -> Result<String, fmt::Error>;
+    fn as_positions(&self) -> Result<String, Error>;
 }
 
 pub trait ToSVG {

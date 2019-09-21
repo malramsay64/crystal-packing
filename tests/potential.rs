@@ -9,6 +9,7 @@ use itertools::Itertools;
 #[allow(unused_imports)]
 use serde::Deserialize;
 
+use failure::Error;
 use packing;
 #[allow(unused_imports)]
 use packing::traits::*;
@@ -19,7 +20,7 @@ use packing::{
 };
 
 #[test]
-fn test_score_improves() -> Result<(), &'static str> {
+fn test_score_improves() -> Result<(), Error> {
     let square = LJShape2::from_trimer(0.63, 120., 1.);
 
     let wallpaper = Wallpaper {

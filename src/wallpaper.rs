@@ -8,6 +8,7 @@
 #![allow(deprecated)]
 
 use clap::arg_enum;
+use failure::Error;
 use serde::{Deserialize, Serialize};
 
 use crate::{CrystalFamily, Transform2};
@@ -89,7 +90,7 @@ arg_enum! {
     }
 }
 
-pub fn get_wallpaper_group(name: WallpaperGroups) -> Result<WallpaperGroup, &'static str> {
+pub fn get_wallpaper_group(name: WallpaperGroups) -> Result<WallpaperGroup, Error> {
     match name {
         WallpaperGroups::p1 => Ok(WallpaperGroup {
             name: "p1",

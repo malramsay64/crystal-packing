@@ -6,6 +6,7 @@
 
 use std::{fmt, slice, vec};
 
+use failure::Error;
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +42,7 @@ impl Potential for LJShape2 {
 impl Shape for LJShape2 {
     type Component = LJ2;
 
-    fn score(&self, other: &Self) -> Result<f64, &'static str> {
+    fn score(&self, other: &Self) -> Result<f64, Error> {
         Ok(iproduct!(self.items.iter(), other.items.iter())
             .fold(0., |sum, (s, o)| sum + s.energy(o)))
     }

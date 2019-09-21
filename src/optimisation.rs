@@ -4,6 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
+use failure::Error;
 use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
@@ -117,7 +118,7 @@ impl MCOptimiser {
 
     fn accept_score<R: Rng + ?Sized>(
         &self,
-        new: Result<f64, &'static str>,
+        new: Result<f64, Error>,
         old: f64,
         kt: f64,
         rng: &mut R,

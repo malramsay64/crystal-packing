@@ -9,6 +9,7 @@ use std::fmt;
 use std::slice;
 use std::vec;
 
+use failure::{bail, err_msg, Error};
 use itertools::{iproduct, Itertools};
 use serde::{Deserialize, Serialize};
 
@@ -69,9 +70,9 @@ impl Intersect for LineShape {
 impl Shape for LineShape {
     type Component = Line2;
 
-    fn score(&self, other: &Self) -> Result<f64, &'static str> {
+    fn score(&self, other: &Self) -> Result<f64, Error> {
         if self.intersects(other) {
-            Err("Shape intersects")
+            Err(err_msg("Shape intersects"))
         } else {
             Ok(self.area())
         }
@@ -119,9 +120,9 @@ impl LineShape {
     /// let polygon = LineShape::from_radial("Polygon", vec![1.; sides]);
     /// ```
     ///
-    pub fn from_radial(name: &str, points: Vec<f64>) -> Result<LineShape, &'static str> {
+    pub fn from_radial(name: &str, points: Vec<f64>) -> Result<LineShape, Error> {
         if points.len() < 3 {
-            return Err("The number of points provided is too few to create a 2D shape.");
+            bail!("The number of points provided is too few to create a 2D shape.")
         }
         let dtheta = 2. * PI / points.len() as f64;
         let mut items: Vec<Line2> = vec![];
