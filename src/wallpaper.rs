@@ -4,9 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-// This is for the arg_enum macro
-#![allow(deprecated)]
-
 use clap::arg_enum;
 use failure::Error;
 use serde::{Deserialize, Serialize};

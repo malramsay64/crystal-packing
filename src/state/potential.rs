@@ -5,7 +5,6 @@
 //
 
 use std::cmp::Ordering;
-use std::fmt;
 use std::fmt::Write;
 
 use failure::Error;
