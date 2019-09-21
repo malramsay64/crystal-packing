@@ -15,12 +15,14 @@ use log::{debug, info};
 use rayon::prelude::*;
 use serde_json;
 use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
-use structopt::StructOpt;
 use structopt::clap::arg_enum;
+use structopt::StructOpt;
 
 use packing::traits::*;
 use packing::wallpaper::{get_wallpaper_group, WallpaperGroups};
-use packing::{LJShape2, LineShape, MolecularShape2, PackedState2, PotentialState2, BuildOptimiser};
+use packing::{
+    BuildOptimiser, LJShape2, LineShape, MolecularShape2, PackedState2, PotentialState2,
+};
 
 arg_enum! {
     #[derive(Debug)]
@@ -29,7 +31,6 @@ arg_enum! {
         Hard,
     }
 }
-
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "packing")]
@@ -95,7 +96,6 @@ enum Shapes {
     #[structopt(name = "circle")]
     Circle {},
 }
-
 
 fn analyse_state(
     outfile: path::PathBuf,

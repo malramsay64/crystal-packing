@@ -175,9 +175,7 @@ impl Transform2 {
                     }
                     ' ' | '+' => (),
                     // Default is do nothing (shouldn't encounter this at all)
-                    x => {
-                        bail!("Found invalid value: '{}'", x)
-                    }
+                    x => bail!("Found invalid value: '{}'", x),
                 };
             }
             transform[(index, 2)] = constant;
