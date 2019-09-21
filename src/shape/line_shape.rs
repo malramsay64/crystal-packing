@@ -139,6 +139,10 @@ impl LineShape {
             items,
         })
     }
+
+    pub fn polygon(sides: usize) -> Result<LineShape, Error> {
+        LineShape::from_radial("Polygon", vec![1.; sides])
+    }
 }
 
 #[cfg(test)]
