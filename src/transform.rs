@@ -366,7 +366,6 @@ mod test {
 
             abs_diff_eq!((tf1 * tf2).0, (ntf1 * ntf2).to_homogeneous())
         }
-
     }
 
     #[test]

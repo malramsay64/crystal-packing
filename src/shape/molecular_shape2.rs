@@ -253,5 +253,4 @@ mod test {
         let transform = Transform2::new(0., (2., 2.));
         assert!(!mol.intersects(&mol.transform(&transform)));
     }
-
 }

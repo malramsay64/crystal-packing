@@ -4,14 +4,8 @@
 // Distributed under terms of the MIT license.
 //
 
-#[allow(unused_imports)]
-use itertools::Itertools;
-#[allow(unused_imports)]
-use serde::Deserialize;
-
 use failure::Error;
-use packing;
-#[allow(unused_imports)]
+
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;

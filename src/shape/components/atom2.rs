@@ -96,5 +96,4 @@ mod test {
 
         assert!(!a0.intersects(&a2));
     }
-
 }

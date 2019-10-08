@@ -146,5 +146,4 @@ mod wyckoff_site_tests {
         let wyckoff = create_wyckoff();
         assert_eq!(wyckoff.multiplicity(), 1);
     }
-
 }

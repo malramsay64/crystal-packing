@@ -4,6 +4,8 @@
 // Distributed under terms of the MIT license.
 //
 
+#![allow(clippy::type_repetition_in_bounds)]
+
 use std::cmp::Ordering;
 use std::fmt::Write;
 

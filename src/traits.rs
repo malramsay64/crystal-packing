@@ -41,8 +41,7 @@ pub trait PeriodicAssign<Rhs = Self> {
 
 pub trait AdjustPeriod<D: DimName>
 where
-    DefaultAllocator: Allocator<f64, D>,
-    DefaultAllocator: Allocator<f64, D, D>,
+    DefaultAllocator: Allocator<f64, D> + Allocator<f64, D, D>,
 {
     type Output;
     fn adjust_period(&self, adjustment: VectorN<f64, D>) -> Self::Output;

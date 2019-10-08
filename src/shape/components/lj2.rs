@@ -69,5 +69,4 @@ mod test {
         assert_abs_diff_eq!((a0.position - a1.position).norm_squared(), 1.);
         assert_abs_diff_eq!(a0.energy(&a1), 0.);
     }
-
 }

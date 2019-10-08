@@ -201,5 +201,4 @@ mod test {
         let transform = Transform2::new(0., (2.01, 2.01));
         assert!(!square.intersects(&square.transform(&transform)));
     }
-
 }

@@ -135,7 +135,7 @@ fn analyse_state(
                 .optimise_state(opt_state)
         })
         .max()
-        .ok_or(err_msg("test"))?;
+        .ok_or_else(|| err_msg("test"))?;
 
     info!("Final score: {}", final_state.score()?);
 
@@ -207,7 +207,7 @@ fn main() -> Result<(), Error> {
             PackedState2::from_group(LineShape::polygon(sides)?, &wg),
             &options.optimisation,
         ),
-        (Shapes::Polygon { sides: _ }, Force::LJ) => {
+        (Shapes::Polygon { .. }, Force::LJ) => {
             bail!("Polygon with a LJ potential is not yet implemented")
         }
     }

@@ -4,6 +4,8 @@
 // Distributed under terms of the MIT license.
 //
 
+#![allow(clippy::type_repetition_in_bounds)]
+
 use std::cmp::Ordering;
 use std::fmt::Write;
 use std::ops::Mul;
@@ -277,5 +279,4 @@ mod packed_state_tests {
         let state = init_packed_state("p2mg");
         assert_abs_diff_eq!(state.score().unwrap(), 1. / 32.);
     }
-
 }

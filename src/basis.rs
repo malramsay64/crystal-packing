@@ -27,7 +27,7 @@ impl<'de> Visitor<'de> for F64Visitor {
     where
         E: de::Error,
     {
-        Ok(value as f64)
+        Ok(f64::from(value))
     }
 
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
@@ -86,7 +86,7 @@ impl<'de> Deserialize<'de> for SharedValue {
     {
         deserializer
             .deserialize_f64(F64Visitor)
-            .map(|x| SharedValue::new(x))
+            .map(SharedValue::new)
     }
 }
 
@@ -324,5 +324,4 @@ mod standard_basis_tests {
             assert!(0.5 <= val && val <= 1.5);
         }
     }
-
 }

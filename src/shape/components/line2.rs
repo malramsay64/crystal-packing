@@ -180,5 +180,4 @@ mod test {
         assert!(line1.intersects(&line3));
         assert!(line3.intersects(&line1));
     }
-
 }
