@@ -146,9 +146,9 @@ fn analyse_state(
     Ok(())
 }
 
-fn main() -> Result<(), Error> {
-    let options = Args::from_args();
-    let log_level = match options.verbosity {
+#[paw::main]
+fn main(args: Args) -> Result<(), Error> {
+    let log_level = match args.verbosity {
         0 => LevelFilter::Warn,
         1 => LevelFilter::Info,
         2 => LevelFilter::Debug,
@@ -159,9 +159,9 @@ fn main() -> Result<(), Error> {
 
     debug!("Logging Level: {}", log_level);
 
-    let wg = get_wallpaper_group(options.wallpaper)?;
+    let wg = get_wallpaper_group(args.wallpaper)?;
 
-    match (options.shape, options.potential) {
+    match (args.shape, args.potential) {
         (
             Shapes::Trimer {
                 distance,
@@ -170,10 +170,10 @@ fn main() -> Result<(), Error> {
             },
             Force::LJ,
         ) => analyse_state(
-            options.outfile,
-            options.replications,
+            args.outfile,
+            args.replications,
             PotentialState2::from_group(LJShape2::from_trimer(radius, angle, distance), &wg),
-            &options.optimisation,
+            &args.optimisation,
         ),
         (
             Shapes::Trimer {
@@ -183,28 +183,28 @@ fn main() -> Result<(), Error> {
             },
             Force::Hard,
         ) => analyse_state(
-            options.outfile,
-            options.replications,
+            args.outfile,
+            args.replications,
             PackedState2::from_group(MolecularShape2::from_trimer(radius, angle, distance), &wg),
-            &options.optimisation,
+            &args.optimisation,
         ),
         (Shapes::Circle {}, Force::LJ) => analyse_state(
-            options.outfile,
-            options.replications,
+            args.outfile,
+            args.replications,
             PotentialState2::from_group(LJShape2::circle(), &wg),
-            &options.optimisation,
+            &args.optimisation,
         ),
         (Shapes::Circle {}, Force::Hard) => analyse_state(
-            options.outfile,
-            options.replications,
+            args.outfile,
+            args.replications,
             PackedState2::from_group(MolecularShape2::circle(), &wg),
-            &options.optimisation,
+            &args.optimisation,
         ),
         (Shapes::Polygon { sides }, Force::Hard) => analyse_state(
-            options.outfile,
-            options.replications,
+            args.outfile,
+            args.replications,
             PackedState2::from_group(LineShape::polygon(sides)?, &wg),
-            &options.optimisation,
+            &args.optimisation,
         ),
         (Shapes::Polygon { .. }, Force::LJ) => {
             bail!("Polygon with a LJ potential is not yet implemented")
