@@ -11,10 +11,9 @@ use std::path;
 use std::path::PathBuf;
 
 use failure::{bail, err_msg, Error};
-use log::{debug, info};
+use log::{debug, info, LevelFilter};
 use rayon::prelude::*;
 use serde_json;
-use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 use structopt::clap::arg_enum;
 use structopt::StructOpt;
 
@@ -156,7 +155,7 @@ fn main() -> Result<(), Error> {
         3 => LevelFilter::Trace,
         _ => LevelFilter::Trace,
     };
-    TermLogger::init(log_level, Config::default(), TerminalMode::Mixed)?;
+    env_logger::Builder::new().filter_level(log_level).init();
 
     debug!("Logging Level: {}", log_level);
 
