@@ -60,10 +60,6 @@ struct Args {
     #[structopt(long, parse(from_os_str))]
     start_config: Option<PathBuf>,
 
-    /// The number of steps to run the monte carlo optimisation for
-    #[structopt(short, long, default_value = "100")]
-    steps: u64,
-
     /// The number of independent starting configurations to optimise
     #[structopt(long, default_value = "100")]
     replications: u64,
