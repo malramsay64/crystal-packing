@@ -45,6 +45,11 @@ pub struct BuildOptimiser {
     /// This option is skipped on the command line and filled in when setting up the iterations.
     #[structopt(skip)]
     seed: Option<u64>,
+
+    /// The minimum change of the score within an inner loop. This is the indicator of convergence
+    /// which allows for an early exit.
+    #[structopt(long)]
+    convergence: Option<f64>,
 }
 
 impl Default for BuildOptimiser {
@@ -57,6 +62,7 @@ impl Default for BuildOptimiser {
             steps: 1000,
             inner_steps: 1000,
             seed: None,
+            convergence: None,
         }
     }
 }
@@ -116,6 +122,7 @@ impl BuildOptimiser {
             steps: self.steps,
             inner_steps: u64::min(self.inner_steps, self.steps),
             seed,
+            convergence: self.convergence,
         }
     }
 }
@@ -127,6 +134,7 @@ pub struct MCOptimiser {
     steps: u64,
     inner_steps: u64,
     seed: u64,
+    convergence: Option<f64>,
 }
 
 impl MCOptimiser {
@@ -180,6 +188,7 @@ impl MCOptimiser {
         let mut step_ratio = 1.;
 
         for _ in 1..=(self.steps / self.inner_steps) {
+            let start_score = score_current;
             let mut loop_rejections: u64 = 0;
             for _ in 0..self.inner_steps {
                 // Choose a basis at random to modify
@@ -214,6 +223,13 @@ impl MCOptimiser {
             }
             rejections += loop_rejections;
             kt *= self.kt_ratio;
+
+            // Where the score has converged to the precision of the convergence we can exit early
+            if let Some(precision) = self.convergence {
+                if start_score - score_current < precision {
+                    return state;
+                }
+            }
 
             // Scale step ratio with goal of 75% rejections
             // Taking shinking the cell as an example, 50% of steps will  increase the cell, so
@@ -250,6 +266,7 @@ mod test {
         steps: 0,
         inner_steps: 0,
         seed: 0,
+        convergence: None,
     };
 
     #[quickcheck]
