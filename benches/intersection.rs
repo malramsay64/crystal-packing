@@ -84,7 +84,7 @@ fn shape_check_intersection(c: &mut Criterion) {
     );
     group.bench_with_input(
         BenchmarkId::new("Molecule", 3),
-        &MolecularShape2::from_trimer(0.637556, std::f64::consts::PI, 1.0),
+        &MolecularShape2::from_trimer(0.637556, 180., 1.0),
         |b, shape| {
             let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
             let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
@@ -117,7 +117,7 @@ fn create_shape_instance(c: &mut Criterion) {
     );
     group.bench_with_input(
         BenchmarkId::new("Molecule", 3),
-        &MolecularShape2::from_trimer(0.637556, std::f64::consts::PI, 1.0),
+        &MolecularShape2::from_trimer(0.637556, 180., 1.0),
         |b, shape| {
             let trans = &Transform2::new(PI / 3., (0.2, -5.3));
             b.iter(|| shape.transform(trans))

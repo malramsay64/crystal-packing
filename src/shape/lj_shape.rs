@@ -91,19 +91,38 @@ impl LJShape2 {
     /// `distance` from the center of the central particle. This is a class of particle I am
     /// studying in my research.
     ///
+    /// # Arguments
+    ///
+    /// - `radius` - The radius of the smaller particle
+    /// - `angle` - The angle between smaller particles in degrees
+    /// - `distance` - The distance of the smaller particle from the center
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use packing::LJShape2;
+    /// let shape = LJShape2::from_trimer(0.7, 120., 1.);
+    /// # assert_eq!(shape.items.len(), 3);
+    /// # assert_eq!(shape.name, "Trimer");
+    /// ```
+    ///
     pub fn from_trimer(radius: f64, angle: f64, distance: f64) -> Self {
         Self {
             name: String::from("Trimer"),
             items: vec![
-                LJ2::new(0., -2. / 3. * distance * f64::cos(angle / 2.), 2.),
                 LJ2::new(
-                    -distance * f64::sin(angle / 2.),
-                    1. / 3. * distance * f64::cos(angle / 2.),
+                    0.,
+                    -2. / 3. * distance * f64::cos(angle.to_radians() / 2.),
+                    2.,
+                ),
+                LJ2::new(
+                    -distance * f64::sin(angle.to_radians() / 2.),
+                    1. / 3. * distance * f64::cos(angle.to_radians() / 2.),
                     radius * 2.,
                 ),
                 LJ2::new(
-                    distance * f64::sin(angle / 2.),
-                    1. / 3. * distance * f64::cos(angle / 2.),
+                    distance * f64::sin(angle.to_radians() / 2.),
+                    1. / 3. * distance * f64::cos(angle.to_radians() / 2.),
                     radius * 2.,
                 ),
             ],
@@ -113,6 +132,16 @@ impl LJShape2 {
     /// Create an instance of a Circle
     ///
     /// This is the simplest molecular shape, a single circle at the origin with radius of 1.0.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use packing::LJShape2;
+    /// let shape = LJShape2::circle();
+    /// # assert_eq!(shape.name, "circle");
+    /// # assert_eq!(shape.items.len(), 1);
+    /// ```
+    ///
     pub fn circle() -> Self {
         Self {
             name: String::from("circle"),
@@ -124,21 +153,20 @@ impl LJShape2 {
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
-    use std::f64::consts::PI;
 
     use super::*;
     use nalgebra::Vector2;
 
     #[test]
     fn from_trimer_test() {
-        let shape = LJShape2::from_trimer(1., PI, 1.);
+        let shape = LJShape2::from_trimer(1., 180., 1.);
         assert_eq!(shape.items.len(), 3);
 
         assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., 0.));
         assert_abs_diff_eq!(shape.items[1].position, Vector2::new(-1., 0.));
         assert_abs_diff_eq!(shape.items[2].position, Vector2::new(1., 0.));
 
-        let shape = LJShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
+        let shape = LJShape2::from_trimer(0.637_556, 120., 1.);
         assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., -1. / 3.));
         assert_abs_diff_eq!(
             shape.items[1].position,

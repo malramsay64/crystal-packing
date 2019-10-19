@@ -123,19 +123,38 @@ impl MolecularShape2 {
     /// `distance` from the center of the central particle. This is a class of particle I am
     /// studying in my research.
     ///
+    /// # Arguments
+    ///
+    /// - `radius` - The radius of the smaller particle
+    /// - `angle` - The angle between smaller particles in degrees
+    /// - `distance` - The distance of the smaller particle from the center
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use packing::MolecularShape2;
+    /// let shape = MolecularShape2::from_trimer(0.7, 120., 1.);
+    /// # assert_eq!(shape.items.len(), 3);
+    /// # assert_eq!(shape.name, "Trimer");
+    /// ```
+    ///
     pub fn from_trimer(radius: f64, angle: f64, distance: f64) -> Self {
         Self {
             name: String::from("Trimer"),
             items: vec![
-                Atom2::new(0., -2. / 3. * distance * f64::cos(angle / 2.), 1.),
                 Atom2::new(
-                    -distance * f64::sin(angle / 2.),
-                    1. / 3. * distance * f64::cos(angle / 2.),
+                    0.,
+                    -2. / 3. * distance * f64::cos(angle.to_radians() / 2.),
+                    1.,
+                ),
+                Atom2::new(
+                    -distance * f64::sin(angle.to_radians() / 2.),
+                    1. / 3. * distance * f64::cos(angle.to_radians() / 2.),
                     radius,
                 ),
                 Atom2::new(
-                    distance * f64::sin(angle / 2.),
-                    1. / 3. * distance * f64::cos(angle / 2.),
+                    distance * f64::sin(angle.to_radians() / 2.),
+                    1. / 3. * distance * f64::cos(angle.to_radians() / 2.),
                     radius,
                 ),
             ],
@@ -188,14 +207,14 @@ mod test {
 
     #[test]
     fn from_trimer_test() {
-        let shape = MolecularShape2::from_trimer(1., PI, 1.);
+        let shape = MolecularShape2::from_trimer(1., 180., 1.);
         assert_eq!(shape.items.len(), 3);
 
         assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., 0.));
         assert_abs_diff_eq!(shape.items[1].position, Vector2::new(-1., 0.));
         assert_abs_diff_eq!(shape.items[2].position, Vector2::new(1., 0.));
 
-        let shape = MolecularShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
+        let shape = MolecularShape2::from_trimer(0.637_556, 120., 1.);
         assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., -1. / 3.));
         assert_abs_diff_eq!(
             shape.items[1].position,
@@ -211,10 +230,10 @@ mod test {
 
     #[test]
     fn area_test() {
-        let shape = MolecularShape2::from_trimer(1., PI, 2.);
+        let shape = MolecularShape2::from_trimer(1., 180., 2.);
         assert_abs_diff_eq!(shape.area(), 3. * PI);
 
-        let shape = MolecularShape2::from_trimer(0.637_556, 2. * PI / 3., 1.);
+        let shape = MolecularShape2::from_trimer(0.637_556, 120., 1.);
         println!("{}", shape.area());
         assert!(shape.area() > 0.);
     }
