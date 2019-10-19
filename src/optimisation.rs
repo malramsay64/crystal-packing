@@ -103,6 +103,11 @@ impl BuildOptimiser {
         self
     }
 
+    pub fn convergence(&mut self, converged: Option<f64>) -> &mut Self {
+        self.convergence = converged;
+        self
+    }
+
     pub fn build(&self) -> MCOptimiser {
         let kt_ratio = match (self.kt_ratio, self.kt_finish) {
             (Some(ratio), _) => 1. - ratio,
@@ -186,9 +191,10 @@ impl MCOptimiser {
         let basis_distribution = Uniform::new(0, basis.len() as usize);
 
         let mut step_ratio = 1.;
+        let mut convergence_count = 0;
 
-        for _ in 1..=(self.steps / self.inner_steps) {
-            let start_score = score_current;
+        for loop_counter in 1..=(self.steps / self.inner_steps) {
+            let score_start = score_current;
             let mut loop_rejections: u64 = 0;
             for _ in 0..self.inner_steps {
                 // Choose a basis at random to modify
@@ -226,8 +232,21 @@ impl MCOptimiser {
 
             // Where the score has converged to the precision of the convergence we can exit early
             if let Some(precision) = self.convergence {
-                if start_score - score_current < precision {
-                    return state;
+                // The current score should be larger than the original score -> optimising to
+                // larger numbers
+                if score_current - score_start < precision {
+                    convergence_count += 1;
+                    if convergence_count > 5 {
+                        debug!(
+                            "Found convergence of score after {} steps, difference of {}",
+                            loop_counter * self.inner_steps,
+                            score_current - score_start,
+                        );
+                        return state;
+                    }
+                } else {
+                    // Reset to zero, convergence has to be consecutive loops
+                    convergence_count = 0;
                 }
             }
 

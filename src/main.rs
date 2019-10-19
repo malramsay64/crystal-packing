@@ -107,6 +107,7 @@ fn analyse_state(
                 .steps(1000)
                 .kt_start(0.)
                 .seed(index)
+                .convergence(None)
                 .build()
                 .optimise_state(state.clone());
             (index, result)
