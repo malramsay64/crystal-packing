@@ -17,7 +17,7 @@ requirements:
 test:
   commands:
     - packing --help
-    - packing trimer p2 -s 10
+    - packing p2 -s 10 --outfile test.out trimer
 
 about:
   home: https://github.com/malramsay64/packing
