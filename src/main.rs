@@ -49,7 +49,7 @@ struct Args {
     wallpaper: WallpaperGroups,
 
     /// The potential which is being optimised
-    #[structopt(short, long, possible_values = &Force::variants(), default_value = "hard")]
+    #[structopt(short, long, possible_values = &Force::variants(), default_value = "Hard")]
     potential: Force,
 
     /// Where to save the best packed structure
