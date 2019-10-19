@@ -146,10 +146,9 @@ fn analyse_state(
 #[paw::main]
 fn main(args: Args) -> Result<(), Error> {
     let log_level = match args.verbosity {
-        0 => LevelFilter::Warn,
-        1 => LevelFilter::Info,
-        2 => LevelFilter::Debug,
-        3 => LevelFilter::Trace,
+        0 => LevelFilter::Info,
+        1 => LevelFilter::Debug,
+        2 => LevelFilter::Trace,
         _ => LevelFilter::Trace,
     };
     env_logger::Builder::new().filter_level(log_level).init();
