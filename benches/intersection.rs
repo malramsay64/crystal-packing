@@ -6,17 +6,13 @@
 
 use std::f64::consts::PI;
 
-#[macro_use]
-extern crate criterion;
-
+use anyhow::Error;
 use criterion::BenchmarkId;
-use criterion::Criterion;
+use criterion::{criterion_group, criterion_main, Criterion};
 
 use packing::traits::*;
 use packing::wallpaper::{Wallpaper, WyckoffSite};
-use packing::{
-    Cell2, CrystalFamily, LineShape, MolecularShape2, OccupiedSite, PackedState, Transform2,
-};
+use packing::{CrystalFamily, LineShape, MolecularShape2, OccupiedSite, PackedState, Transform2};
 
 static BENCH_SIDES: &[usize] = &[4, 16, 64, 256];
 
@@ -24,9 +20,7 @@ static BENCH_SIDES: &[usize] = &[4, 16, 64, 256];
 ///
 /// This creates a packed state from the number of points used to create a shape.
 ///
-fn create_packed_state(
-    points: usize,
-) -> Result<PackedState<LineShape, Cell2, OccupiedSite>, Error> {
+fn create_packed_state(points: usize) -> Result<PackedState<LineShape>, Error> {
     let shape = LineShape::from_radial("Polygon", vec![1.; points])?;
 
     let wallpaper = Wallpaper {
@@ -45,20 +39,21 @@ fn create_packed_state(
         mirror_secondary: false,
     }];
 
-    PackedState::initialise(shape, wallpaper, isopointal)
+    Ok(PackedState::initialise(shape, wallpaper, isopointal))
 }
 
-fn state_check_intersection(c: &mut Criterion) {
+fn state_check_intersection(c: &mut Criterion) -> Result<(), Error> {
     let mut group = c.benchmark_group("State Score");
 
     for &sides in BENCH_SIDES.iter() {
         group.bench_with_input(
             BenchmarkId::new("Polygon", sides),
-            &create_packed_state(sides),
+            &create_packed_state(sides)?,
             |b, state| b.iter(|| state.score()),
         );
     }
-    group.finish()
+    group.finish();
+    Ok(())
 }
 
 fn shape_check_intersection(c: &mut Criterion) -> Result<(), Error> {
@@ -94,7 +89,7 @@ fn shape_check_intersection(c: &mut Criterion) -> Result<(), Error> {
         },
     );
     group.finish();
-    Ok(());
+    Ok(())
 }
 
 fn create_shape_instance(c: &mut Criterion) -> Result<(), Error> {
@@ -152,8 +147,8 @@ fn site_positions(c: &mut Criterion) -> Result<(), Error> {
     Ok(())
 }
 
-fn state_modify_basis(c: &mut Criterion) {
-    let state = create_packed_state(256);
+fn state_modify_basis(c: &mut Criterion) -> Result<(), Error> {
+    let state = create_packed_state(256)?;
     let mut basis = state.generate_basis();
 
     c.bench_function("Modify Basis", |b| {
@@ -166,6 +161,7 @@ fn state_modify_basis(c: &mut Criterion) {
             }
         })
     });
+    Ok(())
 }
 
 criterion_group!(
@@ -176,6 +172,6 @@ criterion_group!(
     site_positions,
 );
 
-criterion_group!(general, site_positions, state_modify_basis,);
+criterion_group!(general, site_positions, state_modify_basis);
 
 criterion_main!(intersections, general);
