@@ -9,9 +9,7 @@ use anyhow::{anyhow, Error};
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
-use packing::{
-    BuildOptimiser, Cell2, CrystalFamily, LineShape, OccupiedSite, PackedState, Transform2,
-};
+use packing::{BuildOptimiser, CrystalFamily, LineShape, PackedState, Transform2};
 
 #[test]
 fn test_packing_improves() -> Result<(), Error> {
