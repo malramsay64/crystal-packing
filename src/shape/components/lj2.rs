@@ -11,12 +11,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::traits::Potential;
 
+/// A particle which is influences by the Lennard Jones potential
+///
+/// This defines interactions between particles usign the 12-6 Lennard Jones Potential.
+///
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct LJ2 {
+    /// The position of a particle within the potential
     pub position: Vector2<f64>,
+    /// The characteristic distance of the potential
     pub sigma: f64,
+    /// The energy of the minimum of the potential
     pub epsilon: f64,
-    /// The cutoff for the potential
+    /// The cutoff for the potential. When this is Some, it indicates the use of the Shifted
+    /// Lennard Jones potential.
     pub cutoff: Option<f64>,
 }
 
@@ -109,6 +117,34 @@ mod test {
         let a = LJ2::default();
         let b = LJ2::new(1., 0., 1.);
         assert_abs_diff_eq!(a.energy(&b), 0.);
+    }
+
+    #[test]
+    fn potential_minimum() {
+        let a = LJ2::default();
+        let b = LJ2::new(2_f64.powf(1. / 6.), 0., 1.);
+        dbg!(a.energy(&b));
+        assert_abs_diff_eq!(a.energy(&b), -1.);
+    }
+
+    #[test]
+    fn potential_repulsive() {
+        let a = LJ2::default();
+        for i in 1..100 {
+            let b = LJ2::new(i as f64 / 100., 0., 1.);
+            dbg!(a.energy(&b));
+            assert!(a.energy(&b) > 0.);
+        }
+    }
+
+    #[test]
+    fn potential_attractive() {
+        let a = LJ2::default();
+        for i in 1..500 {
+            let b = LJ2::new(1. + i as f64 / 100., 0., 1.);
+            dbg!(a.energy(&b));
+            assert!(a.energy(&b) < 0.);
+        }
     }
 
     #[test]
