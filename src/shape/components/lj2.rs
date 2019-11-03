@@ -20,6 +20,17 @@ pub struct LJ2 {
     pub cutoff: Option<f64>,
 }
 
+impl Default for LJ2 {
+    fn default() -> LJ2 {
+        LJ2 {
+            position: Vector2::new(0., 0.),
+            sigma: 1.,
+            epsilon: 1.,
+            cutoff: None,
+        }
+    }
+}
+
 impl Potential for LJ2 {
     fn energy(&self, other: &Self) -> f64 {
         let sigma_squared = self.sigma.powi(2);
@@ -55,8 +66,7 @@ impl LJ2 {
         LJ2 {
             position: Vector2::new(x, y),
             sigma,
-            epsilon: 1.,
-            cutoff: None,
+            ..Default::default()
         }
     }
 }
@@ -73,11 +83,22 @@ mod test {
         assert_abs_diff_eq!(a.position.x, 0.);
         assert_abs_diff_eq!(a.position.y, 0.);
         assert_abs_diff_eq!(a.sigma, 1.);
+        assert_abs_diff_eq!(a.epsilon, 1.);
+    }
+
+    #[test]
+    fn default_constuctor() {
+        let a = LJ2::default();
+        assert_abs_diff_eq!(a.position.x, 0.);
+        assert_abs_diff_eq!(a.position.y, 0.);
+        assert_abs_diff_eq!(a.sigma, 1.);
+        assert_abs_diff_eq!(a.epsilon, 1.);
+        assert_eq!(a.cutoff, None);
     }
 
     #[test]
     fn distance_squared_test() {
-        let a0 = LJ2::new(0., 0., 1.);
+        let a0 = LJ2::default();
         let a1 = LJ2::new(1., 0., 1.);
         assert_abs_diff_eq!((a0.position - a1.position).norm_squared(), 1.);
         assert_abs_diff_eq!(a0.energy(&a1), 0.);
@@ -85,7 +106,7 @@ mod test {
 
     #[test]
     fn potential_zero() {
-        let a = LJ2::new(0., 0., 1.);
+        let a = LJ2::default();
         let b = LJ2::new(1., 0., 1.);
         assert_abs_diff_eq!(a.energy(&b), 0.);
     }
@@ -94,15 +115,13 @@ mod test {
     fn potential_cutoff() {
         let a = LJ2 {
             position: Vector2::new(0., 0.),
-            sigma: 1.,
-            epsilon: 1.,
             cutoff: Some(3.5),
+            ..Default::default()
         };
         let b = LJ2 {
             position: Vector2::new(3.5, 0.),
-            sigma: 1.,
-            epsilon: 1.,
             cutoff: Some(3.5),
+            ..Default::default()
         };
         assert_abs_diff_eq!(a.energy(&b), 0.);
     }
