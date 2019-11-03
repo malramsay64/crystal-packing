@@ -46,19 +46,19 @@ pub struct WyckoffSite {
 }
 
 impl WyckoffSite {
-    pub fn new(group: WallpaperGroup) -> WyckoffSite {
-        let symmetries: Result<Vec<Transform2>, _> = group
+    pub fn new(group: WallpaperGroup) -> Result<WyckoffSite, Error> {
+        let symmetries = group
             .wyckoff_str
             .into_iter()
             .map(Transform2::from_operations)
-            .collect();
-        WyckoffSite {
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(WyckoffSite {
             letter: 'a',
-            symmetries: symmetries.unwrap(),
+            symmetries,
             num_rotations: 1,
             mirror_primary: false,
             mirror_secondary: false,
-        }
+        })
     }
     pub fn multiplicity(&self) -> usize {
         self.symmetries.len()

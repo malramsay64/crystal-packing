@@ -170,7 +170,7 @@ impl Transform2 {
                     }
                     // This matches all digits from 0 to 9
                     '0'..='9' => {
-                        let val = c.to_string().parse::<u64>().unwrap() as f64;
+                        let val = c.to_string().parse::<u64>()? as f64;
                         // Is there an operator defined, i.e. is this the first digit
                         constant = match operator {
                             Some(op) if op == '/' => sign * constant / val,

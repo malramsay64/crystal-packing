@@ -168,7 +168,7 @@ fn main(args: Args) -> Result<(), Error> {
         ) => analyse_state(
             args.outfile,
             args.replications,
-            PotentialState2::from_group(LJShape2::from_trimer(radius, angle, distance), &wg),
+            PotentialState2::from_group(LJShape2::from_trimer(radius, angle, distance), &wg)?,
             &args.optimisation,
         ),
         (
@@ -181,25 +181,25 @@ fn main(args: Args) -> Result<(), Error> {
         ) => analyse_state(
             args.outfile,
             args.replications,
-            PackedState2::from_group(MolecularShape2::from_trimer(radius, angle, distance), &wg),
+            PackedState2::from_group(MolecularShape2::from_trimer(radius, angle, distance), &wg)?,
             &args.optimisation,
         ),
         (Shapes::Circle {}, Force::LJ) => analyse_state(
             args.outfile,
             args.replications,
-            PotentialState2::from_group(LJShape2::circle(), &wg),
+            PotentialState2::from_group(LJShape2::circle(), &wg)?,
             &args.optimisation,
         ),
         (Shapes::Circle {}, Force::Hard) => analyse_state(
             args.outfile,
             args.replications,
-            PackedState2::from_group(MolecularShape2::circle(), &wg),
+            PackedState2::from_group(MolecularShape2::circle(), &wg)?,
             &args.optimisation,
         ),
         (Shapes::Polygon { sides }, Force::Hard) => analyse_state(
             args.outfile,
             args.replications,
-            PackedState2::from_group(LineShape::polygon(sides)?, &wg),
+            PackedState2::from_group(LineShape::polygon(sides)?, &wg)?,
             &args.optimisation,
         ),
         (Shapes::Polygon { .. }, Force::LJ) => {

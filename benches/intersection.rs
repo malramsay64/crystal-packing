@@ -24,8 +24,10 @@ static BENCH_SIDES: &[usize] = &[4, 16, 64, 256];
 ///
 /// This creates a packed state from the number of points used to create a shape.
 ///
-fn create_packed_state(points: usize) -> PackedState<LineShape, Cell2, OccupiedSite> {
-    let shape = LineShape::from_radial("Polygon", vec![1.; points]).unwrap();
+fn create_packed_state(
+    points: usize,
+) -> Result<PackedState<LineShape, Cell2, OccupiedSite>, Error> {
+    let shape = LineShape::from_radial("Polygon", vec![1.; points])?;
 
     let wallpaper = Wallpaper {
         name: String::from("p2"),
@@ -35,8 +37,8 @@ fn create_packed_state(points: usize) -> PackedState<LineShape, Cell2, OccupiedS
     let isopointal = &[WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform2::from_operations("x,y").unwrap(),
-            Transform2::from_operations("-x,-y").unwrap(),
+            Transform2::from_operations("x,y")?,
+            Transform2::from_operations("-x,-y")?,
         ],
         num_rotations: 1,
         mirror_primary: false,
@@ -59,13 +61,13 @@ fn state_check_intersection(c: &mut Criterion) {
     group.finish()
 }
 
-fn shape_check_intersection(c: &mut Criterion) {
+fn shape_check_intersection(c: &mut Criterion) -> Result<(), Error> {
     let mut group = c.benchmark_group("Shape Intersection");
 
     for &sides in BENCH_SIDES.iter() {
         group.bench_with_input(
             BenchmarkId::new("Polygon", sides),
-            &LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
+            &LineShape::from_radial("Polygon", vec![1.; sides])?,
             |b, shape| {
                 let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
                 let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
@@ -91,16 +93,17 @@ fn shape_check_intersection(c: &mut Criterion) {
             b.iter(|| si1.intersects(&si2))
         },
     );
-    group.finish()
+    group.finish();
+    Ok(());
 }
 
-fn create_shape_instance(c: &mut Criterion) {
+fn create_shape_instance(c: &mut Criterion) -> Result<(), Error> {
     let mut group = c.benchmark_group("Transform Shape");
 
     for &sides in BENCH_SIDES.iter() {
         group.bench_with_input(
             BenchmarkId::new("Polygon", sides),
-            &LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
+            &LineShape::from_radial("Polygon", vec![1.; sides])?,
             |b, shape| {
                 let trans = &Transform2::new(PI / 3., (0.2, -5.3));
                 b.iter(|| shape.transform(trans))
@@ -123,15 +126,16 @@ fn create_shape_instance(c: &mut Criterion) {
             b.iter(|| shape.transform(trans))
         },
     );
-    group.finish()
+    group.finish();
+    Ok(())
 }
 
-fn site_positions(c: &mut Criterion) {
+fn site_positions(c: &mut Criterion) -> Result<(), Error> {
     let site = OccupiedSite::from_wyckoff(&WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform2::from_operations("x,y").unwrap(),
-            Transform2::from_operations("-x,-y").unwrap(),
+            Transform2::from_operations("x,y")?,
+            Transform2::from_operations("-x,-y")?,
         ],
         num_rotations: 1,
         mirror_primary: false,
@@ -145,6 +149,7 @@ fn site_positions(c: &mut Criterion) {
             }
         })
     });
+    Ok(())
 }
 
 fn state_modify_basis(c: &mut Criterion) {

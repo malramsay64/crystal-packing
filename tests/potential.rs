@@ -25,8 +25,8 @@ fn test_score_improves() -> Result<(), Error> {
     let isopointal = &[WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform2::from_operations("x,y").unwrap(),
-            Transform2::from_operations("-x,-y").unwrap(),
+            Transform2::from_operations("x,y")?,
+            Transform2::from_operations("-x,-y")?,
         ],
         num_rotations: 1,
         mirror_primary: false,

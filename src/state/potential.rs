@@ -145,10 +145,14 @@ where
         self.occupied_sites.iter().flat_map(Site::positions)
     }
 
-    pub fn from_group(shape: S, group: &WallpaperGroup) -> Self {
+    pub fn from_group(shape: S, group: &WallpaperGroup) -> Result<Self, Error> {
         let wallpaper = Wallpaper::new(&group);
-        let isopointal = &[WyckoffSite::new(group.clone())];
-        Self::initialise(shape.clone(), wallpaper.clone(), isopointal)
+        let isopointal = &[WyckoffSite::new(group.clone())?];
+        Ok(Self::initialise(
+            shape.clone(),
+            wallpaper.clone(),
+            isopointal,
+        ))
     }
 
     pub fn initialise(
