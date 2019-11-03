@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use failure::{err_msg, Error};
+use anyhow::{anyhow, Error};
 use packing;
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
@@ -38,7 +38,7 @@ fn test_packing_improves() -> Result<(), Error> {
 
     let init_packing = state
         .score()
-        .ok_or_else(|| err_msg("Invalid initial state"))?;
+        .ok_or_else(|| anyhow!("Invalid initial state"))?;
 
     let opt = BuildOptimiser::default()
         .seed(0)
@@ -52,7 +52,7 @@ fn test_packing_improves() -> Result<(), Error> {
 
     let final_packing = final_state
         .score()
-        .ok_or_else(|| err_msg("Invalid final state"))?;
+        .ok_or_else(|| anyhow!("Invalid final state"))?;
 
     println!("Init Score: {} Final score {}", init_packing, final_packing);
     assert!(init_packing < final_packing);

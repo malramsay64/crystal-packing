@@ -6,7 +6,7 @@
 
 use std::{fmt, ops, slice};
 
-use failure::Error;
+use anyhow::Error;
 use nalgebra::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName, Vector2, VectorN};
 use rand::Rng;

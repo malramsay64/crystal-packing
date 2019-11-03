@@ -10,7 +10,7 @@ use std::cmp::Ordering;
 use std::fmt::Write;
 use std::ops::Mul;
 
-use failure::Error;
+use anyhow::Error;
 use log::debug;
 use serde::{Deserialize, Serialize};
 

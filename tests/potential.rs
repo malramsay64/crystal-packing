@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use failure::Error;
+use anyhow::{anyhow, Error};
 
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
@@ -38,13 +38,15 @@ fn test_score_improves() -> Result<(), Error> {
 
     let init_score = state
         .score()
-        .ok_or_else(|| err_msg("Initial score is invalid"))?;
+        .ok_or_else(|| anyhow!("Initial score is invalid"))?;
 
     let opt = BuildOptimiser::default().seed(0).build();
 
     let final_state = opt.optimise_state(state);
 
-    let final_score = final_state.score()?;
+    let final_score = final_state
+        .score()
+        .ok_or_else(|| anyhow!("Final score is invalid"))?;
 
     println!("Init Score: {}, Final Score: {}", init_score, final_score);
     assert!(init_score < final_score);

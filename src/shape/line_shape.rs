@@ -9,7 +9,7 @@ use std::fmt;
 use std::slice;
 use std::vec;
 
-use failure::{bail, Error};
+use anyhow::{bail, Error};
 use itertools::{iproduct, Itertools};
 use serde::{Deserialize, Serialize};
 

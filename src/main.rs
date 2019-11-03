@@ -10,7 +10,7 @@ use std::io::prelude::*;
 use std::path;
 use std::path::PathBuf;
 
-use failure::{bail, err_msg, Error};
+use anyhow::{anyhow, bail, Error};
 use log::{debug, info, LevelFilter};
 use rayon::prelude::*;
 use serde_json;
@@ -131,7 +131,7 @@ fn analyse_state(
                 .optimise_state(opt_state)
         })
         .max()
-        .ok_or_else(|| err_msg("Error in running optimisation."))?;
+        .ok_or_else(|| anyhow!("Error in running optimisation."))?;
 
     info!("Final score: {:?}", final_state.score());
 

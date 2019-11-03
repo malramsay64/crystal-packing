@@ -4,8 +4,8 @@
 // Distributed under terms of the MIT license.
 //
 
+use anyhow::Error;
 use clap::arg_enum;
-use failure::Error;
 use serde::{Deserialize, Serialize};
 
 use crate::{CrystalFamily, Transform2};

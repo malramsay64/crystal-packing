@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use failure::{bail, Error};
+use anyhow::{bail, Error};
 use std::ops::Mul;
 
 #[cfg(test)]
