@@ -26,6 +26,13 @@ criterion = "0.3"
 quickcheck = "0.9"
 quickcheck_macros = "0.8"
 
+[lib]
+bench = false
+
+[[bin]]
+name = "packing"
+bench = false
+
 [[bench]]
 name = "intersection"
 harness = false
