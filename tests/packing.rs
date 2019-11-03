@@ -5,7 +5,7 @@
 //
 
 use anyhow::{anyhow, Error};
-use packing;
+
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;

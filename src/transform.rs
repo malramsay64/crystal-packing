@@ -9,7 +9,7 @@ use std::ops::Mul;
 
 #[cfg(test)]
 use approx::AbsDiffEq;
-use nalgebra::{Matrix3, Vector2, Vector3};
+use nalgebra::{Matrix3, Point2, Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// Perform coordinate tranforms on a point in space
@@ -57,6 +57,15 @@ impl AbsDiffEq for Transform2 {
         self.0.abs_diff_eq(&other.0, epsilon)
     }
 }
+
+binop_impl_all!(
+    Mul, mul;
+    self: Transform2, rhs: Point2<f64>, Output = Point2<f64>;
+    [ref ref] => {
+        let result = self.0 * rhs.to_homogeneous();
+        Point2::from_homogeneous(result).unwrap()
+    };
+);
 
 binop_impl_all!(
     Mul, mul;

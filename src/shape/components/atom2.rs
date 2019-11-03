@@ -6,14 +6,14 @@
 
 use std::fmt;
 
-use nalgebra::Vector2;
+use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::Intersect;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Atom2 {
-    pub position: Vector2<f64>,
+    pub position: Point2<f64>,
     pub radius: f64,
 }
 
@@ -43,7 +43,7 @@ impl fmt::Display for Atom2 {
 impl Atom2 {
     pub fn new(x: f64, y: f64, radius: f64) -> Self {
         Atom2 {
-            position: Vector2::new(x, y),
+            position: Point2::new(x, y),
             radius,
         }
     }
