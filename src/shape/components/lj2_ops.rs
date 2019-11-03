@@ -18,6 +18,7 @@ binop_impl_all!(
             position: self * rhs.position,
             sigma: rhs.sigma,
             epsilon: rhs.epsilon,
+            cutoff: rhs.cutoff
         }
     };
 );
@@ -30,6 +31,7 @@ binop_impl_all!(
             position: rhs * self.position,
             sigma: self.sigma,
             epsilon: self.epsilon,
+            cutoff: self.cutoff
         }
     };
 );
