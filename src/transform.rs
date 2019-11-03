@@ -63,7 +63,7 @@ binop_impl_all!(
     self: Transform2, rhs: Point2<f64>, Output = Point2<f64>;
     [ref ref] => {
         let result = self.0 * rhs.to_homogeneous();
-        Point2::from_homogeneous(result).unwrap()
+        Point2::from(result.xy())
     };
 );
 
