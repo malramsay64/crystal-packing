@@ -10,7 +10,6 @@ use itertools::iproduct;
 use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::*;
 use crate::{SharedValue, StandardBasis, Transform2};
 
 /// The different crystal families that can be represented
@@ -96,7 +95,7 @@ impl Default for Cell2 {
     }
 }
 
-impl Cell for Cell2 {
+impl Cell2 {
     /// Convert a transformation into Cartesian coordinates
     ///
     /// The positions of particles are stored in fractional coordinates, making changes to the
@@ -104,7 +103,7 @@ impl Cell for Cell2 {
     /// and converts the values of the fractional coordinates in the translation to real
     /// Cartesian coordinates based on the current cell parameters.
     ///
-    fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
+    pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
         transform.set_position(self.to_cartesian_point(transform.position()))
     }
 
@@ -121,7 +120,7 @@ impl Cell for Cell2 {
     /// assert_eq!(point, Vector2::new(4., 4.));
     /// ```
     ///
-    fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64> {
+    pub fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64> {
         let (x, y) = self.to_cartesian(point.x, point.y);
         Vector2::new(x, y)
     }
@@ -131,7 +130,7 @@ impl Cell for Cell2 {
     /// Each of the different crystal families impose different restrictions on the degrees of
     /// freedom of a unit cell. This compiles these degrees of freedom into a vector of Bases,
     /// which is the data structure used to modify the values.
-    fn get_degrees_of_freedom(&self) -> Vec<StandardBasis> {
+    pub fn get_degrees_of_freedom(&self) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
 
         // All cells have at least a single variable cell length
@@ -159,7 +158,7 @@ impl Cell for Cell2 {
     /// calculations that this is required, when trying to plot the unit cell it should be plotted
     /// with the center at the appropriate position.
     ///
-    fn center(&self) -> Vector2<f64> {
+    pub fn center(&self) -> Vector2<f64> {
         let (x, y) = self.to_cartesian(0.5, 0.5);
         Vector2::new(x, y)
     }
@@ -169,7 +168,7 @@ impl Cell for Cell2 {
     /// This uses the general formula for the area of a rhombus which is
     /// $ A = xy\sin(\theta) $
     ///
-    fn area(&self) -> f64 {
+    pub fn area(&self) -> f64 {
         self.angle.get_value().sin() * self.a.get_value() * self.b.get_value()
     }
 
@@ -179,7 +178,7 @@ impl Cell for Cell2 {
     /// crystal family impose upon the unit cell. This includes ensuring both sides of the unit
     /// cell are the same length, or restricting the angle to a specific value.
     ///
-    fn from_family(family: CrystalFamily, length: f64) -> Cell2 {
+    pub fn from_family(family: CrystalFamily, length: f64) -> Cell2 {
         let (a, b, angle) = match family {
             // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
             CrystalFamily::Hexagonal => (length, 0., PI / 3.),
@@ -198,11 +197,12 @@ impl Cell for Cell2 {
             family,
         }
     }
-    fn periodic_images<'a>(
+
+    pub fn periodic_images<'a>(
         &'a self,
         transform: Transform2,
         zero: bool,
-    ) -> Box<dyn Iterator<Item = Transform2> + 'a> {
+    ) -> impl Iterator<Item = Transform2> + 'a {
         // The periodic images to check. Checking the first and second shells i.e.
         // -2..=2, as this is necessary to ensure no intersections on tilted cells
         // and highly irregular cells.
@@ -215,21 +215,12 @@ impl Cell for Cell2 {
             _ => -3..=3,
         };
 
-        if zero {
-            Box::new(
-                iproduct!(iter_range.clone(), iter_range.clone())
-                    .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y)),
-            )
-        } else {
-            Box::new(
-                iproduct!(iter_range.clone(), iter_range.clone())
-                    .filter(|&(x, y)| !(x == 0 && y == 0))
-                    .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y)),
-            )
-        }
+        iproduct!(iter_range.clone(), iter_range.clone())
+            .filter(move |&(x, y)| !(zero || (x == 0 && y == 0)))
+            .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y))
     }
 
-    fn get_corners(&self) -> Vec<Vector2<f64>> {
+    pub fn get_corners(&self) -> Vec<Vector2<f64>> {
         let points = vec![
             Vector2::new(-0.5, -0.5),
             Vector2::new(-0.5, 0.5),
@@ -242,10 +233,8 @@ impl Cell for Cell2 {
             .map(|p| self.to_cartesian_point(p))
             .collect()
     }
-}
 
-impl Cell2 {
-    fn to_cartesian_translate(&self, transform: &Transform2, x: i64, y: i64) -> Transform2 {
+    pub fn to_cartesian_translate(&self, transform: &Transform2, x: i64, y: i64) -> Transform2 {
         let mut position = transform.position();
         position.x += x as f64;
         position.y += y as f64;
@@ -279,6 +268,7 @@ mod cell_tests {
 
     use super::*;
 
+    use crate::traits::{Intersect, Shape};
     use crate::LineShape;
 
     // TODO Cell area test

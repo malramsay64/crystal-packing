@@ -9,7 +9,6 @@ use std::f64::consts::PI;
 use serde::{Deserialize, Serialize};
 
 use crate::basis::{SharedValue, StandardBasis};
-use crate::traits::*;
 use crate::wallpaper::WyckoffSite;
 use crate::Transform2;
 
@@ -32,28 +31,26 @@ impl Clone for OccupiedSite {
     }
 }
 
-impl Site for OccupiedSite {
-    fn transform(&self) -> Transform2 {
+impl OccupiedSite {
+    pub fn transform(&self) -> Transform2 {
         Transform2::new(
             self.angle.get_value(),
             (self.x.get_value(), self.y.get_value()),
         )
     }
 
-    fn positions<'a>(&'a self) -> Box<dyn Iterator<Item = Transform2> + 'a> {
+    pub fn positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
         let transform = self.transform();
-        Box::new(
-            self.symmetries()
-                .map(move |sym| sym * &transform)
-                .map(|sym| sym.periodic(1., -0.5)),
-        )
+        self.symmetries()
+            .map(move |sym| sym * &transform)
+            .map(|sym| sym.periodic(1., -0.5))
     }
 
-    fn multiplicity(&self) -> usize {
+    pub fn multiplicity(&self) -> usize {
         self.wyckoff.symmetries.len() as usize
     }
 
-    fn from_wyckoff(wyckoff: &WyckoffSite) -> Self {
+    pub fn from_wyckoff(wyckoff: &WyckoffSite) -> Self {
         let position = -0.5 + 0.5 / wyckoff.multiplicity() as f64;
         let x = SharedValue::new(position);
         let y = SharedValue::new(position);
@@ -67,7 +64,7 @@ impl Site for OccupiedSite {
         }
     }
 
-    fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
+    pub fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
         let dof = self.wyckoff.degrees_of_freedom();
 
@@ -86,10 +83,7 @@ impl Site for OccupiedSite {
         }
         basis
     }
-}
-
-impl OccupiedSite {
-    fn symmetries<'a>(&'a self) -> impl Iterator<Item = &Transform2> + 'a {
+    pub fn symmetries<'a>(&'a self) -> impl Iterator<Item = &Transform2> + 'a {
         self.wyckoff.symmetries.iter()
     }
 }

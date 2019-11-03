@@ -9,9 +9,7 @@ use anyhow::{anyhow, Error};
 use packing::traits::*;
 use packing::wallpaper::Wallpaper;
 use packing::wallpaper::WyckoffSite;
-use packing::{
-    BuildOptimiser, Cell2, CrystalFamily, LJShape2, OccupiedSite, PotentialState, Transform2,
-};
+use packing::{BuildOptimiser, CrystalFamily, LJShape2, PotentialState, Transform2};
 
 #[test]
 fn test_score_improves() -> Result<(), Error> {
@@ -33,8 +31,7 @@ fn test_score_improves() -> Result<(), Error> {
         mirror_secondary: false,
     }];
 
-    let state =
-        PotentialState::<LJShape2, Cell2, OccupiedSite>::initialise(square, wallpaper, isopointal);
+    let state = PotentialState::<LJShape2>::initialise(square, wallpaper, isopointal);
 
     let init_score = state
         .score()

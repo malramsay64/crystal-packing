@@ -8,14 +8,13 @@ use std::{fmt, ops, slice};
 
 use anyhow::Error;
 use nalgebra::allocator::Allocator;
-use nalgebra::{DefaultAllocator, DimName, Vector2, VectorN};
+use nalgebra::{DefaultAllocator, DimName, VectorN};
 use rand::Rng;
 use serde::Serialize;
 use svg::node::element::Group;
 use svg::Document;
 
-use crate::wallpaper::WyckoffSite;
-use crate::{CrystalFamily, StandardBasis, Transform2};
+use crate::{StandardBasis, Transform2};
 
 pub trait Transformer {
     fn as_simple(&self) -> String;
@@ -80,31 +79,6 @@ pub trait Shape:
 
 pub trait FromSymmetry: Sized {
     fn from_operations(ops: &str) -> Result<Self, Error>;
-}
-
-pub trait Cell:
-    Clone + Send + Sync + Serialize + fmt::Debug + fmt::Display + ToSVG<Value = Group>
-{
-    fn periodic_images<'a>(
-        &'a self,
-        transform: Transform2,
-        zero: bool,
-    ) -> Box<dyn Iterator<Item = Transform2> + 'a>;
-    fn from_family(group: CrystalFamily, max_size: f64) -> Self;
-    fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2;
-    fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64>;
-    fn get_degrees_of_freedom(&self) -> Vec<StandardBasis>;
-    fn center(&self) -> Vector2<f64>;
-    fn area(&self) -> f64;
-    fn get_corners(&self) -> Vec<Vector2<f64>>;
-}
-
-pub trait Site: Clone + Send + Sync + Serialize + fmt::Debug {
-    fn transform(&self) -> Transform2;
-    fn positions<'a>(&'a self) -> Box<dyn Iterator<Item = Transform2> + 'a>;
-    fn multiplicity(&self) -> usize;
-    fn from_wyckoff(wyckoff: &WyckoffSite) -> Self;
-    fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis>;
 }
 
 pub trait State:

@@ -14,7 +14,7 @@ use anyhow::Error;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::*;
+use crate::traits::{Potential, Shape, State};
 use crate::wallpaper::{Wallpaper, WallpaperGroup, WyckoffSite};
 use crate::{Cell2, OccupiedSite, StandardBasis, Transform2};
 
@@ -125,7 +125,7 @@ where
     }
 
     pub fn relative_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
-        self.occupied_sites.iter().flat_map(Site::positions)
+        self.occupied_sites.iter().flat_map(OccupiedSite::positions)
     }
 
     pub fn from_group(shape: S, group: &WallpaperGroup) -> Result<Self, Error> {
@@ -164,7 +164,7 @@ where
 #[cfg(test)]
 mod packed_state_tests {
     use super::*;
-    use crate::{Cell2, CrystalFamily, LJShape2, OccupiedSite, Transform2};
+    use crate::{CrystalFamily, LJShape2, Transform2};
 
     fn create_wallpaper_p1() -> (Wallpaper, Vec<WyckoffSite>) {
         let wallpaper = Wallpaper {
@@ -203,7 +203,7 @@ mod packed_state_tests {
         (wallpaper, isopointal)
     }
 
-    fn init_state(group: &str) -> PotentialState<LJShape2, Cell2, OccupiedSite> {
+    fn init_state(group: &str) -> PotentialState<LJShape2> {
         let circle = LJShape2::circle();
 
         let (wallpaper, isopointal) = (match group {

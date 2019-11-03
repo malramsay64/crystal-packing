@@ -114,7 +114,7 @@ where
     }
 
     pub fn relative_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
-        self.occupied_sites.iter().flat_map(Site::positions)
+        self.occupied_sites.iter().flat_map(OccupiedSite::positions)
     }
 
     /// Check for intersections of shapes in the current state.
@@ -182,7 +182,7 @@ where
 #[cfg(test)]
 mod packed_state_tests {
     use super::*;
-    use crate::{Cell2, CrystalFamily, LineShape, OccupiedSite, Transform2};
+    use crate::{CrystalFamily, LineShape, Transform2};
     use approx::assert_abs_diff_eq;
 
     fn create_square() -> LineShape {
@@ -226,7 +226,7 @@ mod packed_state_tests {
         (wallpaper, isopointal)
     }
 
-    fn init_packed_state(group: &str) -> PackedState<LineShape, Cell2, OccupiedSite> {
+    fn init_packed_state(group: &str) -> PackedState<LineShape> {
         let square: LineShape = create_square();
 
         let (wallpaper, isopointal) = (match group {

@@ -33,8 +33,7 @@ fn test_packing_improves() -> Result<(), Error> {
         mirror_secondary: false,
     }];
 
-    let state =
-        PackedState::<LineShape, Cell2, OccupiedSite>::initialise(square, wallpaper, isopointal);
+    let state = PackedState::<LineShape>::initialise(square, wallpaper, isopointal);
 
     let init_packing = state
         .score()
