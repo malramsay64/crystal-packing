@@ -18,34 +18,24 @@ use crate::traits::*;
 use crate::wallpaper::{Wallpaper, WallpaperGroup, WyckoffSite};
 use crate::{Cell2, OccupiedSite, StandardBasis, Transform2};
 
-pub type PackedState2<S> = PackedState<S, Cell2, OccupiedSite>;
+pub type PackedState2<S> = PackedState<S>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PackedState<S, C, T>
+pub struct PackedState<S>
 where
     S: Shape + Intersect,
-    C: Cell,
-    T: Site,
 {
     pub wallpaper: Wallpaper,
     pub shape: S,
-    pub cell: C,
-    occupied_sites: Vec<T>,
+    pub cell: Cell2,
+    occupied_sites: Vec<OccupiedSite>,
 }
 
-impl<S, C, T> Eq for PackedState<S, C, T>
-where
-    S: Shape + Intersect,
-    C: Cell,
-    T: Site,
-{
-}
+impl<S> Eq for PackedState<S> where S: Shape + Intersect {}
 
-impl<S, C, T> PartialEq for PackedState<S, C, T>
+impl<S> PartialEq for PackedState<S>
 where
     S: Shape + Intersect,
-    C: Cell,
-    T: Site,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self.score(), other.score()) {
@@ -55,11 +45,9 @@ where
     }
 }
 
-impl<S, C, T> PartialOrd for PackedState<S, C, T>
+impl<S> PartialOrd for PackedState<S>
 where
     S: Shape + Intersect,
-    C: Cell,
-    T: Site,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.score(), other.score()) {
@@ -69,22 +57,18 @@ where
     }
 }
 
-impl<S, C, T> Ord for PackedState<S, C, T>
+impl<S> Ord for PackedState<S>
 where
     S: Shape + Intersect,
-    C: Cell,
-    T: Site,
 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
 
-impl<S, C, T> State for PackedState<S, C, T>
+impl<S> State for PackedState<S>
 where
     S: Shape + Intersect,
-    C: Cell,
-    T: Site,
 {
     fn total_shapes(&self) -> usize {
         self.occupied_sites
@@ -120,11 +104,9 @@ where
         Ok(output)
     }
 }
-impl<S, C, T> PackedState<S, C, T>
+impl<S> PackedState<S>
 where
     S: Shape + Intersect,
-    C: Cell,
-    T: Site,
 {
     pub fn cartesian_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
         self.relative_positions()
@@ -168,19 +150,15 @@ where
         shape: S,
         wallpaper: Wallpaper,
         isopointal: &[WyckoffSite],
-    ) -> PackedState<S, C, T> {
+    ) -> PackedState<S> {
         let num_shapes = isopointal.iter().fold(0, |acc, x| acc + x.multiplicity());
         let max_cell_size = 4. * shape.enclosing_radius() * num_shapes as f64;
 
-        let cell = C::from_family(wallpaper.family, max_cell_size);
+        let cell = Cell2::from_family(wallpaper.family, max_cell_size);
 
         debug!("Cell: {:?}", cell);
 
-        let mut occupied_sites: Vec<T> = Vec::new();
-        for wyckoff in isopointal.iter() {
-            let site = T::from_wyckoff(wyckoff);
-            occupied_sites.push(site);
-        }
+        let occupied_sites: Vec<_> = isopointal.iter().map(OccupiedSite::from_wyckoff).collect();
 
         PackedState {
             wallpaper,

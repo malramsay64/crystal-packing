@@ -124,11 +124,9 @@ impl ToSVG for Transform2 {
     }
 }
 
-impl<S, C, T> ToSVG for PotentialState<S, C, T>
+impl<S> ToSVG for PotentialState<S>
 where
     S: Shape + Potential,
-    C: Cell,
-    T: Site,
 {
     type Value = Document;
 
@@ -171,11 +169,9 @@ where
     }
 }
 
-impl<S, C, T> ToSVG for PackedState<S, C, T>
+impl<S> ToSVG for PackedState<S>
 where
     S: Shape + Intersect,
-    C: Cell,
-    T: Site,
 {
     type Value = Document;
 
