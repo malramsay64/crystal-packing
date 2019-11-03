@@ -8,6 +8,7 @@ use std::{fmt, slice, vec};
 
 use failure::Error;
 use itertools::iproduct;
+use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
 use super::{Transform2, LJ2};
@@ -107,25 +108,24 @@ impl LJShape2 {
     /// ```
     ///
     pub fn from_trimer(radius: f64, angle: f64, distance: f64) -> Self {
+        let x_base = distance * f64::sin(angle.to_radians() / 2.);
+        let y_base = 1. / 3. * distance * f64::cos(angle.to_radians() / 2.);
+        let positions = vec![
+            (1., Point2::new(0., -2. * y_base)),
+            (radius, Point2::new(-x_base, y_base)),
+            (radius, Point2::new(x_base, y_base)),
+        ];
         Self {
             name: String::from("Trimer"),
-            items: vec![
-                LJ2::new(
-                    0.,
-                    -2. / 3. * distance * f64::cos(angle.to_radians() / 2.),
-                    2.,
-                ),
-                LJ2::new(
-                    -distance * f64::sin(angle.to_radians() / 2.),
-                    1. / 3. * distance * f64::cos(angle.to_radians() / 2.),
-                    radius * 2.,
-                ),
-                LJ2::new(
-                    distance * f64::sin(angle.to_radians() / 2.),
-                    1. / 3. * distance * f64::cos(angle.to_radians() / 2.),
-                    radius * 2.,
-                ),
-            ],
+            items: positions
+                .into_iter()
+                .map(|(r, p)| LJ2 {
+                    position: p.coords,
+                    sigma: 2. * r,
+                    cutoff: Some(3.5),
+                    ..Default::default()
+                })
+                .collect(),
         }
     }
 
@@ -178,5 +178,21 @@ mod test {
             Vector2::new(0.866, 1. / 6.),
             epsilon = 1e-3,
         );
+    }
+
+    #[test]
+    fn trimer_not_hardcoded_sigma() {
+        let shape = LJShape2::from_trimer(2., 180., 0.5);
+        assert_abs_diff_eq!(shape.items[0].sigma, 2.);
+        assert_abs_diff_eq!(shape.items[1].sigma, 4.);
+        assert_abs_diff_eq!(shape.items[2].sigma, 4.);
+    }
+
+    #[test]
+    fn trimer_cutoff() {
+        let shape = LJShape2::from_trimer(2., 180., 0.5);
+        assert_abs_diff_eq!(shape.items[0].cutoff.unwrap(), 3.5);
+        assert_abs_diff_eq!(shape.items[1].cutoff.unwrap(), 3.5);
+        assert_abs_diff_eq!(shape.items[2].cutoff.unwrap(), 3.5);
     }
 }
