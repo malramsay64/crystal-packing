@@ -48,7 +48,7 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         match (self.score(), other.score()) {
-            (Ok(s), Ok(o)) => s.eq(&o),
+            (Some(s), Some(o)) => s.eq(&o),
             (_, _) => false,
         }
     }
@@ -62,7 +62,7 @@ where
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.score(), other.score()) {
-            (Ok(s), Ok(o)) => s.partial_cmp(&o),
+            (Some(s), Some(o)) => s.partial_cmp(&o),
             (_, _) => None,
         }
     }
@@ -94,7 +94,7 @@ where
         basis
     }
 
-    fn score(&self) -> Result<f64, Error> {
+    fn score(&self) -> Option<f64> {
         let mut sum = 0.;
         for (index1, position1) in self.relative_positions().enumerate() {
             let shape1 = self
@@ -109,7 +109,7 @@ where
         }
         // We want to minimize the potential energy, so the score we want to maximize is the
         // negation of the potential energy.
-        Ok(-sum / 15. / self.total_shapes() as f64)
+        Some(-sum / self.total_shapes() as f64)
     }
 
     fn total_shapes(&self) -> usize {

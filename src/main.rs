@@ -131,9 +131,9 @@ fn analyse_state(
                 .optimise_state(opt_state)
         })
         .max()
-        .ok_or_else(|| err_msg("test"))?;
+        .ok_or_else(|| err_msg("Error in running optimisation."))?;
 
-    info!("Final score: {}", final_state.score()?);
+    info!("Final score: {:?}", final_state.score());
 
     let serialised = serde_json::to_string(&final_state)?;
 

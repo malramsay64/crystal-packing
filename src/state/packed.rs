@@ -10,7 +10,7 @@ use std::cmp::Ordering;
 use std::fmt::Write;
 use std::ops::Mul;
 
-use failure::{err_msg, Error};
+use failure::Error;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +49,7 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         match (self.score(), other.score()) {
-            (Ok(s), Ok(o)) => s.eq(&o),
+            (Some(s), Some(o)) => s.eq(&o),
             (_, _) => false,
         }
     }
@@ -63,7 +63,7 @@ where
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.score(), other.score()) {
-            (Ok(s), Ok(o)) => s.partial_cmp(&o),
+            (Some(s), Some(o)) => s.partial_cmp(&o),
             (_, _) => None,
         }
     }
@@ -92,11 +92,11 @@ where
             .fold(0, |sum, site| sum + site.multiplicity())
     }
 
-    fn score(&self) -> Result<f64, Error> {
+    fn score(&self) -> Option<f64> {
         if self.check_intersection() {
-            Err(err_msg("Intersection in packing"))
+            None
         } else {
-            Ok((self.shape.area() * self.total_shapes() as f64) / self.cell.area())
+            Some((self.shape.area() * self.total_shapes() as f64) / self.cell.area())
         }
     }
 

@@ -9,7 +9,7 @@ use std::fmt;
 use std::slice;
 use std::vec;
 
-use failure::{bail, err_msg, Error};
+use failure::{bail, Error};
 use itertools::{iproduct, Itertools};
 use serde::{Deserialize, Serialize};
 
@@ -70,11 +70,11 @@ impl Intersect for LineShape {
 impl Shape for LineShape {
     type Component = Line2;
 
-    fn score(&self, other: &Self) -> Result<f64, Error> {
+    fn score(&self, other: &Self) -> Option<f64> {
         if self.intersects(other) {
-            Err(err_msg("Shape intersects"))
+            None
         } else {
-            Ok(self.area())
+            Some(self.area())
         }
     }
 

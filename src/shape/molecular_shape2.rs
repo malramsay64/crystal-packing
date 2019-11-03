@@ -7,7 +7,6 @@
 use std::f64::consts::PI;
 use std::{fmt, slice, vec};
 
-use failure::{err_msg, Error};
 use itertools::{iproduct, Itertools};
 use serde::{Deserialize, Serialize};
 
@@ -55,11 +54,11 @@ impl Intersect for MolecularShape2 {
 impl Shape for MolecularShape2 {
     type Component = Atom2;
 
-    fn score(&self, other: &Self) -> Result<f64, Error> {
+    fn score(&self, other: &Self) -> Option<f64> {
         if self.intersects(other) {
-            Err(err_msg("Shape intersects"))
+            None
         } else {
-            Ok(self.area())
+            Some(self.area())
         }
     }
 

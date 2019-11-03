@@ -36,7 +36,9 @@ fn test_score_improves() -> Result<(), Error> {
     let state =
         PotentialState::<LJShape2, Cell2, OccupiedSite>::initialise(square, wallpaper, isopointal);
 
-    let init_score = state.score()?;
+    let init_score = state
+        .score()
+        .ok_or_else(|| err_msg("Initial score is invalid"))?;
 
     let opt = BuildOptimiser::default().seed(0).build();
 

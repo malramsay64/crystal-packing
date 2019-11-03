@@ -68,7 +68,7 @@ pub trait Shape:
         + ops::Mul<Transform2, Output = Self::Component>
         + ToSVG;
 
-    fn score(&self, other: &Self) -> Result<f64, Error>;
+    fn score(&self, other: &Self) -> Option<f64>;
     fn enclosing_radius(&self) -> f64;
     fn get_items(&self) -> Vec<Self::Component>;
     fn rotational_symmetries(&self) -> u64 {
@@ -119,7 +119,7 @@ pub trait State:
     + fmt::Debug
     + ToSVG<Value = Document>
 {
-    fn score(&self) -> Result<f64, Error>;
+    fn score(&self) -> Option<f64>;
     fn generate_basis(&self) -> Vec<StandardBasis>;
     fn total_shapes(&self) -> usize;
     fn as_positions(&self) -> Result<String, Error>;

@@ -4,7 +4,6 @@
 // Distributed under terms of the MIT license.
 //
 
-use failure::Error;
 use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
@@ -155,7 +154,7 @@ impl MCOptimiser {
 
     fn accept_score<R: Rng + ?Sized>(
         &self,
-        new: Result<f64, Error>,
+        new: Option<f64>,
         old: f64,
         kt: f64,
         rng: &mut R,
@@ -164,13 +163,15 @@ impl MCOptimiser {
 
         match new {
             // New score is better, keep updated state
-            Ok(new_score) if new_score > old => Some(new_score),
+            Some(new_score) if new_score > old => Some(new_score),
             // When the score increases, there is a probability of accepting the new
             // score, which is evaluated based on the difference between the new score,
             // and the old score along with the temperature value (kt).
             // The acceptance occurs when a random number smaller than the acceptance
             // probability is drawn.
-            Ok(new_score) if self.test_acceptance(threshold, new_score, old, kt) => Some(new_score),
+            Some(new_score) if self.test_acceptance(threshold, new_score, old, kt) => {
+                Some(new_score)
+            }
             // If the first two tests fail, then the score is rejected.
             _ => None,
         }
@@ -178,7 +179,7 @@ impl MCOptimiser {
 
     pub fn optimise_state(&self, state: impl State) -> impl State {
         let mut score_current = match state.score() {
-            Ok(score) => score,
+            Some(score) => score,
             _ => panic!("Invalid configuration passed to function, exiting."),
         };
 
@@ -265,7 +266,7 @@ impl MCOptimiser {
         );
 
         assert!(
-            state.score().is_ok(),
+            state.score().is_some(),
             "Final score is invalid, this shouldn't occur in normal operation"
         );
         state
