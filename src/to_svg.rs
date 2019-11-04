@@ -151,11 +151,7 @@ where
                 .add(self.shape.as_svg().set("id", "mol")),
         );
         for transform in self.cell.periodic_images(Transform2::identity(), 1, true) {
-            let position = self.cell.to_cartesian_point(transform.position());
-            doc = doc.add(element::Use::new().set("href", "#cell").set(
-                "transform",
-                format!("translate({}, {})", position.x, position.y),
-            ));
+            doc = doc.add(transform.as_svg().set("href", "#cell"));
         }
 
         for position in self.relative_positions() {
@@ -196,11 +192,7 @@ where
                 .add(self.shape.as_svg().set("id", "mol")),
         );
         for transform in self.cell.periodic_images(Transform2::identity(), 1, true) {
-            let position = transform.position();
-            doc = doc.add(element::Use::new().set("href", "#cell").set(
-                "transform",
-                format!("translate({}, {})", position.x, position.y),
-            ));
+            doc = doc.add(transform.as_svg().set("href", "#cell"));
         }
         for position in self.relative_positions() {
             let matrix = self.cell.to_cartesian_isometry(&position);
