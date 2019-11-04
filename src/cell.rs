@@ -96,6 +96,18 @@ impl Default for Cell2 {
 }
 
 impl Cell2 {
+    pub fn a(&self) -> f64 {
+        self.a.get_value()
+    }
+
+    pub fn b(&self) -> f64 {
+        self.b.get_value()
+    }
+
+    pub fn angle(&self) -> f64 {
+        self.angle.get_value()
+    }
+
     /// Convert a transformation into Cartesian coordinates
     ///
     /// The positions of particles are stored in fractional coordinates, making changes to the
@@ -112,7 +124,6 @@ impl Cell2 {
     /// # Example
     ///
     /// ```
-    /// use packing::traits::Cell;
     /// use packing::{Cell2, CrystalFamily};
     /// use nalgebra::Vector2;
     /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
@@ -201,22 +212,11 @@ impl Cell2 {
     pub fn periodic_images<'a>(
         &'a self,
         transform: Transform2,
+        shells: i64,
         zero: bool,
     ) -> impl Iterator<Item = Transform2> + 'a {
-        // The periodic images to check. Checking the first and second shells i.e.
-        // -2..=2, as this is necessary to ensure no intersections on tilted cells
-        // and highly irregular cells.
-        let iter_range = match (
-            self.a.get_value() / self.b.get_value(),
-            self.angle.get_value(),
-        ) {
-            (p, a) if 0.5 < p && p < 2. && f64::abs(a - PI / 2.) < 0.2 => -1..=1,
-            (p, a) if 0.3 < p && p < 3. && f64::abs(a - PI / 2.) < 0.5 => -2..=2,
-            _ => -3..=3,
-        };
-
-        iproduct!(iter_range.clone(), iter_range.clone())
-            .filter(move |&(x, y)| !(zero || (x == 0 && y == 0)))
+        iproduct!(-shells..=shells, -shells..=shells)
+            .filter(move |&(x, y)| !(!zero && x == 0 && y == 0))
             .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y))
     }
 
@@ -244,7 +244,6 @@ impl Cell2 {
     /// Convert two values in relative coordinates to real coordinates
     ///
     /// ```
-    /// use packing::traits::Cell;
     /// use packing::{Cell2, CrystalFamily};
     /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
     /// let point = cell.to_cartesian(0.25, 0.25);
@@ -297,7 +296,7 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(transform, false)
+            .periodic_images(transform, 1, false)
             .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(intersection)
@@ -310,7 +309,7 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(transform, false)
+            .periodic_images(transform, 1, false)
             .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(intersection)
@@ -323,7 +322,7 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(transform, false)
+            .periodic_images(transform, 1, false)
             .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(!intersection)
@@ -343,7 +342,8 @@ mod cell_tests {
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
-        for (calculated, expected) in izip!(cell.periodic_images(transform, false), translations) {
+        for (calculated, expected) in izip!(cell.periodic_images(transform, 1, false), translations)
+        {
             assert_abs_diff_eq!(calculated.position(), expected);
         }
     }
@@ -363,7 +363,8 @@ mod cell_tests {
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
-        for (calculated, expected) in izip!(cell.periodic_images(transform, true), translations) {
+        for (calculated, expected) in izip!(cell.periodic_images(transform, 1, true), translations)
+        {
             assert_abs_diff_eq!(calculated.position(), expected);
         }
     }
@@ -381,7 +382,7 @@ mod cell_tests {
         let transform = Transform2::new(0., (0., 0.));
 
         let intersection = cell
-            .periodic_images(transform, false)
+            .periodic_images(transform, 1, false)
             .any(|t| shape.intersects(&shape.transform(&t)));
 
         assert!(intersection)

@@ -7,6 +7,7 @@
 #![allow(clippy::type_repetition_in_bounds)]
 
 use std::cmp::Ordering;
+use std::f64::consts::PI;
 use std::fmt::Write;
 use std::ops::Mul;
 
@@ -124,6 +125,11 @@ where
     /// neighbouring cells ensures there are no intersections of when tiling space.
     ///
     fn check_intersection(&self) -> bool {
+        let periodic_range = match (self.cell.a() / self.cell.b(), self.cell.angle()) {
+            (p, a) if 0.5 < p && p < 2. && f64::abs(a - PI / 2.) < 0.2 => 1,
+            (p, a) if 0.3 < p && p < 3. && f64::abs(a - PI / 2.) < 0.5 => 2,
+            _ => 3,
+        };
         for (index1, position1) in self.relative_positions().enumerate() {
             let transform1 = &self.cell.to_cartesian_isometry(&position1);
             let shape_i1 = self.shape.transform(&transform1);
@@ -132,7 +138,10 @@ where
             // We only need to check the positions after the current index, since the previous ones
             // have already been checked, hence `.skip(index)`
             for (index2, position2) in self.relative_positions().enumerate().skip(index1) {
-                for transform2 in self.cell.periodic_images(position2, index1 != index2) {
+                for transform2 in
+                    self.cell
+                        .periodic_images(position2, periodic_range, index1 != index2)
+                {
                     let distance = (transform1.position() - transform2.position()).norm_squared();
                     if distance <= radius_sq {
                         let shape_i2 = self.shape.transform(&transform2);
