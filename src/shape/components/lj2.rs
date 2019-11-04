@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use nalgebra::Vector2;
+use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::Potential;
@@ -18,7 +18,7 @@ use crate::traits::Potential;
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct LJ2 {
     /// The position of a particle within the potential
-    pub position: Vector2<f64>,
+    pub position: Point2<f64>,
     /// The characteristic distance of the potential
     pub sigma: f64,
     /// The energy of the minimum of the potential
@@ -31,7 +31,7 @@ pub struct LJ2 {
 impl Default for LJ2 {
     fn default() -> LJ2 {
         LJ2 {
-            position: Vector2::new(0., 0.),
+            position: Point2::new(0., 0.),
             sigma: 1.,
             epsilon: 1.,
             cutoff: None,
@@ -73,7 +73,7 @@ impl fmt::Display for LJ2 {
 impl LJ2 {
     pub fn new(x: f64, y: f64, sigma: f64) -> Self {
         LJ2 {
-            position: Vector2::new(x, y),
+            position: Point2::new(x, y),
             sigma,
             ..Default::default()
         }
@@ -152,12 +152,12 @@ mod test {
     #[test]
     fn potential_cutoff() {
         let a = LJ2 {
-            position: Vector2::new(0., 0.),
+            position: Point2::new(0., 0.),
             cutoff: Some(3.5),
             ..Default::default()
         };
         let b = LJ2 {
-            position: Vector2::new(3.5, 0.),
+            position: Point2::new(3.5, 0.),
             cutoff: Some(3.5),
             ..Default::default()
         };
@@ -167,14 +167,14 @@ mod test {
     #[test]
     fn potential_cutoff_attractive() {
         let a = LJ2 {
-            position: Vector2::new(0., 0.),
+            position: Point2::new(0., 0.),
             cutoff: Some(3.5),
             ..Default::default()
         };
         for i in 1..250 {
             dbg!(i);
             let b = LJ2 {
-                position: Vector2::new(1. + i as f64 / 100., 0.),
+                position: Point2::new(1. + i as f64 / 100., 0.),
                 cutoff: Some(3.5),
                 ..Default::default()
             };

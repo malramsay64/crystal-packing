@@ -7,7 +7,7 @@
 use std::{fmt, slice, vec};
 
 use itertools::iproduct;
-use nalgebra::Point2;
+use nalgebra::{distance, Point2};
 use serde::{Deserialize, Serialize};
 
 use super::{Transform2, LJ2};
@@ -52,7 +52,7 @@ impl Shape for LJShape2 {
     fn enclosing_radius(&self) -> f64 {
         self.items
             .iter()
-            .map(|p| p.position.norm() + p.sigma / 2.)
+            .map(|p| distance(&Point2::origin(), &p.position) + p.sigma / 2.)
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
@@ -121,7 +121,7 @@ impl LJShape2 {
             items: positions
                 .into_iter()
                 .map(|(r, p)| LJ2 {
-                    position: p.coords,
+                    position: p,
                     sigma: 2. * r,
                     cutoff: Some(3.5),
                     ..Default::default()
@@ -156,27 +156,27 @@ mod test {
     use approx::assert_abs_diff_eq;
 
     use super::*;
-    use nalgebra::Vector2;
+    use nalgebra::Point2;
 
     #[test]
     fn from_trimer_test() {
         let shape = LJShape2::from_trimer(1., 180., 1.);
         assert_eq!(shape.items.len(), 3);
 
-        assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., 0.));
-        assert_abs_diff_eq!(shape.items[1].position, Vector2::new(-1., 0.));
-        assert_abs_diff_eq!(shape.items[2].position, Vector2::new(1., 0.));
+        assert_abs_diff_eq!(shape.items[0].position, Point2::new(0., 0.));
+        assert_abs_diff_eq!(shape.items[1].position, Point2::new(-1., 0.));
+        assert_abs_diff_eq!(shape.items[2].position, Point2::new(1., 0.));
 
         let shape = LJShape2::from_trimer(0.637_556, 120., 1.);
-        assert_abs_diff_eq!(shape.items[0].position, Vector2::new(0., -1. / 3.));
+        assert_abs_diff_eq!(shape.items[0].position, Point2::new(0., -1. / 3.));
         assert_abs_diff_eq!(
             shape.items[1].position,
-            Vector2::new(-0.866, 1. / 6.),
+            Point2::new(-0.866, 1. / 6.),
             epsilon = 1e-3,
         );
         assert_abs_diff_eq!(
             shape.items[2].position,
-            Vector2::new(0.866, 1. / 6.),
+            Point2::new(0.866, 1. / 6.),
             epsilon = 1e-3,
         );
     }
