@@ -11,6 +11,7 @@ use std::vec;
 
 use anyhow::{bail, Error};
 use itertools::{iproduct, Itertools};
+use nalgebra::{distance, Point2};
 use serde::{Deserialize, Serialize};
 
 use super::Line2;
@@ -62,7 +63,11 @@ impl Intersect for LineShape {
         let angle_term: f64 = f64::sin(2. * PI / self.items.len() as f64);
         self.iter()
             // Calculate the area of the of triangle made by the line and the origin
-            .map(|p| 0.5 * angle_term * p.start.norm() * p.end.norm())
+            .map(|p| {
+                0.5 * angle_term
+                    * distance(&Point2::origin(), &p.start)
+                    * distance(&Point2::origin(), &p.end)
+            })
             .sum()
     }
 }
@@ -80,7 +85,7 @@ impl Shape for LineShape {
 
     fn enclosing_radius(&self) -> f64 {
         self.iter()
-            .map(|p| p.start.norm())
+            .map(|p| distance(&Point2::origin(), &p.start))
             // The f64 type doesn't have complete ordering because of Nan and Inf, so the
             // standard min/max comparators don't work. Instead we use the f64::max which ignores
             // the NAN and max values.
