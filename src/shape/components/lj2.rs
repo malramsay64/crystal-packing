@@ -48,8 +48,9 @@ impl Potential for LJ2 {
         match self.cutoff {
             Some(x) => {
                 if r_squared < x * x {
-                    let shift = 4. * self.epsilon * (x.powi(12) - x.powi(6));
-                    4. * self.epsilon * (sigma2_r2_cubed.powi(2) - sigma2_r2_cubed) + shift
+                    let shift =
+                        4. * self.epsilon * ((self.sigma / x).powi(12) - (self.sigma / x).powi(6));
+                    4. * self.epsilon * (sigma2_r2_cubed.powi(2) - sigma2_r2_cubed) - shift
                 } else {
                     0.
                 }
@@ -143,6 +144,7 @@ mod test {
         for i in 1..500 {
             let b = LJ2::new(1. + i as f64 / 100., 0., 1.);
             dbg!(a.energy(&b));
+            assert!(-1. < a.energy(&b));
             assert!(a.energy(&b) < 0.);
         }
     }
@@ -160,5 +162,25 @@ mod test {
             ..Default::default()
         };
         assert_abs_diff_eq!(a.energy(&b), 0.);
+    }
+
+    #[test]
+    fn potential_cutoff_attractive() {
+        let a = LJ2 {
+            position: Vector2::new(0., 0.),
+            cutoff: Some(3.5),
+            ..Default::default()
+        };
+        for i in 1..250 {
+            dbg!(i);
+            let b = LJ2 {
+                position: Vector2::new(1. + i as f64 / 100., 0.),
+                cutoff: Some(3.5),
+                ..Default::default()
+            };
+            dbg!(a.energy(&b));
+            assert!(-1. < a.energy(&b));
+            assert!(a.energy(&b) < 0.);
+        }
     }
 }
