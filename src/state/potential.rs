@@ -81,14 +81,31 @@ where
 
     fn score(&self) -> Option<f64> {
         let mut sum = 0.;
-        for (index1, position1) in self.relative_positions().enumerate() {
-            let shape1 = self
-                .shape
-                .transform(&self.cell.to_cartesian_isometry(&position1));
-            for (index2, position2) in self.relative_positions().enumerate().skip(index1) {
-                for transform in self.cell.periodic_images(position2, index1 != index2) {
-                    let shape2 = self.shape.transform(&transform);
-                    sum += shape1.energy(&shape2)
+
+        // Compare within the current cell
+        for (index, shape1) in self
+            .cartesian_positions()
+            .map(|p| self.shape.transform(&p))
+            .enumerate()
+        {
+            for shape2 in self
+                .cartesian_positions()
+                .map(|p| self.shape.transform(&p))
+                .skip(index + 1)
+            {
+                sum += shape1.energy(&shape2);
+            }
+        }
+
+        // Compare in periodic cells
+        for shape1 in self.cartesian_positions().map(|p| self.shape.transform(&p)) {
+            for position in self.relative_positions() {
+                for shape2 in self
+                    .cell
+                    .periodic_images(position, 3, false)
+                    .map(|p| self.shape.transform(&p))
+                {
+                    sum += shape1.energy(&shape2);
                 }
             }
         }

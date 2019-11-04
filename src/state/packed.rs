@@ -130,22 +130,33 @@ where
             (p, a) if 0.3 < p && p < 3. && f64::abs(a - PI / 2.) < 0.5 => 2,
             _ => 3,
         };
-        for (index1, position1) in self.relative_positions().enumerate() {
-            let transform1 = &self.cell.to_cartesian_isometry(&position1);
-            let shape_i1 = self.shape.transform(&transform1);
-            let radius_sq = shape_i1.enclosing_radius().mul(2.).powi(2);
+        // Compare within the current cell
+        for (index, shape1) in self
+            .cartesian_positions()
+            .map(|p| self.shape.transform(&p))
+            .enumerate()
+        {
+            for shape2 in self
+                .cartesian_positions()
+                .map(|p| self.shape.transform(&p))
+                .skip(index + 1)
+            {
+                if shape1.intersects(&shape2) {
+                    return true;
+                }
+            }
+        }
 
-            // We only need to check the positions after the current index, since the previous ones
-            // have already been checked, hence `.skip(index)`
-            for (index2, position2) in self.relative_positions().enumerate().skip(index1) {
-                for transform2 in
-                    self.cell
-                        .periodic_images(position2, periodic_range, index1 != index2)
-                {
+        let radius_sq = self.shape.enclosing_radius().mul(2.).powi(2);
+        // Compare in periodic cells
+        for transform1 in self.cartesian_positions() {
+            let shape1 = self.shape.transform(&transform1);
+            for position in self.relative_positions() {
+                for transform2 in self.cell.periodic_images(position, periodic_range, false) {
                     let distance = (transform1.position() - transform2.position()).norm_squared();
                     if distance <= radius_sq {
-                        let shape_i2 = self.shape.transform(&transform2);
-                        if shape_i1.intersects(&shape_i2) {
+                        let shape2 = self.shape.transform(&transform2);
+                        if shape1.intersects(&shape2) {
                             return true;
                         }
                     }
