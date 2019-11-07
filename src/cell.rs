@@ -7,7 +7,7 @@
 use std::f64::consts::PI;
 
 use itertools::iproduct;
-use nalgebra::Vector2;
+use nalgebra::{Point2, Translation2};
 use serde::{Deserialize, Serialize};
 
 use crate::{SharedValue, StandardBasis, Transform2};
@@ -116,7 +116,7 @@ impl Cell2 {
     /// Cartesian coordinates based on the current cell parameters.
     ///
     pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
-        transform.set_position(self.to_cartesian_point(transform.position()))
+        transform.set_position(self.to_cartesian_point(transform.position()).coords)
     }
 
     /// Convert a point in relative coordinates to real coordinates
@@ -125,15 +125,15 @@ impl Cell2 {
     ///
     /// ```
     /// use packing::{Cell2, CrystalFamily};
-    /// use nalgebra::Vector2;
+    /// use nalgebra::Point2;
     /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
-    /// let point = cell.to_cartesian_point(Vector2::new(0.5, 0.5));
-    /// assert_eq!(point, Vector2::new(4., 4.));
+    /// let point = cell.to_cartesian_point(Point2::new(0.5, 0.5));
+    /// assert_eq!(point, Point2::new(4., 4.));
     /// ```
     ///
-    pub fn to_cartesian_point(&self, point: Vector2<f64>) -> Vector2<f64> {
+    pub fn to_cartesian_point(&self, point: Point2<f64>) -> Point2<f64> {
         let (x, y) = self.to_cartesian(point.x, point.y);
-        Vector2::new(x, y)
+        Point2::new(x, y)
     }
 
     /// This finds the values of the unit cell which are allowed to be changed and how
@@ -169,9 +169,9 @@ impl Cell2 {
     /// calculations that this is required, when trying to plot the unit cell it should be plotted
     /// with the center at the appropriate position.
     ///
-    pub fn center(&self) -> Vector2<f64> {
+    pub fn center(&self) -> Point2<f64> {
         let (x, y) = self.to_cartesian(0.5, 0.5);
-        Vector2::new(x, y)
+        Point2::new(x, y)
     }
 
     /// Calculates the area of the cell
@@ -220,12 +220,12 @@ impl Cell2 {
             .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y))
     }
 
-    pub fn get_corners(&self) -> Vec<Vector2<f64>> {
+    pub fn get_corners(&self) -> Vec<Point2<f64>> {
         let points = vec![
-            Vector2::new(-0.5, -0.5),
-            Vector2::new(-0.5, 0.5),
-            Vector2::new(0.5, 0.5),
-            Vector2::new(0.5, -0.5),
+            Point2::new(-0.5, -0.5),
+            Point2::new(-0.5, 0.5),
+            Point2::new(0.5, 0.5),
+            Point2::new(0.5, -0.5),
         ];
 
         points
@@ -235,10 +235,11 @@ impl Cell2 {
     }
 
     pub fn to_cartesian_translate(&self, transform: &Transform2, x: i64, y: i64) -> Transform2 {
-        let mut position = transform.position();
-        position.x += x as f64;
-        position.y += y as f64;
-        transform.set_position(self.to_cartesian_point(position))
+        let position = Point2::from(transform.position());
+        transform.set_position(
+            self.to_cartesian_point(position * Translation2::new(x as f64, y as f64))
+                .coords,
+        )
     }
 
     /// Convert two values in relative coordinates to real coordinates
@@ -264,6 +265,7 @@ impl Cell2 {
 mod cell_tests {
     use approx::assert_abs_diff_eq;
     use itertools::izip;
+    use nalgebra::Vector2;
 
     use super::*;
 
