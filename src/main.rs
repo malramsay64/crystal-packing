@@ -133,7 +133,12 @@ fn analyse_state(
         .max()
         .ok_or_else(|| anyhow!("Error in running optimisation."))?;
 
-    info!("Final score: {:?}", final_state.score());
+    info!(
+        "Final score: {}",
+        final_state
+            .score()
+            .ok_or_else(|| anyhow!("State has become corrupted"))
+    );
 
     let serialised = serde_json::to_string(&final_state)?;
 
