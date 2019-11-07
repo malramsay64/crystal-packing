@@ -116,7 +116,7 @@ impl Cell2 {
     /// Cartesian coordinates based on the current cell parameters.
     ///
     pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
-        transform.set_position(self.to_cartesian_point(transform.position()).coords)
+        transform.set_position(self.to_cartesian_point(transform.position().into()).coords)
     }
 
     /// Convert a point in relative coordinates to real coordinates
@@ -237,7 +237,7 @@ impl Cell2 {
     pub fn to_cartesian_translate(&self, transform: &Transform2, x: i64, y: i64) -> Transform2 {
         let position = Point2::from(transform.position());
         transform.set_position(
-            self.to_cartesian_point(position * Translation2::new(x as f64, y as f64))
+            self.to_cartesian_point(Translation2::new(x as f64, y as f64) * position)
                 .coords,
         )
     }
