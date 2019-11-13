@@ -116,7 +116,7 @@ impl Cell2 {
     /// Cartesian coordinates based on the current cell parameters.
     ///
     pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
-        transform.set_position(self.to_cartesian_point(transform.position().into()).coords)
+        transform.set_position(self.to_cartesian_point(transform.position()))
     }
 
     /// Convert a point in relative coordinates to real coordinates
@@ -236,10 +236,8 @@ impl Cell2 {
 
     pub fn to_cartesian_translate(&self, transform: &Transform2, x: i64, y: i64) -> Transform2 {
         let position = Point2::from(transform.position());
-        transform.set_position(
-            self.to_cartesian_point(Translation2::new(x as f64, y as f64) * position)
-                .coords,
-        )
+        transform
+            .set_position(self.to_cartesian_point(Translation2::new(x as f64, y as f64) * position))
     }
 
     /// Convert two values in relative coordinates to real coordinates
@@ -265,7 +263,6 @@ impl Cell2 {
 mod cell_tests {
     use approx::assert_abs_diff_eq;
     use itertools::izip;
-    use nalgebra::Vector2;
 
     use super::*;
 
@@ -333,14 +330,14 @@ mod cell_tests {
     #[test]
     fn periodic_images_nozero() {
         let translations = vec![
-            Vector2::new(-1., -1.),
-            Vector2::new(-1., 0.),
-            Vector2::new(-1., 1.),
-            Vector2::new(0., -1.),
-            Vector2::new(0., 1.),
-            Vector2::new(1., -1.),
-            Vector2::new(1., -0.),
-            Vector2::new(1., 1.),
+            Point2::new(-1., -1.),
+            Point2::new(-1., 0.),
+            Point2::new(-1., 1.),
+            Point2::new(0., -1.),
+            Point2::new(0., 1.),
+            Point2::new(1., -1.),
+            Point2::new(1., -0.),
+            Point2::new(1., 1.),
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
@@ -353,15 +350,15 @@ mod cell_tests {
     #[test]
     fn periodic_images() {
         let translations = vec![
-            Vector2::new(-1., -1.),
-            Vector2::new(-1., 0.),
-            Vector2::new(-1., 1.),
-            Vector2::new(0., -1.),
-            Vector2::new(0., 0.),
-            Vector2::new(0., 1.),
-            Vector2::new(1., -1.),
-            Vector2::new(1., -0.),
-            Vector2::new(1., 1.),
+            Point2::new(-1., -1.),
+            Point2::new(-1., 0.),
+            Point2::new(-1., 1.),
+            Point2::new(0., -1.),
+            Point2::new(0., 0.),
+            Point2::new(0., 1.),
+            Point2::new(1., -1.),
+            Point2::new(1., -0.),
+            Point2::new(1., 1.),
         ];
         let cell = Cell2::default();
         let transform = Transform2::identity();
