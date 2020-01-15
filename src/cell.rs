@@ -115,7 +115,7 @@ impl Cell2 {
     /// and converts the values of the fractional coordinates in the translation to real
     /// Cartesian coordinates based on the current cell parameters.
     ///
-    pub fn to_cartesian_isometry(&self, transform: &Transform2) -> Transform2 {
+    pub fn to_cartesian_isometry(&self, transform: Transform2) -> Transform2 {
         transform.set_position(self.to_cartesian_point(transform.position()))
     }
 
@@ -217,7 +217,7 @@ impl Cell2 {
     ) -> impl Iterator<Item = Transform2> + 'a {
         iproduct!(-shells..=shells, -shells..=shells)
             .filter(move |&(x, y)| !(!zero && x == 0 && y == 0))
-            .map(move |(x, y)| self.to_cartesian_translate(&transform, x, y))
+            .map(move |(x, y)| self.to_cartesian_translate(transform, x, y))
     }
 
     pub fn get_corners(&self) -> Vec<Point2<f64>> {
@@ -234,8 +234,8 @@ impl Cell2 {
             .collect()
     }
 
-    pub fn to_cartesian_translate(&self, transform: &Transform2, x: i64, y: i64) -> Transform2 {
-        let position = Point2::from(transform.position());
+    pub fn to_cartesian_translate(&self, transform: Transform2, x: i64, y: i64) -> Transform2 {
+        let position = transform.position();
         transform
             .set_position(self.to_cartesian_point(Translation2::new(x as f64, y as f64) * position))
     }
@@ -278,14 +278,14 @@ mod cell_tests {
         let cell = Cell2::default();
         let trans = Transform2::new(0., (0.5, 0.5));
 
-        assert_eq!(cell.to_cartesian_isometry(&trans), trans);
+        assert_eq!(cell.to_cartesian_isometry(trans), trans);
 
         cell.angle.set_value(PI / 4.);
         let expected = Transform2::new(
             0.,
             (0.5 + 0.5 * 1. / f64::sqrt(2.), 0.5 * 1. / f64::sqrt(2.)),
         );
-        assert_abs_diff_eq!(cell.to_cartesian_isometry(&trans), expected);
+        assert_abs_diff_eq!(cell.to_cartesian_isometry(trans), expected);
     }
 
     #[test]

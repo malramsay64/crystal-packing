@@ -42,7 +42,7 @@ impl OccupiedSite {
     pub fn positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
         let transform = self.transform();
         self.symmetries()
-            .map(move |sym| sym * &transform)
+            .map(move |sym| sym * transform)
             .map(|sym| sym.periodic(1., -0.5))
     }
 

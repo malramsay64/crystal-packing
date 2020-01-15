@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 /// The order of rotation, followed by translation is followed in the initialisation, with the
 /// angular rotation being the first argument, and the translation being the second argument.
 ///
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct Transform2(nalgebra::Transform2<f64>);
 
 impl From<Matrix3<f64>> for Transform2 {
@@ -95,11 +95,10 @@ impl Transform2 {
         Translation2::new(self.0.matrix()[(0, 2)], self.0.matrix()[(1, 2)])
     }
 
-    pub fn set_position(&self, position: Point2<f64>) -> Transform2 {
-        let mut transform = self.0.clone();
-        transform[(0, 2)] = position.x;
-        transform[(1, 2)] = position.y;
-        Transform2(transform)
+    pub fn set_position(mut self, position: Point2<f64>) -> Transform2 {
+        self.0[(0, 2)] = position.x;
+        self.0[(1, 2)] = position.y;
+        self
     }
 
     pub fn periodic(&self, period: f64, offset: f64) -> Transform2 {

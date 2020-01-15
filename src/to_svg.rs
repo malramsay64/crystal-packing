@@ -155,7 +155,7 @@ where
         }
 
         for position in self.relative_positions() {
-            let transform = self.cell.to_cartesian_isometry(&position);
+            let transform = self.cell.to_cartesian_isometry(position);
             doc = doc.add(transform.as_svg().set("href", "#mol").set("fill", "blue"));
             for periodic in self.cell.periodic_images(position, 1, false) {
                 doc = doc.add(periodic.as_svg().set("href", "#mol").set("fill", "green"));
@@ -195,7 +195,7 @@ where
             doc = doc.add(transform.as_svg().set("href", "#cell"));
         }
         for position in self.relative_positions() {
-            let matrix = self.cell.to_cartesian_isometry(&position);
+            let matrix = self.cell.to_cartesian_isometry(position);
             doc = doc.add(matrix.as_svg().set("href", "#mol").set("fill", "blue"));
             for transform in self.cell.periodic_images(position, 1, false) {
                 doc = doc.add(transform.as_svg().set("href", "#mol").set("fill", "green"));
