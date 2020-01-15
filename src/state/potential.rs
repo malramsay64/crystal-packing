@@ -147,7 +147,7 @@ where
 
     pub fn from_group(shape: S, group: &WallpaperGroup) -> Result<Self, Error> {
         let wallpaper = Wallpaper::new(&group);
-        let isopointal = &[WyckoffSite::new(group.clone())?];
+        let isopointal = &[WyckoffSite::new(group)?];
         Ok(Self::initialise(
             shape.clone(),
             wallpaper.clone(),
