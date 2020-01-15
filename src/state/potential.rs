@@ -138,7 +138,7 @@ where
 {
     pub fn cartesian_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
         self.relative_positions()
-            .map(move |position| self.cell.to_cartesian_isometry(&position))
+            .map(move |position| self.cell.to_cartesian_isometry(position))
     }
 
     pub fn relative_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
@@ -146,7 +146,7 @@ where
     }
 
     pub fn from_group(shape: S, group: &WallpaperGroup) -> Result<Self, Error> {
-        let wallpaper = Wallpaper::new(&group);
+        let wallpaper = Wallpaper::new(group);
         let isopointal = &[WyckoffSite::new(group)?];
         Ok(Self::initialise(shape, wallpaper, isopointal))
     }
