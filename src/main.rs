@@ -140,8 +140,8 @@ fn analyse_state(
 
     let serialised = serde_json::to_string(&final_state)?;
 
-    File::create(outfile.clone().with_extension("json"))?.write_all(&serialised.as_bytes())?;
-    svg::save(outfile.clone().with_extension("svg"), &final_state.as_svg())?;
+    File::create(outfile.with_extension("json"))?.write_all(&serialised.as_bytes())?;
+    svg::save(outfile.with_extension("svg"), &final_state.as_svg())?;
 
     Ok(())
 }
