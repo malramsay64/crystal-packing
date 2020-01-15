@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 use crate::{CrystalFamily, Transform2};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct WallpaperGroup {
-    pub name: &'static str,
+pub struct WallpaperGroup<'a> {
+    pub name: &'a str,
     pub family: CrystalFamily,
-    pub wyckoff_str: Vec<&'static str>,
+    pub wyckoff_str: Vec<&'a str>,
 }
 
 /// Defining one of the Crystallographic wallpaper groups.
@@ -46,11 +46,11 @@ pub struct WyckoffSite {
 }
 
 impl WyckoffSite {
-    pub fn new(group: WallpaperGroup) -> Result<WyckoffSite, Error> {
+    pub fn new(group: &WallpaperGroup) -> Result<WyckoffSite, Error> {
         let symmetries = group
             .wyckoff_str
-            .into_iter()
-            .map(Transform2::from_operations)
+            .iter()
+            .map(|&a| Transform2::from_operations(a))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(WyckoffSite {
             letter: 'a',
@@ -87,7 +87,7 @@ arg_enum! {
     }
 }
 
-pub fn get_wallpaper_group(name: WallpaperGroups) -> Result<WallpaperGroup, Error> {
+pub fn get_wallpaper_group<'a>(name: WallpaperGroups) -> Result<WallpaperGroup<'a>, Error> {
     match name {
         WallpaperGroups::p1 => Ok(WallpaperGroup {
             name: "p1",
