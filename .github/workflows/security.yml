@@ -5,7 +5,8 @@ on:
       - '**/Cargo.toml'
       - '**/Cargo.lock'
   schedule:
-    - cron: '@monthly'
+    # Schedule to run at 05:05 on the 5th of every month
+    - cron: '5 5 5 * *'
 jobs:
   security_audit:
     runs-on: ubuntu-latest
