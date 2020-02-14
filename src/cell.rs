@@ -55,8 +55,8 @@ mod crystal_family_test {
 ///
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Cell2 {
-    a: SharedValue,
-    b: SharedValue,
+    length: SharedValue,
+    ratio: SharedValue,
     angle: SharedValue,
     family: CrystalFamily,
 }
@@ -64,8 +64,8 @@ pub struct Cell2 {
 impl Clone for Cell2 {
     fn clone(&self) -> Self {
         Cell2 {
-            a: SharedValue::new(self.a.get_value()),
-            b: SharedValue::new(self.b.get_value()),
+            length: SharedValue::new(self.length.get_value()),
+            ratio: SharedValue::new(self.ratio.get_value()),
             angle: SharedValue::new(self.angle.get_value()),
             family: self.family,
         }
@@ -77,9 +77,9 @@ impl std::fmt::Display for Cell2 {
         write!(
             f,
             "Cell2 {{ a: {}, b: {}, angle: {} }}",
-            self.a.get_value(),
-            self.b.get_value(),
-            self.angle.get_value()
+            self.a(),
+            self.b(),
+            self.angle()
         )
     }
 }
@@ -87,8 +87,8 @@ impl std::fmt::Display for Cell2 {
 impl Default for Cell2 {
     fn default() -> Self {
         Self {
-            a: SharedValue::new(1.),
-            b: SharedValue::new(1.),
+            length: SharedValue::new(1.),
+            ratio: SharedValue::new(1.),
             angle: SharedValue::new(PI / 2.),
             family: CrystalFamily::Monoclinic,
         }
@@ -97,11 +97,11 @@ impl Default for Cell2 {
 
 impl Cell2 {
     pub fn a(&self) -> f64 {
-        self.a.get_value()
+        self.length.get_value()
     }
 
     pub fn b(&self) -> f64 {
-        self.b.get_value()
+        self.length.get_value() * self.ratio.get_value()
     }
 
     pub fn angle(&self) -> f64 {
@@ -145,19 +145,24 @@ impl Cell2 {
         let mut basis: Vec<StandardBasis> = vec![];
 
         // All cells have at least a single variable cell length
-        basis.push(StandardBasis::new(&self.a, 0.01, self.a.get_value()));
+        basis.push(StandardBasis::new(
+            &self.length,
+            0.01,
+            self.length.get_value(),
+        ));
 
-        // Both the Orthorhombic and Monoclinic cells have a second variable cell length. This is
-        // indicated by the presence of the optional value.
-        if self.b.get_value() != 0. {
-            basis.push(StandardBasis::new(&self.b, 0.01, self.b.get_value()));
+        match self.family {
+            // Monoclinic has both variable angle and varaible ratio of sides
+            CrystalFamily::Monoclinic => {
+                basis.push(StandardBasis::new(&self.ratio, 0.1, self.ratio.get_value()));
+                basis.push(StandardBasis::new(&self.angle, PI / 6., PI / 2.));
+            }
+            // The Orthorhombic have a second variable cell length in the ratio
+            CrystalFamily::Orthorhombic => {
+                basis.push(StandardBasis::new(&self.ratio, 0.1, self.ratio.get_value()));
+            }
+            _ => {}
         }
-
-        // The Monoclinic family is the only one to have a variable cell angle.
-        if self.family == CrystalFamily::Monoclinic {
-            basis.push(StandardBasis::new(&self.angle, PI / 4., 3. * PI / 4.));
-        }
-
         basis
     }
 
@@ -180,7 +185,7 @@ impl Cell2 {
     /// $ A = xy\sin(\theta) $
     ///
     pub fn area(&self) -> f64 {
-        self.angle.get_value().sin() * self.a.get_value() * self.b.get_value()
+        self.angle().sin() * self.a() * self.b()
     }
 
     /// Initialise a Cell instance from the CrystalFamily the cell belongs to
@@ -190,20 +195,16 @@ impl Cell2 {
     /// cell are the same length, or restricting the angle to a specific value.
     ///
     pub fn from_family(family: CrystalFamily, length: f64) -> Cell2 {
-        let (a, b, angle) = match family {
+        let angle = match family {
             // The Hexagonal Crystal has both sides equal with a fixed angle of 60 degrees.
-            CrystalFamily::Hexagonal => (length, 0., PI / 3.),
-            // The Tetragonal Crystal has both sides equal with a fixed angle of 90 degrees.
-            CrystalFamily::Tetragonal => (length, 0., PI / 2.),
-            // The Orthorhombic crystal has two variable sides with a fixed angle of 90 degrees.
-            CrystalFamily::Orthorhombic => (length, length, PI / 2.),
-            // The Monoclinic cell has two variable sides and a variable angle initialised to 90
-            // degrees
-            CrystalFamily::Monoclinic => (length, length, PI / 2.),
+            CrystalFamily::Hexagonal => PI / 3.,
+            // The Tetragonal, Orthorhombic, and Monoclinic all have an initial angle of 90 degrees
+            _ => PI / 2.,
         };
         Cell2 {
-            a: SharedValue::new(a),
-            b: SharedValue::new(b),
+            length: SharedValue::new(length),
+            // The radio is initially always 1
+            ratio: SharedValue::new(1.0),
             angle: SharedValue::new(angle),
             family,
         }
@@ -253,8 +254,8 @@ impl Cell2 {
     ///
     pub fn to_cartesian(&self, x: f64, y: f64) -> (f64, f64) {
         (
-            x * self.a.get_value() + y * self.b.get_value() * self.angle.get_value().cos(),
-            y * self.b.get_value() * self.angle.get_value().sin(),
+            x * self.a() + y * self.b() * self.angle().cos(),
+            y * self.b() * self.angle().sin(),
         )
     }
 }
@@ -372,8 +373,8 @@ mod cell_tests {
     fn invalid_intersection() {
         let shape = LineShape::from_radial("Square", vec![1.; 4]).unwrap();
         let cell = Cell2 {
-            a: SharedValue::new(1.32),
-            b: SharedValue::new(1.59),
+            length: SharedValue::new(1.59),
+            ratio: SharedValue::new(0.83),
             angle: SharedValue::new(1.21),
             family: CrystalFamily::Monoclinic,
         };
