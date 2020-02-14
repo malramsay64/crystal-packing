@@ -42,27 +42,26 @@ fn create_packed_state(points: usize) -> Result<PackedState<LineShape>, Error> {
     Ok(PackedState::initialise(shape, wallpaper, isopointal))
 }
 
-fn state_check_intersection(c: &mut Criterion) -> Result<(), Error> {
+fn state_check_intersection(c: &mut Criterion) {
     let mut group = c.benchmark_group("State Score");
 
     for &sides in BENCH_SIDES.iter() {
         group.bench_with_input(
             BenchmarkId::new("Polygon", sides),
-            &create_packed_state(sides)?,
+            &create_packed_state(sides).expect("Creation of state failed"),
             |b, state| b.iter(|| state.score()),
         );
     }
     group.finish();
-    Ok(())
 }
 
-fn shape_check_intersection(c: &mut Criterion) -> Result<(), Error> {
+fn shape_check_intersection(c: &mut Criterion) {
     let mut group = c.benchmark_group("Shape Intersection");
 
     for &sides in BENCH_SIDES.iter() {
         group.bench_with_input(
             BenchmarkId::new("Polygon", sides),
-            &LineShape::from_radial("Polygon", vec![1.; sides])?,
+            &LineShape::from_radial("Polygon", vec![1.; sides]).expect("Creation of shape failed"),
             |b, shape| {
                 let si1 = shape.transform(&Transform2::new(PI / 3., (0.2, -5.3)));
                 let si2 = shape.transform(&Transform2::new(-PI / 3., (-0.2, 5.3)));
@@ -89,16 +88,15 @@ fn shape_check_intersection(c: &mut Criterion) -> Result<(), Error> {
         },
     );
     group.finish();
-    Ok(())
 }
 
-fn create_shape_instance(c: &mut Criterion) -> Result<(), Error> {
+fn create_shape_instance(c: &mut Criterion) {
     let mut group = c.benchmark_group("Transform Shape");
 
     for &sides in BENCH_SIDES.iter() {
         group.bench_with_input(
             BenchmarkId::new("Polygon", sides),
-            &LineShape::from_radial("Polygon", vec![1.; sides])?,
+            &LineShape::from_radial("Polygon", vec![1.; sides]).expect("Creation of shape failed"),
             |b, shape| {
                 let trans = &Transform2::new(PI / 3., (0.2, -5.3));
                 b.iter(|| shape.transform(trans))
@@ -122,15 +120,38 @@ fn create_shape_instance(c: &mut Criterion) -> Result<(), Error> {
         },
     );
     group.finish();
-    Ok(())
 }
 
-fn site_positions(c: &mut Criterion) -> Result<(), Error> {
+fn transform_mut_shape(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Mutable Transform Shape");
+
+    for &sides in BENCH_SIDES.iter() {
+        group.bench_function(BenchmarkId::new("Polygon", sides), |b| {
+            let trans = &Transform2::new(PI / 3., (0.2, -5.3));
+            let mut shape = LineShape::from_radial("Polygon", vec![1.; sides])
+                .expect("Creation of shape failed");
+            b.iter(|| shape.transform_mut(trans))
+        });
+    }
+    group.bench_function(BenchmarkId::new("Molecule", 1), |b| {
+        let mut shape = MolecularShape2::circle();
+        let trans = &Transform2::new(PI / 3., (0.2, -5.3));
+        b.iter(|| shape.transform_mut(trans))
+    });
+    group.bench_function(BenchmarkId::new("Molecule", 3), |b| {
+        let trans = &Transform2::new(PI / 3., (0.2, -5.3));
+        let mut shape = MolecularShape2::from_trimer(0.637_556, 180., 1.0);
+        b.iter(|| shape.transform_mut(trans))
+    });
+    group.finish();
+}
+
+fn site_positions(c: &mut Criterion) {
     let site = OccupiedSite::from_wyckoff(&WyckoffSite {
         letter: 'd',
         symmetries: vec![
-            Transform2::from_operations("x,y")?,
-            Transform2::from_operations("-x,-y")?,
+            Transform2::from_operations("x,y").expect("Transform is invalid"),
+            Transform2::from_operations("-x,-y").expect("Transform is invalid"),
         ],
         num_rotations: 1,
         mirror_primary: false,
@@ -144,11 +165,10 @@ fn site_positions(c: &mut Criterion) -> Result<(), Error> {
             }
         })
     });
-    Ok(())
 }
 
-fn state_modify_basis(c: &mut Criterion) -> Result<(), Error> {
-    let state = create_packed_state(256)?;
+fn state_modify_basis(c: &mut Criterion) {
+    let state = create_packed_state(256).expect("Creation of state failed");
     let mut basis = state.generate_basis();
 
     c.bench_function("Modify Basis", |b| {
@@ -161,13 +181,13 @@ fn state_modify_basis(c: &mut Criterion) -> Result<(), Error> {
             }
         })
     });
-    Ok(())
 }
 
 criterion_group!(
     intersections,
     shape_check_intersection,
     create_shape_instance,
+    transform_mut_shape,
     state_check_intersection,
     site_positions,
 );
