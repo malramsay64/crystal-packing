@@ -13,7 +13,6 @@ use std::path::PathBuf;
 use anyhow::{anyhow, bail, Error};
 use log::{debug, info, LevelFilter};
 use rayon::prelude::*;
-use serde_json;
 use structopt::clap::arg_enum;
 use structopt::StructOpt;
 
