@@ -5,7 +5,7 @@ authors = ["Malcolm Ramsay <malramsay64@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = {version="~0.19.0", features=["serde-serialize"]}
+nalgebra = {version="~0.22.0", features=["serde-serialize"]}
 rand = "~0.7.0"
 rand_pcg = "0.2.0"
 log = "~0.4.8"
