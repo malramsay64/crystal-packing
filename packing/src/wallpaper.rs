@@ -4,8 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-use anyhow::Error;
-use clap::arg_enum;
+use anyhow::{anyhow, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::{CrystalFamily, Transform2};
@@ -73,17 +72,52 @@ impl WyckoffSite {
     }
 }
 
-arg_enum! {
-    #[allow(non_camel_case_types)]
-    #[derive(Debug, Serialize, Deserialize)]
-    pub enum WallpaperGroups {
-        p1,
-        p2,
-        p1m1,
-        p1g1,
-        p2mm,
-        p2mg,
-        p2gg,
+#[allow(non_camel_case_types)]
+#[derive(Debug, Serialize, Deserialize)]
+pub enum WallpaperGroups {
+    p1,
+    p2,
+    p1m1,
+    p1g1,
+    p2mm,
+    p2mg,
+    p2gg,
+}
+
+impl std::str::FromStr for WallpaperGroups {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "p1" => Ok(WallpaperGroups::p1),
+            "p2" => Ok(WallpaperGroups::p2),
+            "p1m1" => Ok(WallpaperGroups::p1m1),
+            "p1g1" => Ok(WallpaperGroups::p1g1),
+            "pg" => Ok(WallpaperGroups::p1g1),
+            "p2mm" => Ok(WallpaperGroups::p2mm),
+            "p2mg" => Ok(WallpaperGroups::p2mg),
+            "p2gg" => Ok(WallpaperGroups::p2gg),
+            _ => Err(anyhow!("Invalid Value")),
+        }
+    }
+}
+
+impl std::fmt::Display for WallpaperGroups {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            WallpaperGroups::p1 => write!(f, "p1"),
+            WallpaperGroups::p2 => write!(f, "p2"),
+            WallpaperGroups::p1m1 => write!(f, "p1m1"),
+            WallpaperGroups::p1g1 => write!(f, "p1g1"),
+            WallpaperGroups::p2mm => write!(f, "p2mm"),
+            WallpaperGroups::p2mg => write!(f, "p2mg"),
+            WallpaperGroups::p2gg => write!(f, "p2gg"),
+        }
+    }
+}
+
+impl WallpaperGroups {
+    pub fn variants() -> Vec<&'static str> {
+        vec!["p1", "p2", "p2m1", "p1g1", "p2mm", "p2mg", "p2gg"]
     }
 }
 

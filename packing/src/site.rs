@@ -64,7 +64,7 @@ impl OccupiedSite {
         }
     }
 
-    pub fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
+    pub fn get_basis(&self) -> Vec<StandardBasis> {
         let mut basis: Vec<StandardBasis> = vec![];
         let dof = self.wyckoff.degrees_of_freedom();
 
@@ -75,11 +75,7 @@ impl OccupiedSite {
             basis.push(StandardBasis::new(&self.y, -0.5, 0.5));
         }
         if dof[2] {
-            basis.push(StandardBasis::new(
-                &self.angle,
-                0.,
-                2. * PI / rot_symmetry as f64,
-            ));
+            basis.push(StandardBasis::new(&self.angle, 0., 2. * PI));
         }
         basis
     }

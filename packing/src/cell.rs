@@ -155,7 +155,7 @@ impl Cell2 {
             // Monoclinic has both variable angle and varaible ratio of sides
             CrystalFamily::Monoclinic => {
                 basis.push(StandardBasis::new(&self.ratio, 0.1, self.ratio.get_value()));
-                basis.push(StandardBasis::new(&self.angle, PI / 6., PI / 2.));
+                basis.push(StandardBasis::new(&self.angle, PI / 4., PI / 2.));
             }
             // The Orthorhombic have a second variable cell length in the ratio
             CrystalFamily::Orthorhombic => {

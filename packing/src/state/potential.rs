@@ -74,7 +74,7 @@ where
         let mut basis: Vec<StandardBasis> = vec![];
         basis.append(&mut self.cell.get_degrees_of_freedom());
         for site in self.occupied_sites.iter() {
-            basis.append(&mut site.get_basis(1));
+            basis.append(&mut site.get_basis());
         }
         basis
     }
