@@ -1,11 +1,11 @@
-extern crate cfg_if;
-extern crate wasm_bindgen;
-
 use cfg_if::cfg_if;
 use wasm_bindgen::prelude::*;
 
-use packing::*;
 use packing::wallpaper::{Wallpaper, WyckoffSite};
+use packing::*;
+
+pub mod optimiser;
+pub mod state;
 
 cfg_if! {
     // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -18,7 +18,7 @@ cfg_if! {
 }
 
 #[wasm_bindgen]
-extern {
+extern "C" {
     fn alert(s: &str);
 }
 
@@ -28,11 +28,13 @@ pub fn greet() {
 }
 
 #[wasm_bindgen]
-pub struct State (PackedState<MolecularShape2>);
+pub fn setup_opt(kt: f64, step_size: f64, steps: u64) -> optimiser::Optimiser {
+    optimiser::Optimiser::new(kt, step_size, steps, 0)
+}
 
 #[wasm_bindgen]
-pub fn setup_state() -> State {
-    let trimer = MolecularShape2::from_trimer(1., 0.7, 120.);
+pub fn setup_state() -> state::JSState {
+    let trimer = MolecularShape2::from_trimer(0.7, 120., 1.);
 
     let wallpaper = Wallpaper {
         name: String::from("p2"),
@@ -50,9 +52,7 @@ pub fn setup_state() -> State {
         mirror_secondary: false,
     }];
 
-    State(PackedState::<MolecularShape2>::initialise(trimer, wallpaper, isopointal))
-}
-
-pub fn setup_opt() -> MCOptimiser {
-    MCOptimiser::new(0., 0., 0.001, 1000, 100, 0, None)
+    state::JSState::new(PackedState::<MolecularShape2>::initialise(
+        trimer, wallpaper, isopointal,
+    ))
 }
