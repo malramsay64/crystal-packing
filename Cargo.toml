@@ -4,3 +4,7 @@ members = [
     "packing_cli",
     "packing_wasm",
 ]
+
+[profile.release]
+lto = true
+panic =  "abort"
