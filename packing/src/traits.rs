@@ -9,23 +9,14 @@ use std::{fmt, ops, slice};
 use anyhow::Error;
 use nalgebra::allocator::Allocator;
 use nalgebra::{DefaultAllocator, DimName, VectorN};
-use rand::Rng;
 use serde::Serialize;
 use svg::node::element::Group;
 use svg::Document;
 
-use crate::{StandardBasis, Transform2};
+use crate::{Basis, Transform2};
 
 pub trait Transformer {
     fn as_simple(&self) -> String;
-}
-
-pub trait Basis {
-    fn set_value(&mut self, new_value: f64);
-    fn get_value(&self) -> f64;
-    fn reset_value(&self);
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64;
-    fn set_sampled<R: Rng + ?Sized>(&mut self, rng: &mut R, step_size: f64);
 }
 
 pub trait Periodic<Rhs = Self> {
@@ -94,7 +85,7 @@ pub trait State:
     + ToSVG<Value = Document>
 {
     fn score(&self) -> Option<f64>;
-    fn generate_basis(&self) -> Vec<StandardBasis>;
+    fn generate_basis(&self) -> Vec<Basis>;
     fn total_shapes(&self) -> usize;
     fn as_positions(&self) -> Result<String, Error>;
 }

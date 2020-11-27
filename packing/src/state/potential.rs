@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::traits::{Potential, Shape, State};
 use crate::wallpaper::{Wallpaper, WallpaperGroup, WyckoffSite};
-use crate::{Cell2, OccupiedSite, StandardBasis, Transform2};
+use crate::{Basis, Cell2, OccupiedSite, Transform2};
 
 pub type PotentialState2<S> = PotentialState<S>;
 
@@ -70,8 +70,8 @@ impl<S> State for PotentialState<S>
 where
     S: Shape + Potential,
 {
-    fn generate_basis(&self) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![];
+    fn generate_basis(&self) -> Vec<Basis> {
+        let mut basis: Vec<Basis> = vec![];
         basis.append(&mut self.cell.get_degrees_of_freedom());
         for site in self.occupied_sites.iter() {
             basis.append(&mut site.get_basis());

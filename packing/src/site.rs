@@ -4,11 +4,9 @@
 // Distributed under terms of the MIT license.
 //
 
-use std::f64::consts::PI;
-
 use serde::{Deserialize, Serialize};
 
-use crate::basis::{SharedValue, StandardBasis};
+use crate::basis::{Basis, SharedValue};
 use crate::wallpaper::WyckoffSite;
 use crate::Transform2;
 
@@ -64,18 +62,30 @@ impl OccupiedSite {
         }
     }
 
-    pub fn get_basis(&self) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![];
+    pub fn get_basis(&self) -> Vec<Basis> {
+        let mut basis: Vec<Basis> = vec![];
         let dof = self.wyckoff.degrees_of_freedom();
 
         if dof[0] {
-            basis.push(StandardBasis::new(&self.x, -0.5, 0.5));
+            basis.push(Basis::StandardBasis {
+                value: &self.x,
+                min: -0.5,
+                max: 0.5,
+            });
         }
         if dof[1] {
-            basis.push(StandardBasis::new(&self.y, -0.5, 0.5));
+            basis.push(Basis::StandardBasis {
+                value: &self.y,
+                min: -0.5,
+                max: 0.5,
+            });
         }
         if dof[2] {
-            basis.push(StandardBasis::new(&self.angle, 0., 2. * PI));
+            basis.push(Basis::StandardBasis {
+                value: &self.angle,
+                min: 0.,
+                max: std::f64::consts::TAU,
+            });
         }
         basis
     }

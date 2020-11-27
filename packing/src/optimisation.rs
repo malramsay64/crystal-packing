@@ -103,12 +103,20 @@ impl MCOptimiser {
                 let basis_index: usize = basis_distribution.sample(&mut rng);
 
                 // Make a random modification to the selected basis
-                basis
+                let b = basis
                     .get_mut(basis_index)
                     // There was some error in accessing the basis,
                     // This should never occur in normal operation so panic and exit
-                    .expect("Trying to access basis which doesn't exist")
-                    .set_sampled(&mut rng, self.max_step_size * step_ratio);
+                    .expect("Trying to access basis which doesn't exist");
+
+                let val = b.get_value();
+
+                let new_val =
+                    val + self.max_step_size * step_ratio * b.scale() * rng.gen_range(-0.5, 0.5);
+                if let Err(_) = b.set_value(new_val) {
+                    loop_rejections += 1;
+                    continue;
+                }
 
                 // Check if modification was good
                 score_current = match self.accept_score(state.score(), score_current, kt, &mut rng)
@@ -116,12 +124,7 @@ impl MCOptimiser {
                     Some(score) => score,
                     // Score was rejected so we have to undo the change
                     None => {
-                        basis
-                            .get(basis_index)
-                            // There was some error in accessing the basis,
-                            // This should never occur in normal operation so panic and exit
-                            .expect("Trying to access basis which doesn't exist.")
-                            .reset_value();
+                        b.set_value(val).expect("Returning to original value");
                         // Increment counter of rejections
                         loop_rejections += 1;
                         score_current

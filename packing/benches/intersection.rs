@@ -151,8 +151,9 @@ fn state_modify_basis(c: &mut Criterion) {
         b.iter(|| {
             for _ in 0..1000 {
                 for value in basis.iter_mut() {
-                    value.set_value(value.get_value() + 0.1);
-                    value.reset_value();
+                    let val = value.get_value();
+                    value.set_value(val + 0.1).unwrap();
+                    value.set_value(val).unwrap();
                 }
             }
         })

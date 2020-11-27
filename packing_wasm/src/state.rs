@@ -21,7 +21,7 @@ impl JSState {
         JSState(state)
     }
 
-    pub fn generate_basis(&self) -> Vec<StandardBasis> {
+    pub fn generate_basis(&self) -> Vec<Basis> {
         self.0.generate_basis()
     }
 }

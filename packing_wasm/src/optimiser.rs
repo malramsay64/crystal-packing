@@ -10,7 +10,6 @@ use rand_pcg::Pcg64Mcg;
 use wasm_bindgen::prelude::*;
 
 use crate::state::JSState;
-use packing::traits::Basis;
 
 #[wasm_bindgen]
 extern "C" {
@@ -92,24 +91,26 @@ impl Optimiser {
             let basis_index: usize = basis_distribution.sample(&mut rng);
 
             // Make a random modification to the selected basis
-            basis
+            let b = basis
                 .get_mut(basis_index)
                 // There was some error in accessing the basis,
                 // This should never occur in normal operation so panic and exit
-                .expect("Trying to access basis which doesn't exist")
-                .set_sampled(&mut rng, self.step_size);
+                .expect("Trying to access basis which doesn't exist");
+
+            // Save the current value for later
+            let val = b.get_value();
+            let new_val = val + self.step_size * b.scale() * rng.gen_range(-0.5, 0.5);
+            if let Err(_) = b.set_value(new_val) {
+                rejections += 1;
+                continue;
+            }
 
             // Check if modification was good
             score_current = match self.accept_score(state.score(), score_current, &mut rng) {
                 Some(score) => score,
                 // Score was rejected so we have to undo the change
                 None => {
-                    basis
-                        .get(basis_index)
-                        // There was some error in accessing the basis,
-                        // This should never occur in normal operation so panic and exit
-                        .expect("Trying to access basis which doesn't exist.")
-                        .reset_value();
+                    b.set_value(val).expect("Returning to previous value");
                     // Increment counter of rejections
                     rejections += 1;
                     score_current
@@ -144,7 +145,7 @@ mod test {
 
     #[quickcheck]
     fn test_energy_surface(new: f64, old: f64) -> bool {
-        let result = OPT.energy_surface(new, old, 0.);
+        let result = OPT.energy_surface(new, old);
         if new < old {
             abs_diff_eq!(result, 0.)
         } else if new >= old {
@@ -156,7 +157,7 @@ mod test {
 
     #[quickcheck]
     fn test_energy_surface_temperature(new: f64, old: f64) -> bool {
-        let result = OPT.energy_surface(new, old, 0.5);
+        let result = OPT.energy_surface(new, old);
         if new < old {
             0. < result && result < 1.
         } else if new >= old {
