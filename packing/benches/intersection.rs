@@ -165,7 +165,6 @@ criterion_group!(
     shape_check_intersection,
     create_shape_instance,
     state_check_intersection,
-    site_positions,
 );
 
 criterion_group!(general, site_positions, state_modify_basis);
