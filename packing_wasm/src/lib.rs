@@ -35,26 +35,13 @@ pub fn setup_opt(kt: f64, step_size: f64, steps: u64) -> optimiser::Optimiser {
 }
 
 #[wasm_bindgen]
-pub fn setup_state() -> state::JSState {
-    let trimer = MolecularShape2::from_trimer(0.7, 120., 1.);
+pub fn setup_state(radius: f64, angle: f64, distance: f64, wallpaper: String) -> state::JSState {
+    let trimer = MolecularShape2::from_trimer(radius, angle, distance);
 
-    let wallpaper = Wallpaper {
-        name: String::from("p2"),
-        family: CrystalFamily::Monoclinic,
-    };
+    let wallpaper: WallpaperGroup<'_> = WallpaperGroups::from_str(&wallpaper)
+        .unwrap()
+        .try_into()
+        .expect("Shouldn't fail");
 
-    let isopointal = &[WyckoffSite {
-        letter: 'd',
-        symmetries: vec![
-            Transform2::from_operations("x,y").unwrap(),
-            Transform2::from_operations("-x,-y").unwrap(),
-        ],
-        num_rotations: 1,
-        mirror_primary: false,
-        mirror_secondary: false,
-    }];
-
-    state::JSState::new(PackedState::<MolecularShape2>::initialise(
-        trimer, wallpaper, isopointal,
-    ))
+    state::JSState::new(PackedState::<MolecularShape2>::from_group(trimer, &wallpaper).unwrap())
 }
