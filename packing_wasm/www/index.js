@@ -1,45 +1,80 @@
 import { setup_state, setup_opt } from "packing_wasm"
 
+// Molecular buttons
+const molRadius = document.getElementById("mol-radius")
+const molDistance = document.getElementById("mol-distance")
+const molAngle = document.getElementById("mol-angle")
+const spaceGroup = document.getElementById("space-group")
+
+// Interaction Buttons
 const playPauseButton = document.getElementById("play-pause");
-const image = document.getElementById("output-figure");
-const stepSize = document.getElementById("step-size");
-const reset = document.getElementById("reset-state");
-const totalSteps = document.getElementById("total-steps");
-const temperature = document.getElementById("temperature");
+const resetButton = document.getElementById("reset-state");
 const coolButton = document.getElementById("cool");
 
-let state = setup_state();
-totalSteps.value = 0n;
-stepSize.value = 0.1
-temperature.value = Math.log10(0.2);
-const optimiser = setup_opt(0.2, stepSize.value, 200n);
+// Modifiable Values
+const stepSize = document.getElementById("step-size");
+const temperature = document.getElementById("temperature");
+const iterationSteps = document.getElementById("iteration-steps");
 
-let cool = false;
+// Output
+const image = document.getElementById("output-figure");
+const totalSteps = document.getElementById("total-steps");
+const score = document.getElementById("score");
 
+var cool;
+var state;
+var optimiser;
+
+// Initialise state to default values
+cool = false;
 let animationId = null;
 
-image.innerHTML = state.as_svg();
+stepSize.value = 0.1
+iterationSteps.value = 100n
+molRadius.value = 0.7;
+molDistance.value = 1.;
+molAngle.value = 120.;
+temperature.value = 0.2;
+spaceGroup.value = "p2";
+playPauseButton.textContent = "▶";
+
+// Reset and reinitialise the state
+function reset() {
+    // These are value that need to be re-initialised when resetting the state
+    totalSteps.value = 0n;
+    temperature.value = 0.2;
+    console.log(spaceGroup.value);
+    state = setup_state(molRadius.value, molAngle.value, molDistance.value, spaceGroup.value);
+    optimiser = setup_opt(temperature.value, stepSize.value, 1000n);
+    image.innerHTML = state.as_svg();
+    score.value = state.score().toFixed(3);
+}
 
 function renderLoop () {
 
+    // Update values from the form
     optimiser.step_size = stepSize.value;
-    optimiser.kt = Math.pow(10, Number(temperature.value));
+    optimiser.kt = Number(temperature.value);
+    optimiser.steps = BigInt(iterationSteps.value);
 
-    // Update state of the game
+    // Update and optimise state 
     state = optimiser.optimise_state(state);
 
     image.innerHTML = state.as_svg();
     stepSize.value = optimiser.step_size;
     totalSteps.value = BigInt(totalSteps.value) + optimiser.steps;
+    score.value = state.score().toFixed(3);
 
     if (cool) {
         optimiser.kt *= 0.9;
     }
-    console.log(optimiser.kt);
+    if (stepSize.value < 1e-5) {
+        pause();
+        return
+    }
+    // console.log(optimiser.kt);
 
-    temperature.value = Math.log10(optimiser.kt);
-
-    // await new Promise(r => setTimeout(r, 200));
+    temperature.value = optimiser.kt;
 
     // Request the next frame
     animationId = requestAnimationFrame(renderLoop);
@@ -74,4 +109,9 @@ coolButton.addEventListener("click", event => {
   }
 });
 
-play();
+resetButton.addEventListener("click", event => {
+    reset();
+});
+
+reset();
+// play();

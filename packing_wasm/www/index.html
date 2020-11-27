@@ -1,38 +1,95 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <title>Hello wasm-pack!</title>
-    <style>
-  body {
+    <head>
+        <meta charset="utf-8">
+        <title>Simulations in the Browser</title>
+        <style>
+body {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: column;
+    padding: 0;
+    margin: 0;
     align-items: center;
-    justify-content: center;
+}
+  svg {
+      max-height: 100%;
+      max-width: 100%;
+      padding: auto;
   }
-  figure {
-      height: 60%;
-      align-items: center;
+
+  button, input, select, output {
+      margin: 10px;
+  }
+  div.row {
+      margin: auto;
+      width: 80%;
+      height: 22em;
+      display: flex;
+      flex-direction: row;
+  }
+  div.col {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+  }
+  div.fig {
+      display: flex;
       justify-content: center;
+      align-items: center;
+      height: calc(100% - 22em);
   }
-</style>
-  </head>
-  <body>
-    <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
-    <figure id="output-figure"></figure>
-    <button id="play-pause"></button>
-    <button id="cool">Cool</button>
-    <label for="step-size">Step Size</label>
-    <input type="text" id="step-size" name="step-size">
-    <label for="total-steps">Total Steps</label>
-    <input type="text" id="total-steps" name="total-steps">
-    <label for="temperature">Temperature</label>
-    <input type="text" min="-5", max="2" class="slider" id="temperature" name="temperature">
-    <script src="./bootstrap.js"></script>
-  </body>
+        </style>
+    </head>
+    <body>
+        <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
+        <div
+            <div class="fig" id="output-figure"></div>
+            <div class="row">
+                <div class="col" id="molecule>">
+                    <label for="mol-radius">Radius</label>
+                    <input type="text" id="mol-radius" name="mol-radius">
+                    <label for="mol-distance">Distance</label>
+                    <input type="text" id="mol-distance" name="mol-distance">
+                    <label for="mol-angle">Angle</label>
+                    <input type="text" id="mol-angle" name="mol-angle">
+                    <label for="space-group">Space Group</label>
+                    <select id="space-group" name="space-group">
+                        <option value="p1">p1</option>
+                        <option value="p2">p2</option>
+                        <option value="p1m1">p1m1</option>
+                        <option value="pg">pg</option>
+                        <option value="p2mm">p2mm</option>
+                        <option value="p2mg">p2mg</option>
+                        <option value="p2gg">p2gg</option>
+                    </select>
+                </div>
+                <div class="col" id="interact">
+                    <button id="play-pause"></button>
+                    <label for='cool'>
+                        Slowly decrease the temperature, only allowing moves that optimise the configuration.
+                    </label>
+                    <button id="cool">Cool</button>
+                    <label for="reset-state">
+                        Click <em>Reset</em> to apply any modifications to the shape, space group, or optimisation settings.
+                    </label>
+                    <button id="reset-state">Reset</button>
+                </div>
+                <div class="col" id="properties">
+                    <label for="step-size">Step Size: </label>
+                    <input type="text" id="step-size" name="step-size">
+                    <label for="iteration-steps">Iteration Steps: </label>
+                    <input type="text" id="iteration-steps" name="iteration-steps">
+                    <label for="temperature">Temperature: </label>
+                    <input type="text" min="-5", max="2" id="temperature" name="temperature">
+                    <label for="total-steps">Total Steps: </label>
+                    <output type="text" id="total-steps" name="total-steps"></output>
+                    <label for="score">Packing Fraction: </label>
+                    <output type="text" id="score" name="score"></output>
+                </div>
+            </div>
+            <script src="./bootstrap.js"></script>
+    </body>
 </html>
