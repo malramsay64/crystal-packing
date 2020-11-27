@@ -1,7 +1,9 @@
 use cfg_if::cfg_if;
+use std::convert::TryInto;
+use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 
-use packing::wallpaper::{Wallpaper, WyckoffSite};
+use packing::wallpaper::WallpaperGroups;
 use packing::*;
 
 pub mod optimiser;

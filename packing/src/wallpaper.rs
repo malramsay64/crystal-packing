@@ -6,6 +6,7 @@
 
 use anyhow::{anyhow, Error};
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 
 use crate::{CrystalFamily, Transform2};
 
@@ -28,6 +29,15 @@ pub struct Wallpaper {
 
 impl Wallpaper {
     pub fn new(group: &WallpaperGroup) -> Wallpaper {
+        Wallpaper {
+            name: String::from(group.name),
+            family: group.family,
+        }
+    }
+}
+
+impl<'a> From<WallpaperGroup<'a>> for Wallpaper {
+    fn from(group: WallpaperGroup) -> Wallpaper {
         Wallpaper {
             name: String::from(group.name),
             family: group.family,
@@ -121,43 +131,47 @@ impl WallpaperGroups {
     }
 }
 
-pub fn get_wallpaper_group<'a>(name: WallpaperGroups) -> Result<WallpaperGroup<'a>, Error> {
-    match name {
-        WallpaperGroups::p1 => Ok(WallpaperGroup {
-            name: "p1",
-            family: CrystalFamily::Monoclinic,
-            wyckoff_str: vec!["x,y"],
-        }),
-        WallpaperGroups::p2 => Ok(WallpaperGroup {
-            name: "p2",
-            family: CrystalFamily::Monoclinic,
-            wyckoff_str: vec!["x,y", "-x,-y"],
-        }),
-        WallpaperGroups::p1m1 => Ok(WallpaperGroup {
-            name: "p1m1",
-            family: CrystalFamily::Orthorhombic,
-            wyckoff_str: vec!["x,y", "-x,y"],
-        }),
-        WallpaperGroups::p1g1 => Ok(WallpaperGroup {
-            name: "p1m1",
-            family: CrystalFamily::Orthorhombic,
-            wyckoff_str: vec!["x,y", "-x,y+1/2"],
-        }),
-        WallpaperGroups::p2mm => Ok(WallpaperGroup {
-            name: "p2mm",
-            family: CrystalFamily::Orthorhombic,
-            wyckoff_str: vec!["x,y", "-x,-y", "-x,y", "x,-y"],
-        }),
-        WallpaperGroups::p2mg => Ok(WallpaperGroup {
-            name: "p2mg",
-            family: CrystalFamily::Orthorhombic,
-            wyckoff_str: vec!["x,y", "-x, -y", "-x+1/2, y", "x+1/2, -y"],
-        }),
-        WallpaperGroups::p2gg => Ok(WallpaperGroup {
-            name: "p2gg",
-            family: CrystalFamily::Orthorhombic,
-            wyckoff_str: vec!["x,y", "-x, -y", "-x+1/2, y+1/2", "x+1/2, -y+1/2"],
-        }),
+impl<'a> TryFrom<WallpaperGroups> for WallpaperGroup<'a> {
+    type Error = Error;
+
+    fn try_from(name: WallpaperGroups) -> Result<Self, Self::Error> {
+        match name {
+            WallpaperGroups::p1 => Ok(WallpaperGroup {
+                name: "p1",
+                family: CrystalFamily::Monoclinic,
+                wyckoff_str: vec!["x,y"],
+            }),
+            WallpaperGroups::p2 => Ok(WallpaperGroup {
+                name: "p2",
+                family: CrystalFamily::Monoclinic,
+                wyckoff_str: vec!["x,y", "-x,-y"],
+            }),
+            WallpaperGroups::p1m1 => Ok(WallpaperGroup {
+                name: "p1m1",
+                family: CrystalFamily::Orthorhombic,
+                wyckoff_str: vec!["x,y", "-x,y"],
+            }),
+            WallpaperGroups::p1g1 => Ok(WallpaperGroup {
+                name: "p1m1",
+                family: CrystalFamily::Orthorhombic,
+                wyckoff_str: vec!["x,y", "-x,y+1/2"],
+            }),
+            WallpaperGroups::p2mm => Ok(WallpaperGroup {
+                name: "p2mm",
+                family: CrystalFamily::Orthorhombic,
+                wyckoff_str: vec!["x,y", "-x,-y", "-x,y", "x,-y"],
+            }),
+            WallpaperGroups::p2mg => Ok(WallpaperGroup {
+                name: "p2mg",
+                family: CrystalFamily::Orthorhombic,
+                wyckoff_str: vec!["x,y", "-x, -y", "-x+1/2, y", "x+1/2, -y"],
+            }),
+            WallpaperGroups::p2gg => Ok(WallpaperGroup {
+                name: "p2gg",
+                family: CrystalFamily::Orthorhombic,
+                wyckoff_str: vec!["x,y", "-x, -y", "-x+1/2, y+1/2", "x+1/2, -y+1/2"],
+            }),
+        }
     }
 }
 

@@ -5,23 +5,22 @@
 //
 //
 
+use std::convert::TryInto;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Error};
-use log::{debug, info, LevelFilter};
-use rayon::prelude::*;
 use clap::arg_enum;
-use structopt::StructOpt;
+use log::{debug, info, LevelFilter};
 use rand::prelude::*;
+use rayon::prelude::*;
+use structopt::StructOpt;
 
 use packing::traits::*;
-use packing::wallpaper::{get_wallpaper_group, WallpaperGroups};
-use packing::{
-    MCOptimiser, LJShape2, LineShape, MolecularShape2, PackedState2, PotentialState2,
-};
+use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
+use packing::{LJShape2, LineShape, MCOptimiser, MolecularShape2, PackedState2, PotentialState2};
 
 #[derive(StructOpt, Debug, Clone, Copy)]
 pub struct BuildOptimiser {
@@ -279,7 +278,7 @@ fn main(args: Args) -> Result<(), Error> {
 
     debug!("Logging Level: {}", log_level);
 
-    let wg = get_wallpaper_group(args.wallpaper)?;
+    let wg: WallpaperGroup = args.wallpaper.try_into()?;
 
     match (args.shape, args.potential) {
         (
