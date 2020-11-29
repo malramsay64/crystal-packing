@@ -9,6 +9,7 @@ pub mod shared_value;
 
 pub use shared_value::SharedValue;
 
+#[non_exhaustive]
 pub enum Basis<'a> {
     CellBasis {
         value: &'a SharedValue,
