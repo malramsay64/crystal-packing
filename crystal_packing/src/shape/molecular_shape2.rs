@@ -132,7 +132,7 @@ impl MolecularShape2 {
     /// # Example
     ///
     /// ```
-    /// # use packing::MolecularShape2;
+    /// # use crystal_packing::MolecularShape2;
     /// let shape = MolecularShape2::from_trimer(0.7, 120., 1.);
     /// # assert_eq!(shape.items.len(), 3);
     /// # assert_eq!(shape.name, "Trimer");

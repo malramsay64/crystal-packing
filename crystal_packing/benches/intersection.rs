@@ -10,9 +10,11 @@ use anyhow::Error;
 use criterion::BenchmarkId;
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use packing::traits::*;
-use packing::wallpaper::{Wallpaper, WyckoffSite};
-use packing::{CrystalFamily, LineShape, MolecularShape2, OccupiedSite, PackedState, Transform2};
+use crystal_packing::traits::*;
+use crystal_packing::wallpaper::{Wallpaper, WyckoffSite};
+use crystal_packing::{
+    CrystalFamily, LineShape, MolecularShape2, OccupiedSite, PackedState, Transform2,
+};
 
 static BENCH_SIDES: &[usize] = &[4, 16, 64, 256];
 

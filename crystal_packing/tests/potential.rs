@@ -6,10 +6,10 @@
 
 use anyhow::{anyhow, Error};
 
-use packing::traits::*;
-use packing::wallpaper::Wallpaper;
-use packing::wallpaper::WyckoffSite;
-use packing::{CrystalFamily, LJShape2, MCOptimiser, PotentialState, Transform2};
+use crystal_packing::traits::*;
+use crystal_packing::wallpaper::Wallpaper;
+use crystal_packing::wallpaper::WyckoffSite;
+use crystal_packing::{CrystalFamily, LJShape2, MCOptimiser, PotentialState, Transform2};
 
 #[test]
 fn test_score_improves() -> Result<(), Error> {

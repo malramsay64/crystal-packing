@@ -40,7 +40,7 @@ impl<'de> Visitor<'de> for F64Visitor {
 ///
 ///
 /// ```
-/// use packing::SharedValue;
+/// use crystal_packing::SharedValue;
 /// let x = SharedValue::new(1.);
 /// let shared_x = &x;
 ///
@@ -126,7 +126,7 @@ impl SharedValue {
     /// # Example
     ///
     /// ```
-    /// use packing::SharedValue;
+    /// use crystal_packing::SharedValue;
     /// let x = SharedValue::new(1.);
     /// let shared_x = &x;
     ///

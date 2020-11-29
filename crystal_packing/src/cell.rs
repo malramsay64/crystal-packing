@@ -124,7 +124,7 @@ impl Cell2 {
     /// # Example
     ///
     /// ```
-    /// use packing::{Cell2, CrystalFamily};
+    /// use crystal_packing::{Cell2, CrystalFamily};
     /// use nalgebra::Point2;
     /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
     /// let point = cell.to_cartesian_point(Point2::new(0.5, 0.5));
@@ -256,7 +256,7 @@ impl Cell2 {
     /// Convert two values in relative coordinates to real coordinates
     ///
     /// ```
-    /// use packing::{Cell2, CrystalFamily};
+    /// use crystal_packing::{Cell2, CrystalFamily};
     /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
     /// let point = cell.to_cartesian(0.25, 0.25);
     /// assert_eq!(point, (2., 2.));

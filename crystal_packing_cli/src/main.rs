@@ -18,9 +18,9 @@ use rand::prelude::*;
 use rayon::prelude::*;
 use structopt::StructOpt;
 
-use packing::traits::*;
-use packing::wallpaper::{WallpaperGroup, WallpaperGroups};
-use packing::{LJShape2, LineShape, MCOptimiser, MolecularShape2, PackedState2, PotentialState2};
+use crystal_packing::traits::*;
+use crystal_packing::wallpaper::{WallpaperGroup, WallpaperGroups};
+use crystal_packing::{LJShape2, LineShape, MCOptimiser, MolecularShape2, PackedState2, PotentialState2};
 
 #[derive(StructOpt, Debug, Clone, Copy)]
 pub struct BuildOptimiser {

@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 /// Which is a rotation, followed by a translation
 ///
 /// ```
-/// use packing::Transform2;
+/// use crystal_packing::Transform2;
 /// // Create a transform
 /// let t = Transform2::new(0., (1., 1.));
 /// ```
@@ -114,7 +114,7 @@ impl Transform2 {
     /// extracting the rotation and translation components.
     ///
     /// ```
-    /// use packing::{Transform2};
+    /// use crystal_packing::{Transform2};
     /// let t2 = Transform2::from_operations("-x, y");
     /// ```
     ///
