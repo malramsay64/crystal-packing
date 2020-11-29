@@ -1,5 +1,5 @@
-use std::fmt;
 use std::cell::UnsafeCell;
+use std::fmt;
 
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
