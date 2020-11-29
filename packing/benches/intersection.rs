@@ -152,8 +152,12 @@ fn state_modify_basis(c: &mut Criterion) {
             for _ in 0..1000 {
                 for value in basis.iter_mut() {
                     let val = value.get_value();
-                    value.set_value(val + 0.1).unwrap();
-                    value.set_value(val).unwrap();
+
+                    if let Ok(_) = value.set_value(val - 0.01) {
+                        value
+                            .set_value(val)
+                            .expect("Previous value should be valid");
+                    }
                 }
             }
         })
