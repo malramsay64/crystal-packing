@@ -3,6 +3,8 @@ name = "packing"
 version = "0.6.0"
 authors = ["Malcolm Ramsay <malramsay64@gmail.com>"]
 edition = "2018"
+license = "MIT"
+description = "Core library for packing shapes in an infinite crystal lattice."
 
 [dependencies]
 nalgebra = {version="~0.22.0", features=["serde-serialize"]}
