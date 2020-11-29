@@ -2,7 +2,6 @@
 members = [
     "packing",
     "packing_cli",
-    "packing_wasm",
 ]
 
 [profile.release]
