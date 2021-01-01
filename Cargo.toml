@@ -16,7 +16,7 @@ paw = "1.0"
 rayon = "~1.4.0"
 itertools = "~0.8.0"
 serde = {version="~1.0.98", features=["derive"]}
-serde_json = "~1.0.40"
+serde_json = "~1.0.61"
 anyhow = "1.0"
 svg = "~0.8.0"
 
