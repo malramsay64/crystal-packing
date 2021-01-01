@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 nalgebra = {version="~0.22.0", features=["serde-serialize"]}
 rand = "~0.7.0"
-rand_pcg = "0.2.0"
+rand_pcg = "0.3.0"
 log = "~0.4.8"
 env_logger = "~0.7.0"
 clap = "~2.33.0"
