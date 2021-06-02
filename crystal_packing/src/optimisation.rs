@@ -90,6 +90,7 @@ impl MCOptimiser {
 
         let mut basis = state.generate_basis();
         let basis_distribution = Uniform::new(0, basis.len() as usize);
+        let step_distribution = Uniform::from(-0.5..0.5);
 
         let mut step_ratio = 1.;
         let mut convergence_count = 0;
@@ -111,9 +112,12 @@ impl MCOptimiser {
 
                 let val = b.get_value();
 
-                let new_val =
-                    val + self.max_step_size * step_ratio * b.scale() * rng.gen_range(-0.5, 0.5);
-                if let Err(_) = b.set_value(new_val) {
+                let new_val = val
+                    + self.max_step_size
+                        * step_ratio
+                        * b.scale()
+                        * step_distribution.sample(&mut rng);
+                if b.set_value(new_val).is_err() {
                     loop_rejections += 1;
                     continue;
                 }

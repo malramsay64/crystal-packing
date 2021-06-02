@@ -47,7 +47,7 @@ impl Intersect for Line2 {
         let ua = ua_t / u_b;
         let ub = ub_t / u_b;
         // Should the points ua, ub both lie on the interval [0, 1] the lines intersect.
-        if 0. <= ua && ua <= 1. && 0. <= ub && ub <= 1. {
+        if (0. ..=1.).contains(&ua) && (0. ..=1.).contains(&ub) {
             return true;
         }
         false

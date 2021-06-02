@@ -141,16 +141,15 @@ impl Cell2 {
     /// Each of the different crystal families impose different restrictions on the degrees of
     /// freedom of a unit cell. This compiles these degrees of freedom into a vector of Bases,
     /// which is the data structure used to modify the values.
-    pub fn get_degrees_of_freedom<'a>(&'a self) -> Vec<Basis> {
-        let mut basis: Vec<Basis> = vec![];
-
-        // All cells have at least a single variable cell length
-        basis.push(Basis::StandardBasis {
+    pub fn get_degrees_of_freedom(&self) -> Vec<Basis> {
+        let mut basis: Vec<Basis> = vec![
+            // All cells have at least a single variable cell length
+            Basis::StandardBasis {
             value: &self.length,
             min: 0.01,
             max: self.length.get_value(),
-        });
-
+        }
+        ];
         match self.family {
             // Monoclinic has both variable angle and varaible ratio of sides
             CrystalFamily::Monoclinic => {
@@ -222,12 +221,12 @@ impl Cell2 {
         }
     }
 
-    pub fn periodic_images<'a>(
-        &'a self,
+    pub fn periodic_images(
+        &self,
         transform: Transform2,
         shells: i64,
         zero: bool,
-    ) -> impl Iterator<Item = Transform2> + 'a {
+    ) -> impl Iterator<Item = Transform2> + '_ {
         iproduct!(-shells..=shells, -shells..=shells)
             .filter(move |&(x, y)| !(!zero && x == 0 && y == 0))
             .map(move |(x, y)| self.to_cartesian_translate(transform, x, y))

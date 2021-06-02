@@ -7,8 +7,7 @@
 use std::{fmt, ops, slice};
 
 use anyhow::Error;
-use nalgebra::allocator::Allocator;
-use nalgebra::{DefaultAllocator, DimName, VectorN};
+use nalgebra::SVector;
 use serde::Serialize;
 use svg::node::element::Group;
 use svg::Document;
@@ -29,12 +28,9 @@ pub trait PeriodicAssign<Rhs = Self> {
     fn periodic_assign(&mut self, rhs: Rhs);
 }
 
-pub trait AdjustPeriod<D: DimName>
-where
-    DefaultAllocator: Allocator<f64, D> + Allocator<f64, D, D>,
-{
+pub trait AdjustPeriod<const D: usize> {
     type Output;
-    fn adjust_period(&self, adjustment: VectorN<f64, D>) -> Self::Output;
+    fn adjust_period(&self, adjustment: SVector<f64, D>) -> Self::Output;
 }
 
 pub trait Intersect {

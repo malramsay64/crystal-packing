@@ -37,7 +37,7 @@ impl OccupiedSite {
         )
     }
 
-    pub fn positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
+    pub fn positions(&self) -> impl Iterator<Item = Transform2> + '_ {
         let transform = self.transform();
         self.symmetries()
             .map(move |sym| sym * transform)
@@ -89,7 +89,7 @@ impl OccupiedSite {
         }
         basis
     }
-    pub fn symmetries<'a>(&'a self) -> impl Iterator<Item = &Transform2> + 'a {
+    pub fn symmetries(&self) -> impl Iterator<Item = &Transform2> + '_ {
         self.wyckoff.symmetries.iter()
     }
 }

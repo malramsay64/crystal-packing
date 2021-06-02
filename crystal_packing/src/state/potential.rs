@@ -136,12 +136,12 @@ impl<S> PotentialState<S>
 where
     S: Shape + Potential,
 {
-    pub fn cartesian_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
+    pub fn cartesian_positions(&self) -> impl Iterator<Item = Transform2> + '_ {
         self.relative_positions()
             .map(move |position| self.cell.to_cartesian_isometry(position))
     }
 
-    pub fn relative_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
+    pub fn relative_positions(&self) -> impl Iterator<Item = Transform2> + '_ {
         self.occupied_sites.iter().flat_map(OccupiedSite::positions)
     }
 

@@ -39,6 +39,9 @@ impl From<Matrix3<f64>> for Transform2 {
     }
 }
 
+// Since Matrix3 is a type defined in another crate, we run into the orphan rule where we can't
+// define a trait for a type that we don't define.
+#[allow(clippy::from_over_into)]
 impl Into<Matrix3<f64>> for Transform2 {
     fn into(self) -> Matrix3<f64> {
         *self.0.matrix()
