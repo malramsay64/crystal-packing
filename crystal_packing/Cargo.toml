@@ -7,20 +7,20 @@ license = "MIT"
 description = "Core library for packing shapes in an infinite crystal lattice."
 
 [dependencies]
-nalgebra = {version="~0.22.0", features=["serde-serialize"]}
-rand = "~0.7.0"
-rand_pcg = "0.2.0"
+nalgebra = {version="~0.26.0", features=["serde-serialize"]}
+rand = "~0.8.0"
+rand_pcg = "0.3.0"
 log = "~0.4.8"
 itertools = "~0.8.0"
 serde = {version="~1.0.98", features=["derive"]}
 anyhow = "1.0"
-svg = "~0.8.0"
+svg = "~0.9.2"
 
 [dev-dependencies]
-approx = "~0.3.0"
+approx = "~0.5.0"
 criterion = "0.3"
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"
 
 [lib]
 bench = false
