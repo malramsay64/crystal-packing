@@ -1,7 +1,7 @@
 [package]
 name = "crystal_packing"
 version = "0.6.0"
-authors = ["Malcolm Ramsay <malramsay64@gmail.com>"]
+authors = ["Malcolm Ramsay <m@malramsay.com>"]
 edition = "2018"
 license = "MIT"
 description = "Core library for packing shapes in an infinite crystal lattice."
@@ -17,10 +17,10 @@ anyhow = "1.0"
 svg = "~0.9.2"
 
 [dev-dependencies]
-approx = "~0.5.0"
+approx = "~0.4.0"
 criterion = "0.3"
-quickcheck = "1.0"
-quickcheck_macros = "1.0"
+quickcheck = "0.9"
+quickcheck_macros = "0.9"
 
 [lib]
 bench = false
