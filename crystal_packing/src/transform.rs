@@ -190,7 +190,38 @@ mod test {
 
     use super::*;
     use nalgebra as na;
+    use proptest::prelude::*;
     use proptest_attr_macro::proptest;
+
+    /// Struct to aid in setting values for Proptest
+    ///
+    /// When testing the transformations, we want to be able to use property based testing,
+    /// providing many examples around zero and throughout the space of numbers. However, some of
+    /// these tests find the differece between two floating point values. This is fine close to
+    /// zero, however the errors in this calculation get very large as we move towards the endges
+    /// of float space. Rather than testing how the accuracy changes as a function of the size of
+    /// the values, we instead clamp the values to a smaller range by implementing the Arbitrary
+    /// trait for this struct.
+    #[derive(Debug)]
+    struct PropFloat {
+        value: f64,
+    }
+
+    impl Arbitrary for PropFloat {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<PropFloat>;
+
+        fn arbitrary_with(_args: ()) -> Self::Strategy {
+            (-100.0..=100.0)
+                .prop_map(|x| PropFloat { value: x })
+                .boxed()
+        }
+    }
+    impl Into<f64> for PropFloat {
+        fn into(self) -> f64 {
+            return self.value;
+        }
+    }
 
     /// Init new with zeros should be the same as identity
     #[test]
@@ -242,20 +273,16 @@ mod test {
 
         /// Rotation followed by Translation is in circle about translation
         #[proptest]
-        fn rotation_translation(rotation: f32, translation: (f32, f32)) {
+        fn rotation_translation(rotation: PropFloat, translation: (PropFloat, PropFloat)) {
             let t = &Transform2::new(
-                rotation as f64,
-                (translation.0 as f64, translation.1 as f64),
+                rotation.into(),
+                (translation.0.into(), translation.1.into()),
             );
             let point = Point2::new(1., 0.);
-            // Large transformations will have larger errors which this accounts for
-            let epsilon = nalgebra::distance(&Point2::origin(), &t.position())
-                * Transform2::default_epsilon();
-            dbg!(epsilon);
             assert_abs_diff_eq!(
                 nalgebra::distance(&Point2::origin(), &(t * point - t.position()).into()),
                 1.,
-                epsilon = epsilon,
+                epsilon = Transform2::default_epsilon().sqrt()
             )
         }
     }
@@ -266,9 +293,9 @@ mod test {
 
         /// Translations with no rotations should be added
         #[proptest]
-        fn mult_transform_translation(x: f64, y: f64) {
-            let t = &Transform2::new(0., (x, y));
-            assert_abs_diff_eq!((t * t).position(), 2. * Point2::new(x, y))
+        fn mult_transform_translation(x: PropFloat, y: PropFloat) {
+            let t = &Transform2::new(0., (x.value, y.value));
+            assert_abs_diff_eq!((t * t).position(), 2. * Point2::new(x.value, y.value))
         }
 
         /// Translations should be added
@@ -301,12 +328,12 @@ mod test {
 
         /// Rotations should be added
         #[proptest]
-        fn combine_rotations(r1: f64, r2: f64) {
-            let tf1 = &Transform2::new(r1, (0., 0.));
-            let tf2 = &Transform2::new(r2, (0., 0.));
+        fn combine_rotations(r1: PropFloat, r2: PropFloat) {
+            let tf1 = &Transform2::new(r1.value, (0., 0.));
+            let tf2 = &Transform2::new(r2.value, (0., 0.));
             assert_abs_diff_eq!(
                 tf1 * tf2,
-                Transform2::new(r1 + r2, (0., 0.)),
+                Transform2::new(r1.value + r2.value, (0., 0.)),
                 epsilon = 1e-10,
             )
         }
@@ -321,36 +348,41 @@ mod test {
         }
 
         #[proptest]
-        fn rotation_and_trans(rotation: f64, translation: (f64, f64)) {
-            let t = &Transform2::new(rotation, translation);
-            let position = t * Point2::new(translation.0, translation.1);
+        fn rotation_and_trans(rotation: PropFloat, translation: (PropFloat, PropFloat)) {
+            let t = &Transform2::new(rotation.value, (translation.0.value, translation.1.value));
+            let position = t * Point2::new(translation.0.value, translation.1.value);
             // dbg!(position);
-            println!("rotation: {}, translation: {:?}", rotation, translation);
+            println!("rotation: {:?}, translation: {:?}", rotation, translation);
             dbg!(
                 (t * t).0,
                 position,
-                Transform2::new(rotation * 2., (position.x, position.y)).0
+                Transform2::new(rotation.value * 2., (position.x, position.y)).0
             );
             assert_abs_diff_eq!(
                 t * t,
-                Transform2::new(rotation + rotation, (position.x, position.y)),
+                Transform2::new(rotation.value + rotation.value, (position.x, position.y)),
                 epsilon = 1e-10,
             );
         }
 
         #[proptest]
-        fn rotation_and_trans_different(r1: f64, r2: f64, t1: (f64, f64), t2: (f64, f64)) {
-            let tf1 = &Transform2::new(r1, t1);
-            let tf2 = &Transform2::new(r2, t2);
-            let position = tf1 * Point2::new(t2.0, t2.1);
-            println!("r1: {}, r2: {}, t1: {:?}, t2: {:?}", r1, r2, t1, t2);
+        fn rotation_and_trans_different(
+            r1: PropFloat,
+            r2: PropFloat,
+            t1: (PropFloat, PropFloat),
+            t2: (PropFloat, PropFloat),
+        ) {
+            let tf1 = &Transform2::new(r1.value, (t1.0.value, t1.1.value));
+            let tf2 = &Transform2::new(r2.value, (t2.0.value, t2.1.value));
+            let position = tf1 * Point2::new(t2.0.value, t2.1.value);
+            println!("r1: {:?}, r2: {:?}, t1: {:?}, t2: {:?}", r1, r2, t1, t2);
             dbg!(
                 (tf1 * tf2).0,
-                Transform2::new(r1 + r2, (position.x, position.y)).0
+                Transform2::new(r1.value + r2.value, (position.x, position.y)).0
             );
             assert_abs_diff_eq!(
                 tf1 * tf2,
-                Transform2::new(r1 + r2, (position.x, position.y)),
+                Transform2::new(r1.value + r2.value, (position.x, position.y)),
                 epsilon = 1e-10,
             )
         }
