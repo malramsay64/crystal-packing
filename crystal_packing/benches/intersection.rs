@@ -155,7 +155,7 @@ fn state_modify_basis(c: &mut Criterion) {
                 for value in basis.iter_mut() {
                     let val = value.get_value();
 
-                    if let Ok(_) = value.set_value(val - 0.01) {
+                    if value.set_value(val - 0.01).is_ok() {
                         value
                             .set_value(val)
                             .expect("Previous value should be valid");
