@@ -217,11 +217,6 @@ mod test {
                 .boxed()
         }
     }
-    impl Into<f64> for PropFloat {
-        fn into(self) -> f64 {
-            return self.value;
-        }
-    }
 
     /// Init new with zeros should be the same as identity
     #[test]
@@ -274,10 +269,7 @@ mod test {
         /// Rotation followed by Translation is in circle about translation
         #[proptest]
         fn rotation_translation(rotation: PropFloat, translation: (PropFloat, PropFloat)) {
-            let t = &Transform2::new(
-                rotation.into(),
-                (translation.0.into(), translation.1.into()),
-            );
+            let t = &Transform2::new(rotation.value, (translation.0.value, translation.1.value));
             let point = Point2::new(1., 0.);
             assert_abs_diff_eq!(
                 nalgebra::distance(&Point2::origin(), &(t * point - t.position()).into()),

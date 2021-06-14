@@ -29,14 +29,6 @@ mod crystal_family_test {
     use super::*;
 
     #[test]
-    fn equality() {
-        assert_eq!(CrystalFamily::Monoclinic, CrystalFamily::Monoclinic);
-        assert_eq!(CrystalFamily::Orthorhombic, CrystalFamily::Orthorhombic);
-        assert_eq!(CrystalFamily::Hexagonal, CrystalFamily::Hexagonal);
-        assert_eq!(CrystalFamily::Tetragonal, CrystalFamily::Tetragonal);
-    }
-
-    #[test]
     fn inequality() {
         assert_ne!(CrystalFamily::Orthorhombic, CrystalFamily::Monoclinic);
         assert_ne!(CrystalFamily::Hexagonal, CrystalFamily::Monoclinic);
@@ -145,10 +137,10 @@ impl Cell2 {
         let mut basis: Vec<Basis> = vec![
             // All cells have at least a single variable cell length
             Basis::StandardBasis {
-            value: &self.length,
-            min: 0.01,
-            max: self.length.get_value(),
-        }
+                value: &self.length,
+                min: 0.01,
+                max: self.length.get_value(),
+            },
         ];
         match self.family {
             // Monoclinic has both variable angle and varaible ratio of sides
