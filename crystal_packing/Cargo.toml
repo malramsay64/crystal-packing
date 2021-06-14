@@ -19,8 +19,8 @@ svg = "~0.9.2"
 [dev-dependencies]
 approx = "~0.4.0"
 criterion = "0.3"
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
+proptest = "1.0"
+proptest-attr-macro = "1.0"
 
 [lib]
 bench = false

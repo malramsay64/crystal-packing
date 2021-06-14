@@ -183,8 +183,8 @@ impl MCOptimiser {
 #[cfg(test)]
 mod test {
     use super::*;
-    use approx::abs_diff_eq;
-    use quickcheck_macros::quickcheck;
+    use approx::assert_abs_diff_eq;
+    use proptest_attr_macro::proptest;
 
     static OPT: MCOptimiser = MCOptimiser {
         kt_start: 0.,
@@ -196,27 +196,27 @@ mod test {
         convergence: None,
     };
 
-    #[quickcheck]
-    fn test_energy_surface(new: f64, old: f64) -> bool {
+    #[proptest]
+    fn test_energy_surface(new: f64, old: f64) {
         let result = OPT.energy_surface(new, old, 0.);
         if new < old {
-            abs_diff_eq!(result, 0.)
+            assert_abs_diff_eq!(result, 0.)
         } else if new >= old {
-            abs_diff_eq!(result, 1.)
-        } else {
-            false
-        }
+            assert_abs_diff_eq!(result, 1.)
+        } else{
+        panic!("This should not be reachable");
+            }
     }
 
-    #[quickcheck]
-    fn test_energy_surface_temperature(new: f64, old: f64) -> bool {
+    #[proptest]
+    fn test_energy_surface_temperature(new: f64, old: f64) {
         let result = OPT.energy_surface(new, old, 0.5);
         if new < old {
-            0. < result && result < 1.
+            assert!((0. ..=1.).contains(&result));
         } else if new >= old {
-            abs_diff_eq!(result, 1.)
+            assert_abs_diff_eq!(result, 1.)
         } else {
-            false
+            panic!("This should not be reachable")
         }
     }
 }
