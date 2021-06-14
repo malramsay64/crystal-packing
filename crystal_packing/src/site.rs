@@ -4,11 +4,9 @@
 // Distributed under terms of the MIT license.
 //
 
-use std::f64::consts::PI;
-
 use serde::{Deserialize, Serialize};
 
-use crate::basis::{SharedValue, StandardBasis};
+use crate::basis::{Basis, SharedValue};
 use crate::wallpaper::WyckoffSite;
 use crate::Transform2;
 
@@ -39,7 +37,7 @@ impl OccupiedSite {
         )
     }
 
-    pub fn positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
+    pub fn positions(&self) -> impl Iterator<Item = Transform2> + '_ {
         let transform = self.transform();
         self.symmetries()
             .map(move |sym| sym * transform)
@@ -64,26 +62,34 @@ impl OccupiedSite {
         }
     }
 
-    pub fn get_basis(&self, rot_symmetry: u64) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![];
+    pub fn get_basis(&self) -> Vec<Basis> {
+        let mut basis: Vec<Basis> = vec![];
         let dof = self.wyckoff.degrees_of_freedom();
 
         if dof[0] {
-            basis.push(StandardBasis::new(&self.x, -0.5, 0.5));
+            basis.push(Basis::StandardBasis {
+                value: &self.x,
+                min: -0.5,
+                max: 0.5,
+            });
         }
         if dof[1] {
-            basis.push(StandardBasis::new(&self.y, -0.5, 0.5));
+            basis.push(Basis::StandardBasis {
+                value: &self.y,
+                min: -0.5,
+                max: 0.5,
+            });
         }
         if dof[2] {
-            basis.push(StandardBasis::new(
-                &self.angle,
-                0.,
-                2. * PI / rot_symmetry as f64,
-            ));
+            basis.push(Basis::StandardBasis {
+                value: &self.angle,
+                min: 0.,
+                max: std::f64::consts::TAU,
+            });
         }
         basis
     }
-    pub fn symmetries<'a>(&'a self) -> impl Iterator<Item = &Transform2> + 'a {
+    pub fn symmetries(&self) -> impl Iterator<Item = &Transform2> + '_ {
         self.wyckoff.symmetries.iter()
     }
 }

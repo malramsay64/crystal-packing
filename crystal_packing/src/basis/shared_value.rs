@@ -1,14 +1,4 @@
-//
-// basis.rs
-// Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
-// Distributed under terms of the MIT license.
-//
-
 use std::cell::UnsafeCell;
-
-use rand::Rng;
-
-use crate::traits::Basis;
 use std::fmt;
 
 use serde::de::{self, Visitor};
@@ -50,7 +40,7 @@ impl<'de> Visitor<'de> for F64Visitor {
 ///
 ///
 /// ```
-/// use packing::SharedValue;
+/// use crystal_packing::SharedValue;
 /// let x = SharedValue::new(1.);
 /// let shared_x = &x;
 ///
@@ -136,7 +126,7 @@ impl SharedValue {
     /// # Example
     ///
     /// ```
-    /// use packing::SharedValue;
+    /// use crystal_packing::SharedValue;
     /// let x = SharedValue::new(1.);
     /// let shared_x = &x;
     ///
@@ -220,108 +210,5 @@ mod shared_value_tests {
         value2.set_value(0.5);
         assert_eq!(value1.get_value(), 0.5);
         assert_eq!(value2.get_value(), 0.5);
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct StandardBasis<'a> {
-    value: &'a SharedValue,
-    old: f64,
-    min: f64,
-    max: f64,
-}
-
-impl<'a> StandardBasis<'a> {
-    pub fn new(value: &'a SharedValue, min: f64, max: f64) -> Self {
-        Self {
-            old: value.get_value(),
-            value,
-            min,
-            max,
-        }
-    }
-
-    fn value_range(&self) -> f64 {
-        self.max - self.min
-    }
-}
-
-impl<'a> Basis for StandardBasis<'a> {
-    fn get_value(&self) -> f64 {
-        self.value.get_value()
-    }
-
-    fn set_value(&mut self, new_value: f64) {
-        self.old = self.get_value();
-        self.value.set_value(match new_value {
-            x if x < self.min => self.min,
-            x if x > self.max => self.max,
-            x => x,
-        })
-    }
-
-    fn reset_value(&self) {
-        self.value.set_value(self.old);
-    }
-
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R, step_size: f64) -> f64 {
-        self.get_value() + step_size * self.value_range() * rng.gen_range(-0.5, 0.5)
-    }
-
-    fn set_sampled<R: Rng + ?Sized>(&mut self, rng: &mut R, step_size: f64) {
-        self.set_value(self.sample(rng, step_size));
-    }
-}
-
-#[cfg(test)]
-mod standard_basis_tests {
-    use approx::assert_abs_diff_eq;
-    use rand::thread_rng;
-
-    use super::*;
-
-    #[test]
-    fn get_value() {
-        let value = SharedValue::new(1.);
-        let mut basis = StandardBasis::new(&value, 0., 1.);
-        basis.set_value(0.5);
-        assert_abs_diff_eq!(basis.get_value(), 0.5);
-        assert_abs_diff_eq!(value.get_value(), 0.5);
-    }
-
-    #[test]
-    fn set_value_limits() {
-        let value = SharedValue::new(1.);
-        let mut basis = StandardBasis::new(&value, 0., 1.);
-
-        // Over maximum value
-        basis.set_value(1.1);
-        assert_abs_diff_eq!(basis.get_value(), 1.);
-
-        // Less than minimum value
-        basis.set_value(-0.1);
-        assert_abs_diff_eq!(basis.get_value(), 0.);
-    }
-
-    #[test]
-    fn reset_value() {
-        let value = SharedValue::new(1.);
-        let mut basis = StandardBasis::new(&value, 0., 1.);
-        basis.set_value(0.5);
-        assert_abs_diff_eq!(basis.get_value(), 0.5);
-        basis.reset_value();
-        assert_abs_diff_eq!(basis.get_value(), 1.);
-    }
-
-    #[test]
-    fn sample() {
-        let value = SharedValue::new(1.);
-        let basis = StandardBasis::new(&value, 0., 1.);
-        let mut rng = thread_rng();
-        for _ in 0..100 {
-            let val = basis.sample(&mut rng, 1.);
-            // Range of values which should be present
-            assert!(0.5 <= val && val <= 1.5);
-        }
     }
 }

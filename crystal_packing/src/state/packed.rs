@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::traits::*;
 use crate::wallpaper::{Wallpaper, WallpaperGroup, WyckoffSite};
-use crate::{Cell2, OccupiedSite, StandardBasis, Transform2};
+use crate::{Basis, Cell2, OccupiedSite, Transform2};
 
 pub type PackedState2<S> = PackedState<S>;
 
@@ -85,11 +85,11 @@ where
         }
     }
 
-    fn generate_basis(&self) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![];
+    fn generate_basis(&self) -> Vec<Basis> {
+        let mut basis: Vec<Basis> = vec![];
         basis.append(&mut self.cell.get_degrees_of_freedom());
         for site in self.occupied_sites.iter() {
-            basis.append(&mut site.get_basis(1));
+            basis.append(&mut site.get_basis());
         }
         basis
     }
@@ -109,12 +109,12 @@ impl<S> PackedState<S>
 where
     S: Shape + Intersect,
 {
-    pub fn cartesian_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
+    pub fn cartesian_positions(&self) -> impl Iterator<Item = Transform2> + '_ {
         self.relative_positions()
             .map(move |position| self.cell.to_cartesian_isometry(position))
     }
 
-    pub fn relative_positions<'a>(&'a self) -> impl Iterator<Item = Transform2> + 'a {
+    pub fn relative_positions(&self) -> impl Iterator<Item = Transform2> + '_ {
         self.occupied_sites.iter().flat_map(OccupiedSite::positions)
     }
 

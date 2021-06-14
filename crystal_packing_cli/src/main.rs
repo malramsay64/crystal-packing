@@ -5,22 +5,143 @@
 //
 //
 
+use std::convert::TryInto;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Error};
+use clap::arg_enum;
 use log::{debug, info, LevelFilter};
+use rand::prelude::*;
 use rayon::prelude::*;
-use structopt::clap::arg_enum;
 use structopt::StructOpt;
 
-use packing::traits::*;
-use packing::wallpaper::{get_wallpaper_group, WallpaperGroups};
-use packing::{
-    BuildOptimiser, LJShape2, LineShape, MolecularShape2, PackedState2, PotentialState2,
+use crystal_packing::traits::*;
+use crystal_packing::wallpaper::{WallpaperGroup, WallpaperGroups};
+use crystal_packing::{
+    LJShape2, LineShape, MCOptimiser, MolecularShape2, PackedState2, PotentialState2,
 };
+
+#[derive(StructOpt, Debug, Clone, Copy)]
+pub struct BuildOptimiser {
+    /// The number of steps to run the Monte-Carlo Optimisation.
+    #[structopt(short, long, default_value = "100")]
+    steps: u64,
+
+    /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
+    /// a move can be yet still be accepted.
+    #[structopt(long, default_value = "0.1")]
+    kt_start: f64,
+
+    /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
+    /// a move can be yet still be accepted.
+    #[structopt(long)]
+    kt_finish: Option<f64>,
+
+    /// The ratio the temperature is reduced every inner_steps
+    #[structopt(long)]
+    kt_ratio: Option<f64>,
+
+    /// The maximum size of a Monte-Carlo move
+    #[structopt(long, default_value = "0.01")]
+    max_step_size: f64,
+
+    /// The number of steps to run before reducing the temperature. This also defines the number of
+    /// steps before the step size is updated.
+    #[structopt(long, default_value = "1000")]
+    inner_steps: u64,
+
+    /// This option is skipped on the command line and filled in when setting up the iterations.
+    #[structopt(skip)]
+    seed: Option<u64>,
+
+    /// The minimum change of the score within an inner loop. This is the indicator of convergence
+    /// which allows for an early exit.
+    #[structopt(long)]
+    convergence: Option<f64>,
+}
+
+impl Default for BuildOptimiser {
+    fn default() -> Self {
+        Self {
+            kt_start: 0.1,
+            kt_finish: Some(0.001),
+            kt_ratio: None,
+            max_step_size: 0.01,
+            steps: 1000,
+            inner_steps: 1000,
+            seed: None,
+            convergence: None,
+        }
+    }
+}
+
+impl BuildOptimiser {
+    pub fn kt_start(&mut self, kt_start: f64) -> &mut Self {
+        self.kt_start = kt_start;
+        self
+    }
+
+    pub fn kt_finish(&mut self, kt_finish: f64) -> &mut Self {
+        self.kt_finish = Some(kt_finish);
+        self
+    }
+
+    pub fn kt_ratio(&mut self, kt_ratio: Option<f64>) -> &mut Self {
+        self.kt_ratio = kt_ratio;
+        self
+    }
+
+    pub fn max_step_size(&mut self, max_step_size: f64) -> &mut Self {
+        self.max_step_size = max_step_size;
+        self
+    }
+
+    pub fn steps(&mut self, steps: u64) -> &mut Self {
+        self.steps = steps;
+        self
+    }
+
+    pub fn inner_steps(&mut self, inner_steps: u64) -> &mut Self {
+        self.inner_steps = inner_steps;
+        self
+    }
+
+    pub fn seed(&mut self, seed: u64) -> &mut Self {
+        self.seed = Some(seed);
+        self
+    }
+
+    pub fn convergence(&mut self, converged: Option<f64>) -> &mut Self {
+        self.convergence = converged;
+        self
+    }
+
+    pub fn build(&self) -> MCOptimiser {
+        let kt_ratio = match (self.kt_ratio, self.kt_finish) {
+            (Some(ratio), _) => 1. - ratio,
+            (None, Some(finish)) => f64::powf(finish / self.kt_start, 1. / self.steps as f64),
+            (None, None) => 0.1,
+        };
+        debug!("Setting kt_ratio to: {}", kt_ratio);
+        let seed = match self.seed {
+            None => rand_pcg::Pcg64Mcg::from_entropy().gen(),
+            Some(x) => x,
+        };
+
+        MCOptimiser::new(
+            self.kt_start,
+            kt_ratio,
+            self.max_step_size,
+            self.steps,
+            u64::min(self.inner_steps, self.steps),
+            seed,
+            self.convergence,
+        )
+    }
+}
 
 arg_enum! {
     #[derive(Debug)]
@@ -103,7 +224,7 @@ fn analyse_state(
         .map(|index| {
             let result = optimiser
                 .clone()
-                .steps(1000)
+                .steps(100)
                 .kt_start(0.)
                 .seed(index)
                 .convergence(None)
@@ -159,7 +280,7 @@ fn main(args: Args) -> Result<(), Error> {
 
     debug!("Logging Level: {}", log_level);
 
-    let wg = get_wallpaper_group(args.wallpaper)?;
+    let wg: WallpaperGroup = args.wallpaper.try_into()?;
 
     match (args.shape, args.potential) {
         (

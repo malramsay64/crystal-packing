@@ -10,7 +10,7 @@ use itertools::iproduct;
 use nalgebra::{Point2, Translation2};
 use serde::{Deserialize, Serialize};
 
-use crate::{SharedValue, StandardBasis, Transform2};
+use crate::{Basis, SharedValue, Transform2};
 
 /// The different crystal families that can be represented
 ///
@@ -27,14 +27,6 @@ pub enum CrystalFamily {
 #[cfg(test)]
 mod crystal_family_test {
     use super::*;
-
-    #[test]
-    fn equality() {
-        assert_eq!(CrystalFamily::Monoclinic, CrystalFamily::Monoclinic);
-        assert_eq!(CrystalFamily::Orthorhombic, CrystalFamily::Orthorhombic);
-        assert_eq!(CrystalFamily::Hexagonal, CrystalFamily::Hexagonal);
-        assert_eq!(CrystalFamily::Tetragonal, CrystalFamily::Tetragonal);
-    }
 
     #[test]
     fn inequality() {
@@ -124,7 +116,7 @@ impl Cell2 {
     /// # Example
     ///
     /// ```
-    /// use packing::{Cell2, CrystalFamily};
+    /// use crystal_packing::{Cell2, CrystalFamily};
     /// use nalgebra::Point2;
     /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
     /// let point = cell.to_cartesian_point(Point2::new(0.5, 0.5));
@@ -141,25 +133,36 @@ impl Cell2 {
     /// Each of the different crystal families impose different restrictions on the degrees of
     /// freedom of a unit cell. This compiles these degrees of freedom into a vector of Bases,
     /// which is the data structure used to modify the values.
-    pub fn get_degrees_of_freedom(&self) -> Vec<StandardBasis> {
-        let mut basis: Vec<StandardBasis> = vec![];
-
-        // All cells have at least a single variable cell length
-        basis.push(StandardBasis::new(
-            &self.length,
-            0.01,
-            self.length.get_value(),
-        ));
-
+    pub fn get_degrees_of_freedom(&self) -> Vec<Basis> {
+        let mut basis: Vec<Basis> = vec![
+            // All cells have at least a single variable cell length
+            Basis::StandardBasis {
+                value: &self.length,
+                min: 0.01,
+                max: self.length.get_value(),
+            },
+        ];
         match self.family {
             // Monoclinic has both variable angle and varaible ratio of sides
             CrystalFamily::Monoclinic => {
-                basis.push(StandardBasis::new(&self.ratio, 0.1, self.ratio.get_value()));
-                basis.push(StandardBasis::new(&self.angle, PI / 6., PI / 2.));
+                basis.push(Basis::StandardBasis {
+                    value: &self.ratio,
+                    min: 0.1,
+                    max: self.ratio.get_value(),
+                });
+                basis.push(Basis::StandardBasis {
+                    value: &self.angle,
+                    min: PI / 4.,
+                    max: PI / 2.,
+                });
             }
             // The Orthorhombic have a second variable cell length in the ratio
             CrystalFamily::Orthorhombic => {
-                basis.push(StandardBasis::new(&self.ratio, 0.1, self.ratio.get_value()));
+                basis.push(Basis::StandardBasis {
+                    value: &self.ratio,
+                    min: 0.1,
+                    max: self.ratio.get_value(),
+                });
             }
             _ => {}
         }
@@ -210,12 +213,12 @@ impl Cell2 {
         }
     }
 
-    pub fn periodic_images<'a>(
-        &'a self,
+    pub fn periodic_images(
+        &self,
         transform: Transform2,
         shells: i64,
         zero: bool,
-    ) -> impl Iterator<Item = Transform2> + 'a {
+    ) -> impl Iterator<Item = Transform2> + '_ {
         iproduct!(-shells..=shells, -shells..=shells)
             .filter(move |&(x, y)| !(!zero && x == 0 && y == 0))
             .map(move |(x, y)| self.to_cartesian_translate(transform, x, y))
@@ -244,7 +247,7 @@ impl Cell2 {
     /// Convert two values in relative coordinates to real coordinates
     ///
     /// ```
-    /// use packing::{Cell2, CrystalFamily};
+    /// use crystal_packing::{Cell2, CrystalFamily};
     /// let cell = Cell2::from_family(CrystalFamily::Monoclinic, 8.);
     /// let point = cell.to_cartesian(0.25, 0.25);
     /// assert_eq!(point, (2., 2.));

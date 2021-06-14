@@ -1,38 +1,9 @@
-[package]
-name = "packing"
-version = "0.5.1"
-authors = ["Malcolm Ramsay <malramsay64@gmail.com>"]
-edition = "2018"
+[workspace]
+members = [
+    "crystal_packing",
+    "crystal_packing_cli",
+]
 
-[dependencies]
-nalgebra = {version="~0.22.0", features=["serde-serialize"]}
-rand = "~0.7.0"
-rand_pcg = "0.2.0"
-log = "~0.4.8"
-env_logger = "~0.7.0"
-clap = "~2.33.0"
-structopt = { version="0.3", features=["paw"]}
-paw = "1.0"
-rayon = "~1.4.0"
-itertools = "~0.8.0"
-serde = {version="~1.0.98", features=["derive"]}
-serde_json = "~1.0.40"
-anyhow = "1.0"
-svg = "~0.8.0"
-
-[dev-dependencies]
-approx = "~0.3.0"
-criterion = "0.3"
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
-
-[lib]
-bench = false
-
-[[bin]]
-name = "packing"
-bench = false
-
-[[bench]]
-name = "intersection"
-harness = false
+[profile.release]
+lto = true
+panic =  "abort"

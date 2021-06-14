@@ -8,6 +8,7 @@ use nalgebra::Matrix3;
 use svg::node::element;
 use svg::Document;
 
+use crate::state::PackedState;
 use crate::traits::*;
 use crate::*;
 

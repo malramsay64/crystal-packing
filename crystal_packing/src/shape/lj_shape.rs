@@ -102,7 +102,7 @@ impl LJShape2 {
     /// # Example
     ///
     /// ```
-    /// # use packing::LJShape2;
+    /// # use crystal_packing::LJShape2;
     /// let shape = LJShape2::from_trimer(0.7, 120., 1.);
     /// # assert_eq!(shape.items.len(), 3);
     /// # assert_eq!(shape.name, "Trimer");
@@ -137,7 +137,7 @@ impl LJShape2 {
     /// # Example
     ///
     /// ```
-    /// # use packing::LJShape2;
+    /// # use crystal_packing::LJShape2;
     /// let shape = LJShape2::circle();
     /// # assert_eq!(shape.name, "circle");
     /// # assert_eq!(shape.items.len(), 1);

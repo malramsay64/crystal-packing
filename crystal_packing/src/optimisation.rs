@@ -8,128 +8,8 @@ use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand_pcg::Pcg64Mcg;
-use structopt::StructOpt;
 
 use crate::traits::*;
-
-#[derive(StructOpt, Debug, Clone, Copy)]
-pub struct BuildOptimiser {
-    /// The number of steps to run the Monte-Carlo Optimisation.
-    #[structopt(short, long, default_value = "100")]
-    steps: u64,
-
-    /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
-    /// a move can be yet still be accepted.
-    #[structopt(long, default_value = "0.1")]
-    kt_start: f64,
-
-    /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
-    /// a move can be yet still be accepted.
-    #[structopt(long)]
-    kt_finish: Option<f64>,
-
-    /// The ratio the temperature is reduced every inner_steps
-    #[structopt(long)]
-    kt_ratio: Option<f64>,
-
-    /// The maximum size of a Monte-Carlo move
-    #[structopt(long, default_value = "0.01")]
-    max_step_size: f64,
-
-    /// The number of steps to run before reducing the temperature. This also defines the number of
-    /// steps before the step size is updated.
-    #[structopt(long, default_value = "1000")]
-    inner_steps: u64,
-
-    /// This option is skipped on the command line and filled in when setting up the iterations.
-    #[structopt(skip)]
-    seed: Option<u64>,
-
-    /// The minimum change of the score within an inner loop. This is the indicator of convergence
-    /// which allows for an early exit.
-    #[structopt(long)]
-    convergence: Option<f64>,
-}
-
-impl Default for BuildOptimiser {
-    fn default() -> Self {
-        Self {
-            kt_start: 0.1,
-            kt_finish: Some(0.001),
-            kt_ratio: None,
-            max_step_size: 0.01,
-            steps: 1000,
-            inner_steps: 1000,
-            seed: None,
-            convergence: None,
-        }
-    }
-}
-
-impl BuildOptimiser {
-    pub fn kt_start(&mut self, kt_start: f64) -> &mut Self {
-        self.kt_start = kt_start;
-        self
-    }
-
-    pub fn kt_finish(&mut self, kt_finish: f64) -> &mut Self {
-        self.kt_finish = Some(kt_finish);
-        self
-    }
-
-    pub fn kt_ratio(&mut self, kt_ratio: Option<f64>) -> &mut Self {
-        self.kt_ratio = kt_ratio;
-        self
-    }
-
-    pub fn max_step_size(&mut self, max_step_size: f64) -> &mut Self {
-        self.max_step_size = max_step_size;
-        self
-    }
-
-    pub fn steps(&mut self, steps: u64) -> &mut Self {
-        self.steps = steps;
-        self
-    }
-
-    pub fn inner_steps(&mut self, inner_steps: u64) -> &mut Self {
-        self.inner_steps = inner_steps;
-        self
-    }
-
-    pub fn seed(&mut self, seed: u64) -> &mut Self {
-        self.seed = Some(seed);
-        self
-    }
-
-    pub fn convergence(&mut self, converged: Option<f64>) -> &mut Self {
-        self.convergence = converged;
-        self
-    }
-
-    pub fn build(&self) -> MCOptimiser {
-        let kt_ratio = match (self.kt_ratio, self.kt_finish) {
-            (Some(ratio), _) => 1. - ratio,
-            (None, Some(finish)) => f64::powf(finish / self.kt_start, 1. / self.steps as f64),
-            (None, None) => 0.1,
-        };
-        debug!("Setting kt_ratio to: {}", kt_ratio);
-        let seed = match self.seed {
-            None => Pcg64Mcg::from_entropy().gen(),
-            Some(x) => x,
-        };
-
-        MCOptimiser {
-            kt_start: self.kt_start,
-            kt_ratio,
-            max_step_size: self.max_step_size,
-            steps: self.steps,
-            inner_steps: u64::min(self.inner_steps, self.steps),
-            seed,
-            convergence: self.convergence,
-        }
-    }
-}
 
 pub struct MCOptimiser {
     kt_start: f64,
@@ -142,6 +22,26 @@ pub struct MCOptimiser {
 }
 
 impl MCOptimiser {
+    pub fn new(
+        kt_start: f64,
+        kt_ratio: f64,
+        max_step_size: f64,
+        steps: u64,
+        inner_steps: u64,
+        seed: u64,
+        convergence: Option<f64>,
+    ) -> MCOptimiser {
+        MCOptimiser {
+            kt_start,
+            kt_ratio,
+            max_step_size,
+            steps,
+            inner_steps,
+            seed,
+            convergence,
+        }
+    }
+
     #[inline]
     fn energy_surface(&self, new: f64, old: f64, kt: f64) -> f64 {
         f64::min(f64::exp((new - old) / kt), 1.)
@@ -190,6 +90,7 @@ impl MCOptimiser {
 
         let mut basis = state.generate_basis();
         let basis_distribution = Uniform::new(0, basis.len() as usize);
+        let step_distribution = Uniform::from(-0.5..0.5);
 
         let mut step_ratio = 1.;
         let mut convergence_count = 0;
@@ -203,12 +104,23 @@ impl MCOptimiser {
                 let basis_index: usize = basis_distribution.sample(&mut rng);
 
                 // Make a random modification to the selected basis
-                basis
+                let b = basis
                     .get_mut(basis_index)
                     // There was some error in accessing the basis,
                     // This should never occur in normal operation so panic and exit
-                    .expect("Trying to access basis which doesn't exist")
-                    .set_sampled(&mut rng, self.max_step_size * step_ratio);
+                    .expect("Trying to access basis which doesn't exist");
+
+                let val = b.get_value();
+
+                let new_val = val
+                    + self.max_step_size
+                        * step_ratio
+                        * b.scale()
+                        * step_distribution.sample(&mut rng);
+                if b.set_value(new_val).is_err() {
+                    loop_rejections += 1;
+                    continue;
+                }
 
                 // Check if modification was good
                 score_current = match self.accept_score(state.score(), score_current, kt, &mut rng)
@@ -216,12 +128,7 @@ impl MCOptimiser {
                     Some(score) => score,
                     // Score was rejected so we have to undo the change
                     None => {
-                        basis
-                            .get(basis_index)
-                            // There was some error in accessing the basis,
-                            // This should never occur in normal operation so panic and exit
-                            .expect("Trying to access basis which doesn't exist.")
-                            .reset_value();
+                        b.set_value(val).expect("Returning to original value");
                         // Increment counter of rejections
                         loop_rejections += 1;
                         score_current
@@ -276,8 +183,8 @@ impl MCOptimiser {
 #[cfg(test)]
 mod test {
     use super::*;
-    use approx::abs_diff_eq;
-    use quickcheck_macros::quickcheck;
+    use approx::assert_abs_diff_eq;
+    use proptest_attr_macro::proptest;
 
     static OPT: MCOptimiser = MCOptimiser {
         kt_start: 0.,
@@ -289,27 +196,27 @@ mod test {
         convergence: None,
     };
 
-    #[quickcheck]
-    fn test_energy_surface(new: f64, old: f64) -> bool {
+    #[proptest]
+    fn test_energy_surface(new: f64, old: f64) {
         let result = OPT.energy_surface(new, old, 0.);
         if new < old {
-            abs_diff_eq!(result, 0.)
+            assert_abs_diff_eq!(result, 0.)
         } else if new >= old {
-            abs_diff_eq!(result, 1.)
+            assert_abs_diff_eq!(result, 1.)
         } else {
-            false
+            panic!("This should not be reachable");
         }
     }
 
-    #[quickcheck]
-    fn test_energy_surface_temperature(new: f64, old: f64) -> bool {
+    #[proptest]
+    fn test_energy_surface_temperature(new: f64, old: f64) {
         let result = OPT.energy_surface(new, old, 0.5);
         if new < old {
-            0. < result && result < 1.
+            assert!((0. ..=1.).contains(&result));
         } else if new >= old {
-            abs_diff_eq!(result, 1.)
+            assert_abs_diff_eq!(result, 1.)
         } else {
-            false
+            panic!("This should not be reachable")
         }
     }
 }

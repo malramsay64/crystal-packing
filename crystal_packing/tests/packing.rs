@@ -6,10 +6,10 @@
 
 use anyhow::{anyhow, Error};
 
-use packing::traits::*;
-use packing::wallpaper::Wallpaper;
-use packing::wallpaper::WyckoffSite;
-use packing::{BuildOptimiser, CrystalFamily, LineShape, PackedState, Transform2};
+use crystal_packing::traits::*;
+use crystal_packing::wallpaper::Wallpaper;
+use crystal_packing::wallpaper::WyckoffSite;
+use crystal_packing::{CrystalFamily, LineShape, MCOptimiser, PackedState, Transform2};
 
 #[test]
 fn test_packing_improves() -> Result<(), Error> {
@@ -37,13 +37,7 @@ fn test_packing_improves() -> Result<(), Error> {
         .score()
         .ok_or_else(|| anyhow!("Invalid initial state"))?;
 
-    let opt = BuildOptimiser::default()
-        .seed(0)
-        .steps(1000)
-        .kt_start(0.)
-        .kt_ratio(Some(0.))
-        .max_step_size(0.001)
-        .build();
+    let opt = MCOptimiser::new(0., 0., 0.001, 1000, 100, 0, None);
 
     let final_state = opt.optimise_state(state);
 

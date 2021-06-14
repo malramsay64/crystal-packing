@@ -10,9 +10,11 @@ use anyhow::Error;
 use criterion::BenchmarkId;
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use packing::traits::*;
-use packing::wallpaper::{Wallpaper, WyckoffSite};
-use packing::{CrystalFamily, LineShape, MolecularShape2, OccupiedSite, PackedState, Transform2};
+use crystal_packing::traits::*;
+use crystal_packing::wallpaper::{Wallpaper, WyckoffSite};
+use crystal_packing::{
+    CrystalFamily, LineShape, MolecularShape2, OccupiedSite, PackedState, Transform2,
+};
 
 static BENCH_SIDES: &[usize] = &[4, 16, 64, 256];
 
@@ -122,30 +124,6 @@ fn create_shape_instance(c: &mut Criterion) {
     group.finish();
 }
 
-fn transform_mut_shape(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Mutable Transform Shape");
-
-    for &sides in BENCH_SIDES.iter() {
-        group.bench_function(BenchmarkId::new("Polygon", sides), |b| {
-            let trans = &Transform2::new(PI / 3., (0.2, -5.3));
-            let mut shape = LineShape::from_radial("Polygon", vec![1.; sides])
-                .expect("Creation of shape failed");
-            b.iter(|| shape.transform_mut(trans))
-        });
-    }
-    group.bench_function(BenchmarkId::new("Molecule", 1), |b| {
-        let mut shape = MolecularShape2::circle();
-        let trans = &Transform2::new(PI / 3., (0.2, -5.3));
-        b.iter(|| shape.transform_mut(trans))
-    });
-    group.bench_function(BenchmarkId::new("Molecule", 3), |b| {
-        let trans = &Transform2::new(PI / 3., (0.2, -5.3));
-        let mut shape = MolecularShape2::from_trimer(0.637_556, 180., 1.0);
-        b.iter(|| shape.transform_mut(trans))
-    });
-    group.finish();
-}
-
 fn site_positions(c: &mut Criterion) {
     let site = OccupiedSite::from_wyckoff(&WyckoffSite {
         letter: 'd',
@@ -175,8 +153,13 @@ fn state_modify_basis(c: &mut Criterion) {
         b.iter(|| {
             for _ in 0..1000 {
                 for value in basis.iter_mut() {
-                    value.set_value(value.get_value() + 0.1);
-                    value.reset_value();
+                    let val = value.get_value();
+
+                    if value.set_value(val - 0.01).is_ok() {
+                        value
+                            .set_value(val)
+                            .expect("Previous value should be valid");
+                    }
                 }
             }
         })
@@ -187,9 +170,7 @@ criterion_group!(
     intersections,
     shape_check_intersection,
     create_shape_instance,
-    transform_mut_shape,
     state_check_intersection,
-    site_positions,
 );
 
 criterion_group!(general, site_positions, state_modify_basis);
