@@ -203,9 +203,9 @@ mod test {
             assert_abs_diff_eq!(result, 0.)
         } else if new >= old {
             assert_abs_diff_eq!(result, 1.)
-        } else{
-        panic!("This should not be reachable");
-            }
+        } else {
+            panic!("This should not be reachable");
+        }
     }
 
     #[proptest]
