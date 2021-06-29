@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "crystal_packing",
-    "crystal_packing_cli",
+    "crystal-packing",
+    "crystal-packing-cli",
 ]
 
 [profile.release]
