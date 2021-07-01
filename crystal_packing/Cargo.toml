@@ -9,7 +9,7 @@ description = "Core library for packing shapes in an infinite crystal lattice."
 [dependencies]
 nalgebra = {version="~0.27.1", features=["serde-serialize"]}
 rand = "~0.8.0"
-rand_pcg = "0.3.0"
+rand_pcg = "0.3.1"
 log = "~0.4.8"
 itertools = "~0.10.0"
 serde = {version="~1.0.98", features=["derive"]}
