@@ -1,0 +1,22 @@
+[package]
+version = "0.1.0"
+name = "crystal-packing-wasm"
+repository = "https://github.com/malramsay64/crystal_packing"
+authors = ["Malcolm Ramsay <m@malramsay.com>"]
+description = "App Description"
+categories = ["category"]
+license = "MIT"
+readme = "./README.md"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+crystal_packing = {path = "../crystal-packing"}
+seed = "0.8.0"
+
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.18"
+
