@@ -109,7 +109,9 @@ impl ToSVG for Transform2 {
     type Value = element::Use;
 
     fn as_svg(&self) -> Self::Value {
-        let matrix: Matrix3<f64> = self.clone().into();
+        // The transform2 type is a copy type, so there is no need to clone it. By
+        // performing the derefence * we get the type which can be converted using into.
+        let matrix: Matrix3<f64> = (*self).into();
         element::Use::new().set(
             "transform",
             format!(
