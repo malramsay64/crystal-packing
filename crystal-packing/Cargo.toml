@@ -7,7 +7,7 @@ license = "MIT"
 description = "Core library for packing shapes in an infinite crystal lattice."
 
 [dependencies]
-nalgebra = {version="~0.27.1", features=["serde-serialize"]}
+nalgebra = {version="~0.29.0", features=["serde-serialize"]}
 rand = "~0.8.0"
 rand_pcg = "0.3.0"
 log = "~0.4.8"
