@@ -11,7 +11,7 @@ nalgebra = {version="~0.27.1", features=["serde-serialize"]}
 rand = "~0.8.0"
 rand_pcg = "0.3.0"
 log = "~0.4.8"
-itertools = "~0.10.0"
+itertools = "~0.10.3"
 serde = {version="~1.0.98", features=["derive"]}
 anyhow = "1.0"
 svg = "~0.10.0"
