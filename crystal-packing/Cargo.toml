@@ -12,7 +12,7 @@ rand = "~0.8.0"
 rand_pcg = "0.3.0"
 log = "~0.4.8"
 itertools = "~0.10.0"
-serde = {version="~1.0.98", features=["derive"]}
+serde = {version="~1.0.141", features=["derive"]}
 anyhow = "1.0"
 svg = "~0.10.0"
 
