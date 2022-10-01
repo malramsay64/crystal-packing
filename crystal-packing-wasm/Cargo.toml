@@ -18,5 +18,5 @@ seed = "0.8.0"
 
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.18"
+wasm-bindgen-test = "0.3.33"
 
