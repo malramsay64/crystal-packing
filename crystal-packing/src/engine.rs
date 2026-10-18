@@ -94,7 +94,8 @@ impl Structure {
 enum Undo {
     None,
     Site(usize, SiteState),
-    Lattice(Lattice, Mat2, Mat2, Vec2),
+    /// The lattice, its reduced basis and range, and whether the cell list was rebuilt
+    Lattice(Lattice, Mat2, Mat2, Vec2, bool),
 }
 
 #[derive(Debug, Clone)]
@@ -120,6 +121,10 @@ pub struct Packing<S: HardShape> {
     undo: Undo,
     /// The images by their position in the cell, so only nearby images are checked for overlaps
     cells: CellList,
+    /// The integer change of basis from the lattice to the reduced basis the cells use
+    cells_basis: [[i64; 2]; 2],
+    /// The cell list before it was last rebuilt, swapped back to undo a change of the lattice
+    saved_cells: (CellList, [[i64; 2]; 2]),
 }
 
 impl<S: HardShape> Packing<S> {
@@ -216,6 +221,8 @@ impl<S: HardShape> Packing<S> {
             images,
             undo: Undo::None,
             cells: CellList::default(),
+            cells_basis: [[0; 2]; 2],
+            saved_cells: (CellList::default(), [[0; 2]; 2]),
             reduced: Mat2::IDENTITY,
             reduced_inverse: Mat2::IDENTITY,
             range: Vec2::ZERO,
@@ -349,6 +356,7 @@ impl<S: HardShape> Packing<S> {
             self.reduced,
             self.reduced_inverse,
             self.range,
+            false,
         );
         std::mem::swap(&mut self.images, &mut self.saved);
         self.reduced = self.lattice.reduced_basis();
@@ -361,35 +369,75 @@ impl<S: HardShape> Packing<S> {
         for index in 0..self.sites.len() {
             self.update_site_images(index);
         }
-        self.rebuild_cells();
+        if self.refresh_cells() {
+            if let Undo::Lattice(.., rebuilt) = &mut self.undo {
+                *rebuilt = true;
+            }
+        }
     }
 
-    /// Divide the cell into a grid, in the fractional coordinates of the reduced basis, with
-    /// cells at least as wide as the contact distance
-    fn rebuild_cells(&mut self) {
+    /// Keep the cell list up to date after a change of the lattice, returning whether it was
+    /// rebuilt, with the previous one kept to be restored by an undo.
+    ///
+    /// The cells are in the fractional coordinates of the reduced basis, which don't change when
+    /// the lattice is compressed or sheared, so the cells stay correct without moving any image.
+    /// They only need rebuilding when they become narrower than the contact distance, when the
+    /// reduced basis is a different combination of the lattice vectors, or when a grid becomes
+    /// worth using, which happens only a few times through a compression.
+    fn refresh_cells(&mut self) -> bool {
         if !CellList::enough_items(self.num_shapes) {
+            // Most structures are too small for a grid, so they skip all of this
+            return false;
+        }
+        let (nx, ny) = self.cell_divisions();
+        let basis = self.reduction();
+        let keep = self.cells.still_fits(nx, ny, self.num_shapes)
+            && (!self.cells.is_enabled() || basis == self.cells_basis);
+        if keep {
+            return false;
+        }
+        std::mem::swap(&mut self.cells, &mut self.saved_cells.0);
+        std::mem::swap(&mut self.cells_basis, &mut self.saved_cells.1);
+        self.cells_basis = basis;
+        if CellList::useful(nx, ny, self.num_shapes) {
+            let sizes: Vec<usize> = self.images.iter().map(|images| images.len()).collect();
+            let (images, inverse) = (&self.images, self.reduced_inverse);
+            self.cells.rebuild(nx, ny, &sizes, |site, image| {
+                let f = inverse * images[site][image].centre;
+                (f.x, f.y)
+            });
+        } else {
             self.cells.disable();
-            return;
+        }
+        true
+    }
+
+    /// The largest grid of the cell, in the fractional coordinates of the reduced basis, with
+    /// cells at least as wide as the contact distance, or none for a small structure
+    fn cell_divisions(&self) -> (usize, usize) {
+        if !CellList::enough_items(self.num_shapes) {
+            return (0, 0);
         }
         let (u, v) = (self.reduced.column(0), self.reduced.column(1));
         let det = self.reduced.det().abs();
         // Lines of constant fractional x are parallel to v, so det / |v| apart, and similarly
-        // for y. The grid is limited to about four cells for each image, so a dilute structure
-        // doesn't have many empty cells.
+        // for y. Because the widths are measured across the cell, this holds for any angle, and
+        // the reduced basis keeps the angle between 60° and 120° so the cells stay compact. The
+        // grid is limited to about four cells for each image, so a dilute structure doesn't have
+        // many empty cells.
         let max = (2. * (self.num_shapes as f64).sqrt()).ceil() as usize;
-        let nx = CellList::divisions(det / v.norm(), self.contact, max);
-        let ny = CellList::divisions(det / u.norm(), self.contact, max);
-        if !CellList::useful(nx, ny, self.num_shapes) {
-            // Most structures are too small for a grid, so they skip building it
-            self.cells.disable();
-            return;
-        }
-        let sizes: Vec<usize> = self.images.iter().map(|images| images.len()).collect();
-        let (images, inverse) = (&self.images, self.reduced_inverse);
-        self.cells.rebuild(nx, ny, &sizes, |site, image| {
-            let f = inverse * images[site][image].centre;
-            (f.x, f.y)
-        });
+        (
+            CellList::divisions(det / v.norm(), self.contact, max),
+            CellList::divisions(det / u.norm(), self.contact, max),
+        )
+    }
+
+    /// The reduced basis as integer combinations of the lattice vectors
+    fn reduction(&self) -> [[i64; 2]; 2] {
+        let change = self.lattice.matrix.inverse() * self.reduced;
+        change
+            .m
+            .map(|row| row.map(|value| libm::round(value) as i64))
     }
 
     /// Move the images of a site to their cells
@@ -413,13 +461,16 @@ impl<S: HardShape> Packing<S> {
                 std::mem::swap(&mut self.images[index], &mut self.saved[index]);
                 self.update_site_cells(index);
             }
-            Undo::Lattice(lattice, reduced, reduced_inverse, range) => {
+            Undo::Lattice(lattice, reduced, reduced_inverse, range, rebuilt) => {
                 self.lattice = lattice;
                 self.reduced = reduced;
                 self.reduced_inverse = reduced_inverse;
                 self.range = range;
                 std::mem::swap(&mut self.images, &mut self.saved);
-                self.rebuild_cells();
+                if rebuilt {
+                    std::mem::swap(&mut self.cells, &mut self.saved_cells.0);
+                    std::mem::swap(&mut self.cells_basis, &mut self.saved_cells.1);
+                }
             }
         }
     }
@@ -787,6 +838,24 @@ mod test {
     }
 
     #[test]
+    fn cell_list_kept_through_compression() {
+        // The cells are in fractional coordinates, so a compression leaves them unchanged until
+        // it makes them narrower than the shapes, when they are rebuilt, which undo reverses
+        let mut packing = random_polygon_packing(5, "p1", &['a'; 30], 1, 1.);
+        assert!(packing.cells.is_enabled());
+        let before = packing.cells.clone();
+        let lattice = packing.lattice().scaled(0.999);
+        packing.set_lattice(lattice);
+        assert_eq!(packing.cells, before);
+        // Compressed from a packing fraction of about 0.004 to about 0.6
+        let lattice = packing.lattice().scaled(0.08);
+        packing.set_lattice(lattice);
+        assert_ne!(packing.cells, before);
+        packing.undo();
+        assert_eq!(packing.cells, before);
+    }
+
+    #[test]
     fn cell_list_used_for_large_cells() {
         // 30 independent pentagons at a low density use a grid, while a single site doesn't
         let packing = random_polygon_packing(5, "p1", &['a'; 30], 1, 1.);
@@ -979,6 +1048,41 @@ mod test {
                 // A site overlaps only if the structure does, and the site checks find them all
                 let any_site = (0..count).any(|i| packing.site_overlaps(i));
                 prop_assert_eq!(any_site, full);
+            }
+        }
+
+        #[test]
+        fn cell_list_with_sheared_cells(
+            seed in 0u64..10_000,
+            shear in -8f64..8.,
+            changes in prop::collection::vec((0.9f64..1.05, -0.3f64..0.3, any::<bool>()), 1..15),
+        ) {
+            // 30 independent pentagons in an oblique cell sheared far from rectangular, then
+            // compressed, expanded and sheared further, with changes undone at random
+            let mut packing = random_polygon_packing(5, "p1", &['a'; 30], seed, 0.7);
+            let p = packing.lattice().parameters();
+            packing.set_lattice(Lattice::from_parameters(
+                LatticeFamily::Oblique,
+                &[p[0], p[1] + shear * p[0], p[2]],
+            ));
+            prop_assume!(packing.cells.is_enabled());
+            // The cell itself is far from rectangular, though the cells use the reduced basis
+            if shear.abs() > 2. {
+                prop_assert!((packing.lattice().angle() - std::f64::consts::FRAC_PI_2).abs() > 1.);
+            }
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+            for (scale, extra, undo) in changes {
+                let p = packing.lattice().parameters();
+                packing.set_lattice(Lattice::from_parameters(
+                    LatticeFamily::Oblique,
+                    &[p[0] * scale, p[1] * scale + extra * p[0], p[2] * scale],
+                ));
+                if undo {
+                    packing.undo();
+                }
+                prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+                let any_site = (0..30).any(|i| packing.site_overlaps(i));
+                prop_assert_eq!(any_site, naive_overlap(&packing));
             }
         }
 

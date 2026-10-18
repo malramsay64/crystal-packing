@@ -217,7 +217,8 @@ impl Container {
 enum Undo {
     None,
     Shape(usize, Vec2, f64, Option<f64>),
-    Size(ContainerSize, Option<f64>),
+    /// The size, the area of a cluster, and whether the cell list was rebuilt
+    Size(ContainerSize, Option<f64>, bool),
 }
 
 /// A finite number of shapes inside a container.
@@ -241,9 +242,12 @@ pub struct Confined<S: HardShape> {
     /// The placed shapes before the last change, swapped back to undo it
     saved: Vec<S::Placed>,
     undo: Undo,
-    /// The shapes by position, in a grid covering `extent`, so only nearby shapes are checked
+    /// The shapes by position, in a grid covering `extent` of their positions relative to the
+    /// container, so only nearby shapes are checked
     cells: CellList,
     extent: (f64, f64),
+    /// The cell list before it was last rebuilt, swapped back to undo a change of size
+    saved_cells: (CellList, (f64, f64)),
 }
 
 impl<S: HardShape> Confined<S> {
@@ -291,7 +295,8 @@ impl<S: HardShape> Confined<S> {
             saved: vec![S::Placed::default(); n],
             undo: Undo::None,
             cells: CellList::default(),
-            extent: (1., 1.),
+            extent: (2., 2.),
+            saved_cells: (CellList::default(), (2., 2.)),
         };
         confined.set_size(confined.size);
         for _ in 0..200 {
@@ -326,7 +331,8 @@ impl<S: HardShape> Confined<S> {
             saved: vec![S::Placed::default(); n],
             undo: Undo::None,
             cells: CellList::default(),
-            extent: (1., 1.),
+            extent: (2., 2.),
+            saved_cells: (CellList::default(), (2., 2.)),
         };
         for (i, site) in structure.sites.iter().enumerate() {
             confined.set_shape(i, Vec2::new(site.x, site.y), site.angle);
@@ -397,13 +403,42 @@ impl<S: HardShape> Confined<S> {
     /// Change the size of the container, scaling the positions of the shapes with it. This can be
     /// undone with [`Confined::undo`].
     pub fn set_size(&mut self, size: ContainerSize) {
-        self.undo = Undo::Size(self.size, self.hull.get());
+        self.undo = Undo::Size(self.size, self.hull.get(), false);
         std::mem::swap(&mut self.placed, &mut self.saved);
         self.size = self.container.constrain(size);
         for index in 0..self.positions.len() {
             self.place(index);
         }
+        if self.refresh_cells() {
+            if let Undo::Size(.., rebuilt) = &mut self.undo {
+                *rebuilt = true;
+            }
+        }
+    }
+
+    /// Keep the cell list up to date after a change of size, returning whether it was rebuilt,
+    /// with the previous one kept to be restored by an undo.
+    ///
+    /// The cells are in positions relative to the size of the container, which don't change when
+    /// it is resized, so the cells stay correct until they become narrower than the contact
+    /// distance, or a grid becomes worth using, which happens only a few times.
+    fn refresh_cells(&mut self) -> bool {
+        if !CellList::enough_items(self.num_shapes()) {
+            return false;
+        }
+        let extent = if self.cells.is_enabled() {
+            self.extent
+        } else {
+            self.cell_extent()
+        };
+        let (nx, ny) = self.cell_divisions(extent);
+        if self.cells.still_fits(nx, ny, self.num_shapes()) {
+            return false;
+        }
+        std::mem::swap(&mut self.cells, &mut self.saved_cells.0);
+        std::mem::swap(&mut self.extent, &mut self.saved_cells.1);
         self.rebuild_cells();
+        true
     }
 
     /// Divide the container into a grid of cells at least as wide as the contact distance.
@@ -413,43 +448,56 @@ impl<S: HardShape> Confined<S> {
     /// and a cluster, which has no size, uses the extent of its shapes, which may later spread
     /// beyond it with the same effect.
     fn rebuild_cells(&mut self) {
-        if !CellList::enough_items(self.num_shapes()) {
-            self.cells.disable();
-            return;
-        }
-        self.extent = if self.container.is_cluster() {
-            let n = self.num_shapes();
-            let (lo, hi) = (0..n).map(|i| self.position(i)).fold(
-                (
-                    Vec2::new(f64::INFINITY, f64::INFINITY),
-                    -Vec2::new(f64::INFINITY, f64::INFINITY),
-                ),
-                |(lo, hi), p| {
-                    (
-                        Vec2::new(lo.x.min(p.x), lo.y.min(p.y)),
-                        Vec2::new(hi.x.max(p.x), hi.y.max(p.y)),
-                    )
-                },
-            );
-            (hi.x - lo.x + self.contact, hi.y - lo.y + self.contact)
-        } else {
-            (self.size.width, self.size.height)
-        };
-        let max = (2. * (self.num_shapes() as f64).sqrt()).ceil() as usize;
-        let nx = CellList::divisions(self.extent.0, self.contact, max);
-        let ny = CellList::divisions(self.extent.1, self.contact, max);
-        if !CellList::useful(nx, ny, self.num_shapes()) {
-            self.cells.disable();
-            return;
-        }
+        self.extent = self.cell_extent();
+        let (nx, ny) = self.cell_divisions(self.extent);
         let n = self.num_shapes();
+        if !CellList::useful(nx, ny, n) {
+            self.cells.disable();
+            return;
+        }
         let positions: Vec<(f64, f64)> = (0..n).map(|i| self.grid_position(i)).collect();
         self.cells.rebuild(nx, ny, &[n], |_, i| positions[i]);
     }
 
+    /// The extent of the grid, in positions relative to the size of the container, which are
+    /// fractions of its half width and half height
+    fn cell_extent(&self) -> (f64, f64) {
+        if !self.container.is_cluster() {
+            return (2., 2.);
+        }
+        let inf = f64::INFINITY;
+        let (lo, hi) = self.positions.iter().fold(
+            (Vec2::new(inf, inf), Vec2::new(-inf, -inf)),
+            |(lo, hi), p| {
+                (
+                    Vec2::new(lo.x.min(p.x), lo.y.min(p.y)),
+                    Vec2::new(hi.x.max(p.x), hi.y.max(p.y)),
+                )
+            },
+        );
+        (
+            hi.x - lo.x + 2. * self.contact / self.size.width,
+            hi.y - lo.y + 2. * self.contact / self.size.height,
+        )
+    }
+
+    /// The largest grid over an extent with cells at least as wide as the contact distance, or
+    /// none for a small number of shapes
+    fn cell_divisions(&self, extent: (f64, f64)) -> (usize, usize) {
+        let n = self.num_shapes();
+        if !CellList::enough_items(n) {
+            return (0, 0);
+        }
+        let max = (2. * (n as f64).sqrt()).ceil() as usize;
+        (
+            CellList::divisions(0.5 * extent.0 * self.size.width, self.contact, max),
+            CellList::divisions(0.5 * extent.1 * self.size.height, self.contact, max),
+        )
+    }
+
     /// The position of a shape as a fraction of the extent of the grid
     fn grid_position(&self, index: usize) -> (f64, f64) {
-        let p = self.position(index);
+        let p = self.positions[index];
         (p.x / self.extent.0, p.y / self.extent.1)
     }
 
@@ -490,11 +538,14 @@ impl<S: HardShape> Confined<S> {
                 self.hull.set(hull);
                 self.update_cell(index);
             }
-            Undo::Size(size, hull) => {
+            Undo::Size(size, hull, rebuilt) => {
                 self.size = size;
                 std::mem::swap(&mut self.placed, &mut self.saved);
                 self.hull.set(hull);
-                self.rebuild_cells();
+                if rebuilt {
+                    std::mem::swap(&mut self.cells, &mut self.saved_cells.0);
+                    std::mem::swap(&mut self.extent, &mut self.saved_cells.1);
+                }
             }
         }
     }
@@ -605,6 +656,8 @@ impl<S: HardShape> Confined<S> {
             *p -= mean;
         }
         self.set_size(self.size);
+        // Every position changed
+        self.rebuild_cells();
     }
 
     /// Every placed shape, as (index, centre, orientation, placed shape), used for rendering
@@ -676,6 +729,8 @@ impl<S: HardShape> ConfinedOptimiser<S> {
         self.confined.positions = snapshot.0.clone();
         self.confined.angles = snapshot.1.clone();
         self.confined.set_size(snapshot.2);
+        // Every position changed
+        self.confined.rebuild_cells();
     }
 
     fn update_best(&mut self) {
@@ -1037,6 +1092,31 @@ mod test {
         container.height *= 0.95;
         structure.packing_fraction /= 0.95 * 0.95;
         assert!(validate_confined(&disk, &structure).is_err());
+    }
+
+    #[test]
+    fn cell_list_kept_through_resizing() {
+        let size = ContainerSize {
+            width: 15.,
+            height: 15.,
+        };
+        for container in [Container::Square, Container::Strip, Container::Cluster] {
+            let mut confined = random(Molecule::disk(), container, 30, size, 0);
+            assert!(confined.cells.is_enabled(), "{:?}", container);
+            let before = confined.cells.clone();
+            confined.set_size(ContainerSize {
+                width: 14.9,
+                height: 14.9,
+            });
+            assert_eq!(confined.cells, before, "{:?}", container);
+            confined.set_size(ContainerSize {
+                width: 7.,
+                height: 7.,
+            });
+            assert_ne!(confined.cells, before, "{:?}", container);
+            confined.undo();
+            assert_eq!(confined.cells, before, "{:?}", container);
+        }
     }
 
     #[test]

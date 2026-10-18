@@ -22,7 +22,7 @@ const MIN_CELLS: usize = 3;
 /// quicker than looking through the neighbouring cells
 const MIN_ITEMS: usize = 12;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct CellList {
     /// The number of cells in each direction, or zero when disabled
     nx: usize,
@@ -105,10 +105,32 @@ impl CellList {
         self.nx > 0
     }
 
+    /// Whether the current grid can be kept when the largest numbers of cells which are still at
+    /// least the contact distance wide become `nx` and `ny`.
+    ///
+    /// The cells must stay wide enough, and the grid is rebuilt when it could have twice as many
+    /// cells in a direction, so it doesn't stay coarse after an expansion. A disabled grid is kept
+    /// while a grid still wouldn't be useful.
+    pub(crate) fn still_fits(&self, nx: usize, ny: usize, items: usize) -> bool {
+        if self.is_enabled() {
+            self.nx <= nx && self.ny <= ny && 2 * self.nx > nx && 2 * self.ny > ny
+        } else {
+            !CellList::useful(nx, ny, items)
+        }
+    }
+
     /// The cell containing a fractional position, wrapped into the grid
     fn cell(&self, x: f64, y: f64) -> usize {
-        let wrap = |f: f64, n: usize| ((f - libm::floor(f)) * n as f64).min(n as f64 - 1.) as usize;
-        wrap(y, self.ny) * self.nx + wrap(x, self.nx)
+        self.index(y, self.ny) * self.nx + self.index(x, self.nx)
+    }
+
+    /// The index of a fractional coordinate wrapped into n cells
+    fn index(&self, f: f64, n: usize) -> usize {
+        // The integer below f, by truncation corrected for negative values, which is exact and
+        // much quicker than a call to floor
+        let t = f as i64 as f64;
+        let floor = if t > f { t - 1. } else { t };
+        ((f - floor) * n as f64).min(n as f64 - 1.) as usize
     }
 
     /// Move an item to the cell of its new fractional position

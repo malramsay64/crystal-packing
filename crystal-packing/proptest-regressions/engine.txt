@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 25718b4652cd257599903e1ff2b54abd6ce86992a8c8f9280cc87110d20039bc # shrinks to seed = 0, scale = 0.2
+cc b99015521f0de5215a3fdfc4d02433e6857b732ac42ffd6380a42132088be221 # shrinks to seed = 0, shear = -7.320962471256029, changes = [(0.9, 0.0, false)]
