@@ -1,6 +1,7 @@
-// Drive searches over the plane groups, running the jobs of each round on a pool of workers, and
-// animate the optimisation of a single candidate.
-import init, { WasmSearch, renderSvg, version } from "./pkg/crystal_packing_wasm.js";
+// Drive searches over the plane groups, running the jobs of each round on a pool of workers and
+// showing every optimiser as it runs, animate the optimisation of a single candidate, and draw
+// arbitrary shapes to pack.
+import init, { WasmSearch, renderSvg, shapeInfo, version } from "./pkg/crystal_packing_wasm.js";
 
 const form = document.querySelector("#controls");
 const status = document.querySelector("#status");
@@ -9,11 +10,135 @@ const buttons = {
   search: document.querySelector("#search"),
   survey: document.querySelector("#survey"),
   watch: document.querySelector("#watch"),
+  unconstrained: document.querySelector("#unconstrained"),
   stop: document.querySelector("#stop"),
 };
+const runButtons = [buttons.search, buttons.survey, buttons.watch, buttons.unconstrained];
 
 let workers = [];
 let cancelled = false;
+let running = false;
+// The shape and results of the latest search, kept so the results can be filtered again
+let lastSearch = null;
+
+// --- Drawing a shape -------------------------------------------------------------------------
+
+const drawArea = document.querySelector("#draw-area");
+const drawStatus = document.querySelector("#draw-status");
+let drawnVertices = [];
+let drawnValid = false;
+
+/// The vertices moved so the area centroid is at the origin
+function centred(vertices) {
+  let area = 0;
+  let cx = 0;
+  let cy = 0;
+  vertices.forEach(([x0, y0], i) => {
+    const [x1, y1] = vertices[(i + 1) % vertices.length];
+    const cross = x0 * y1 - x1 * y0;
+    area += cross / 2;
+    cx += ((x0 + x1) * cross) / 6;
+    cy += ((y0 + y1) * cross) / 6;
+  });
+  if (Math.abs(area) < 1e-12) return vertices;
+  return vertices.map(([x, y]) => [x - cx / area, y - cy / area]);
+}
+
+function drawnShape() {
+  return { type: "vertices", name: "Drawn", vertices: centred(drawnVertices) };
+}
+
+function validateDrawing() {
+  if (drawnVertices.length < 3) {
+    drawnValid = false;
+    drawStatus.textContent = "Add at least three vertices";
+    return;
+  }
+  try {
+    const info = JSON.parse(shapeInfo(JSON.stringify(drawnShape())));
+    drawnValid = true;
+    drawStatus.textContent = `Valid polygon, ${drawnVertices.length} vertices, area ${info.area.toFixed(3)}, ${info.convex ? "convex" : "concave"}, ${info.rotations}-fold rotation, ${info.mirrors} mirror${info.mirrors === 1 ? "" : "s"}`;
+  } catch (error) {
+    drawnValid = false;
+    drawStatus.textContent = `Invalid shape: ${error.message ?? error}`;
+  }
+}
+
+function renderDrawing() {
+  const grid = [];
+  for (let i = -20; i <= 20; i += 1) {
+    const v = i / 10;
+    grid.push(`<line class="${i === 0 ? "axis" : "grid"}" x1="${v}" y1="-2" x2="${v}" y2="2" />`);
+    grid.push(`<line class="${i === 0 ? "axis" : "grid"}" x1="-2" y1="${v}" x2="2" y2="${v}" />`);
+  }
+  const points = drawnVertices.map(([x, y]) => `${x},${-y}`).join(" ");
+  const vertices = drawnVertices
+    .map(([x, y], i) => `<circle data-index="${i}" cx="${x}" cy="${-y}" r="0.05" />`)
+    .join("");
+  const shape = drawnVertices.length >= 2 ? `<polygon class="${drawnValid ? "" : "invalid"}" points="${points}" />` : "";
+  drawArea.innerHTML = grid.join("") + shape + vertices;
+}
+
+function updateDrawing() {
+  validateDrawing();
+  renderDrawing();
+  updateButtons();
+}
+
+/// The position of a pointer event in the drawing coordinates, with y upwards
+function drawingPoint(event) {
+  const matrix = drawArea.getScreenCTM().inverse();
+  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix);
+  let [x, y] = [point.x, -point.y];
+  if (document.querySelector("input[name=snap]").checked) {
+    [x, y] = [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+  }
+  return [x, y];
+}
+
+let dragging = null;
+let moved = false;
+drawArea.addEventListener("pointerdown", (event) => {
+  const index = event.target.dataset?.index;
+  if (index !== undefined) {
+    dragging = Number(index);
+    moved = false;
+    drawArea.setPointerCapture(event.pointerId);
+  }
+});
+drawArea.addEventListener("pointermove", (event) => {
+  if (dragging === null) return;
+  moved = true;
+  drawnVertices[dragging] = drawingPoint(event);
+  updateDrawing();
+});
+drawArea.addEventListener("pointerup", (event) => {
+  if (dragging !== null) {
+    dragging = null;
+    return;
+  }
+  if (event.target.dataset?.index === undefined) {
+    drawnVertices.push(drawingPoint(event));
+    updateDrawing();
+  }
+});
+drawArea.addEventListener("dblclick", (event) => {
+  const index = event.target.dataset?.index;
+  if (index !== undefined && !moved) {
+    drawnVertices.splice(Number(index), 1);
+    updateDrawing();
+  }
+});
+document.querySelector("#draw-undo").addEventListener("click", () => {
+  drawnVertices.pop();
+  updateDrawing();
+});
+document.querySelector("#draw-clear").addEventListener("click", () => {
+  drawnVertices = [];
+  updateDrawing();
+});
+
+// --- Shapes and configuration ----------------------------------------------------------------
 
 function shapeSpec(data) {
   switch (data.get("shape")) {
@@ -26,6 +151,8 @@ function shapeSpec(data) {
         angle: Number(data.get("angle")),
         distance: Number(data.get("distance")),
       };
+    case "drawn":
+      return drawnShape();
     default:
       return { type: "polygon", sides: Number(data.get("sides")) };
   }
@@ -49,6 +176,22 @@ function searchConfig(data, strategy) {
   return config;
 }
 
+function updateButtons() {
+  const drawing = form.elements.shape.value === "drawn";
+  document.querySelector("#draw-section").hidden = !drawing;
+  for (const button of runButtons) button.disabled = running || (drawing && !drawnValid);
+  buttons.stop.disabled = !running;
+}
+
+form.elements.shape.addEventListener("change", updateButtons);
+
+function setRunning(state) {
+  running = state;
+  updateButtons();
+}
+
+// --- Display helpers -------------------------------------------------------------------------
+
 function label(candidate) {
   return `${candidate.group}:${candidate.sites.join("")}`;
 }
@@ -63,12 +206,15 @@ function cell(row, value) {
   row.append(td);
 }
 
-function setRunning(running) {
-  buttons.search.disabled = running;
-  buttons.survey.disabled = running;
-  buttons.watch.disabled = running;
-  buttons.stop.disabled = !running;
+function score(structure) {
+  return structure.energy != null ? -structure.energy : structure.packing_fraction;
 }
+
+function percentBelow(structure, best) {
+  return (100 * (score(best) - score(structure))) / Math.abs(score(best));
+}
+
+// --- Workers ---------------------------------------------------------------------------------
 
 function startPool(size) {
   workers = Array.from({ length: size }, () => new Worker("./worker.js", { type: "module" }));
@@ -79,8 +225,47 @@ function stopPool() {
   workers = [];
 }
 
+/// A tile for each worker showing the job it is running as it is optimised
+function createTiles() {
+  const live = document.querySelector("#live");
+  document.querySelector("#live-section").hidden = false;
+  live.replaceChildren(
+    ...workers.map((_, i) => {
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.dataset.frames = "0";
+      tile.innerHTML = `<strong>Worker ${i + 1}</strong><div class="view"></div><p class="caption muted">Waiting</p>`;
+      return tile;
+    }),
+  );
+  return [...live.querySelectorAll(".tile")];
+}
+
+/// Draw the latest structure of each tile once per animation frame
+function tileRenderer(shape, tiles) {
+  const pending = new Map();
+  let scheduled = false;
+  const draw = () => {
+    scheduled = false;
+    for (const [index, { job, progress, structure }] of pending) {
+      const tile = tiles[index];
+      tile.querySelector(".view").innerHTML = renderSvg(JSON.stringify(shape), JSON.stringify(structure), 1);
+      tile.querySelector(".caption").textContent = `${label(job.candidate)}: φ ${progress.packing_fraction.toFixed(4)}, step ${progress.steps} of ${progress.total_steps}`;
+      tile.dataset.frames = String(Number(tile.dataset.frames) + 1);
+    }
+    pending.clear();
+  };
+  return (index, update) => {
+    pending.set(index, update);
+    if (!scheduled) {
+      scheduled = true;
+      requestAnimationFrame(draw);
+    }
+  };
+}
+
 // Run the jobs on the pool, resolving with the outcomes in the order of the jobs
-function runJobs(jobs, onProgress) {
+function runJobs(jobs, onProgress, onFrame) {
   return new Promise((resolve) => {
     const outcomes = new Array(jobs.length);
     let next = 0;
@@ -88,12 +273,17 @@ function runJobs(jobs, onProgress) {
     const dispatch = (worker) => {
       if (cancelled || next >= jobs.length) return;
       const id = next++;
-      worker.postMessage({ id, job: jobs[id] });
+      worker.postMessage({ id, job: jobs[id], frames: 20 });
     };
-    for (const worker of workers) {
+    workers.forEach((worker, index) => {
       worker.onmessage = (event) => {
         const { id, type } = event.data;
-        if (type !== "done") return;
+        if (type === "progress") {
+          if (event.data.structure) {
+            onFrame(index, { job: jobs[id], progress: event.data.progress, structure: event.data.structure });
+          }
+          return;
+        }
         outcomes[id] = event.data.outcome;
         finished += 1;
         onProgress(finished, jobs.length);
@@ -104,39 +294,48 @@ function runJobs(jobs, onProgress) {
         }
       };
       dispatch(worker);
-    }
+    });
   });
 }
 
-function showRanking(results) {
-  const body = document.querySelector("#ranking tbody");
-  body.replaceChildren(
-    ...results.slice(0, 15).map((result, index) => {
+// --- Results ---------------------------------------------------------------------------------
+
+/// Show every result within the chosen percentage of the best, best first
+function showResults() {
+  if (!lastSearch) return;
+  const { shape, ranking } = lastSearch;
+  const data = new FormData(form);
+  const within = Number(data.get("within"));
+  const limit = data.get("max_results") ? Number(data.get("max_results")) : Infinity;
+  const found = ranking.filter((r) => r.best);
+  if (!found.length) return;
+  const best = found[0].best;
+  const threshold = score(best) - (within / 100) * Math.abs(score(best));
+  const near = found.filter((r) => score(r.best) >= threshold - 1e-12);
+  const shown = near.slice(0, limit);
+
+  const title = document.querySelector("#results-title");
+  title.dataset.count = String(near.length);
+  title.dataset.candidates = String(ranking.length);
+  const limited = shown.length < near.length ? `, showing the best ${shown.length}` : "";
+  title.textContent = `${near.length} of ${ranking.length} results within ${within}% of the best${limited}`;
+  document.querySelector("#results tbody").replaceChildren(
+    ...shown.map((result, index) => {
       const row = document.createElement("tr");
+      row.dataset.phi = String(result.best.packing_fraction);
+      row.dataset.label = label(result.candidate);
       cell(row, index + 1);
       cell(row, label(result.candidate));
-      cell(row, result.best ? result.best.packing_fraction.toFixed(5) : "—");
+      cell(row, result.best.packing_fraction.toFixed(5));
       cell(row, formatEnergy(result.best));
-      cell(row, result.best ? result.best.num_shapes : "—");
+      cell(row, percentBelow(result.best, best).toFixed(2));
+      cell(row, result.best.num_shapes);
       return row;
     }),
   );
-}
-
-function score(structure) {
-  return structure.energy != null ? -structure.energy : structure.packing_fraction;
-}
-
-function percentBelow(structure, best) {
-  return (100 * (score(best) - score(structure))) / Math.abs(score(best));
-}
-
-function showNearBest(shape, near, best, within) {
   document.querySelector("#near-section").hidden = false;
-  document.querySelector("#near-title").textContent =
-    `${near.length} structure${near.length === 1 ? "" : "s"} within ${within}% of the best`;
   document.querySelector("#near-best").replaceChildren(
-    ...near.map((result) => {
+    ...shown.map((result) => {
       const card = document.createElement("div");
       card.className = "card";
       card.dataset.phi = result.best.packing_fraction;
@@ -148,6 +347,11 @@ function showNearBest(shape, near, best, within) {
       return card;
     }),
   );
+}
+
+for (const name of ["within", "max_results"]) {
+  form.elements[name].addEventListener("change", showResults);
+  form.elements[name].addEventListener("input", showResults);
 }
 
 function showGroups(perGroup, best) {
@@ -166,35 +370,43 @@ function showGroups(perGroup, best) {
   );
 }
 
-async function search(strategy) {
+// --- Searching -------------------------------------------------------------------------------
+
+async function search(strategy, extra = {}) {
   const data = new FormData(form);
   const shape = shapeSpec(data);
-  const within = Number(data.get("within"));
   let searcher;
   try {
-    searcher = new WasmSearch(JSON.stringify(shape), JSON.stringify(searchConfig(data, strategy)));
+    const config = { ...searchConfig(data, strategy), ...extra };
+    searcher = new WasmSearch(JSON.stringify(shape), JSON.stringify(config));
   } catch (error) {
-    status.textContent = `Error: ${error}`;
+    status.textContent = `Error: ${error.message ?? error}`;
     return;
   }
   cancelled = false;
   delete document.body.dataset.result;
   setRunning(true);
   startPool(navigator.hardwareConcurrency || 4);
+  const tiles = createTiles();
+  const onFrame = tileRenderer(shape, tiles);
   document.querySelector("#results-section").hidden = false;
   document.querySelector("#groups-section").hidden = true;
-  document.querySelector("#near-section").hidden = true;
   const start = performance.now();
 
   while (!searcher.isFinished() && !cancelled) {
     const jobs = JSON.parse(searcher.jobs());
     status.textContent = `Round ${searcher.round() + 1} (${searcher.phase()}): ${searcher.numActive()} of ${searcher.numCandidates()} candidates`;
-    const outcomes = await runJobs(jobs, (done, total) => {
-      progressBar.value = done / total;
-    });
+    const outcomes = await runJobs(
+      jobs,
+      (done, total) => {
+        progressBar.value = done / total;
+      },
+      onFrame,
+    );
     if (cancelled) break;
     searcher.submit(JSON.stringify(outcomes));
-    showRanking(JSON.parse(searcher.ranking()));
+    lastSearch = { shape, ranking: JSON.parse(searcher.ranking()) };
+    showResults();
     const best = JSON.parse(searcher.best());
     if (best) {
       document.querySelector("#structure").innerHTML = renderSvg(JSON.stringify(shape), JSON.stringify(best), 1);
@@ -210,8 +422,9 @@ async function search(strategy) {
     const seconds = ((performance.now() - start) / 1000).toFixed(1);
     const summary = best.energy != null ? `Lowest energy ${best.energy.toFixed(6)}, packing fraction` : "Best packing fraction";
     status.textContent = `${summary} ${best.packing_fraction.toFixed(6)} in ${best.group} (${best.sites.map((s) => s.letter).join("")}) after ${seconds} s`;
-    showNearBest(shape, JSON.parse(searcher.nearBest(within)), best, within);
-    if (strategy === "exhaustive") showGroups(JSON.parse(searcher.bestPerGroup()), best);
+    if (strategy === "exhaustive" && !extra.unconstrained) {
+      showGroups(JSON.parse(searcher.bestPerGroup()), best);
+    }
     document.body.dataset.result = JSON.stringify(best);
   }
   searcher.free();
@@ -287,7 +500,7 @@ async function watch() {
         resolve(event.data.outcome);
       }
     };
-    workers[0].postMessage({ id: 0, job, watch: true });
+    workers[0].postMessage({ id: 0, job, frames: 100 });
   });
   stopPool();
   setRunning(false);
@@ -300,9 +513,18 @@ async function watch() {
   }
 }
 
+function unconstrained() {
+  const counts = String(new FormData(form).get("unconstrained_shapes"))
+    .split(",")
+    .map((n) => Number(n.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  search("exhaustive", { unconstrained: counts });
+}
+
 buttons.search.addEventListener("click", () => search("halving"));
 buttons.survey.addEventListener("click", () => search("exhaustive"));
 buttons.watch.addEventListener("click", watch);
+buttons.unconstrained.addEventListener("click", unconstrained);
 buttons.stop.addEventListener("click", () => {
   cancelled = true;
   stopPool();
@@ -311,4 +533,5 @@ buttons.stop.addEventListener("click", () => {
 
 await init();
 document.querySelector("#version").textContent = version();
+updateDrawing();
 document.body.dataset.ready = "true";

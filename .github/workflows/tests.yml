@@ -24,6 +24,8 @@ jobs:
         run: cargo test --release -p crystal_packing --test regression -- --ignored --nocapture
       - name: Run adversarial shapes
         run: cargo test --release -p crystal_packing --test adversarial -- --ignored --nocapture
+      - name: Run unconstrained packings
+        run: cargo test --release -p crystal_packing --test unconstrained -- --ignored --nocapture
 
   wasm:
     name: WebAssembly

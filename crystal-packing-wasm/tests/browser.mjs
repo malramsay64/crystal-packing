@@ -41,35 +41,70 @@ try {
     console.error(`Page error: ${error}`);
     failed = true;
   });
+  page.setDefaultTimeout(120_000);
   await page.goto(url);
   await page.waitForSelector("body[data-ready=true]");
 
-  // A search, which should list every structure close to the best
-  await page.fill("input[name=sides]", "4");
-  await page.fill("input[name=groups]", "p1,p2,p4,p4mm");
-  await page.fill("input[name=steps]", "3000");
+  // Results within a configurable percentage of the best, best first
+  async function results() {
+    return page.$$eval("#results tbody tr", (rows) => rows.map((row) => Number(row.dataset.phi)));
+  }
+  async function resultCount() {
+    return Number(await page.getAttribute("#results-title", "data-count"));
+  }
+
+  // A search, with every optimiser shown as it runs
+  await page.selectOption("select[name=shape]", "polygon");
+  await page.fill("input[name=sides]", "5");
+  await page.fill("input[name=groups]", "");
+  await page.fill("input[name=steps]", "4000");
   await page.fill("input[name=replicas]", "2");
   await page.fill("input[name=within]", "2");
   await page.click("#search");
-  await page.waitForSelector("body[data-result]", { timeout: 120_000 });
-  const result = JSON.parse(await page.getAttribute("body", "data-result"));
-  console.log(await page.textContent("#status"));
-  check(result.packing_fraction > 0.99, "Expected squares to fill space");
-  check(await page.$("#structure svg"), "Expected the best structure to be rendered");
-  const cards = await page.$$eval("#near-best .card", (cards) =>
-    cards.map((card) => ({ phi: Number(card.dataset.phi), svg: !!card.querySelector("svg") })),
+  await page.waitForFunction(
+    () => {
+      const tiles = [...document.querySelectorAll("#live .tile")];
+      return tiles.length > 0 && tiles.every((tile) => Number(tile.dataset.frames) > 0);
+    },
+    null,
+    { timeout: 60_000 },
   );
-  console.log(`${cards.length} structures within 2% of the best`);
-  check(cards.length >= 1, "Expected at least one structure near the best");
-  check(cards.every((card) => card.svg), "Every structure near the best is drawn");
+  const tiles = await page.$$eval("#live .tile", (tiles) => tiles.length);
+  const workers = await page.evaluate(() => navigator.hardwareConcurrency || 4);
+  console.log(`${tiles} live optimisers for ${workers} workers`);
+  check(tiles === workers, "Expected a live view of every worker");
+  await page.waitForSelector("body[data-result]", { timeout: 300_000 });
+  const best = JSON.parse(await page.getAttribute("body", "data-result"));
+  console.log(await page.textContent("#status"));
+  check(Math.abs(best.packing_fraction - 0.921311) < 1e-3, "Expected the pentagon double lattice");
+
+  let phis = await results();
+  console.log(`${phis.length} results within 2%: ${phis.map((p) => p.toFixed(5)).join(", ")}`);
+  check(phis.length === (await resultCount()), "Every result within 2% is listed");
+  check(phis.length >= 1, "Expected at least one result");
+  check(phis.every((p, i) => i === 0 || p <= phis[i - 1]), "Results are ordered best first");
+  check(phis.every((p) => p >= 0.98 * best.packing_fraction - 1e-9), "Results are within 2%");
   check(
-    cards.every((card) => card.phi >= 0.98 * result.packing_fraction - 1e-9),
-    "Structures near the best are within 2%",
+    (await page.$$("#near-best .card")).length === phis.length,
+    "Every result within 2% is drawn",
   );
 
+  // Changing the tolerance and limit updates the results without searching again
+  await page.fill("input[name=within]", "100");
+  await page.dispatchEvent("input[name=within]", "change");
+  phis = await results();
+  const candidates = Number(await page.getAttribute("#results-title", "data-candidates"));
+  check(phis.length === candidates, `Expected all ${candidates} candidates within 100%, found ${phis.length}`);
+  check(phis.every((p, i) => i === 0 || p <= phis[i - 1]), "All results are ordered best first");
+  await page.fill("input[name=max_results]", "3");
+  await page.dispatchEvent("input[name=max_results]", "change");
+  check((await results()).length === 3, "The number of results can be limited");
+  check((await page.textContent("#results-title")).includes("showing the best 3"), "The limit is reported");
+  await page.fill("input[name=max_results]", "");
+  await page.fill("input[name=within]", "2");
+  await page.dispatchEvent("input[name=within]", "change");
+
   // Watch a single optimisation, which should animate the structure and plot its progress
-  await page.selectOption("select[name=shape]", "polygon");
-  await page.fill("input[name=sides]", "5");
   await page.fill("input[name=watch_group]", "p2");
   await page.fill("input[name=watch_sites]", "e");
   await page.fill("input[name=steps]", "20000");
@@ -84,7 +119,50 @@ try {
   check(frames >= 5, "Expected the structure to be drawn as it is optimised");
   check(points >= 5, "Expected the packing fraction to be plotted");
   check(watched.packing_fraction > 0.85, "Expected the pentagons to compress");
-  check(await page.$("#watch-view svg"), "Expected the final structure to be drawn");
+
+  // Draw a shape by clicking, which is checked as it is drawn
+  async function draw(points) {
+    await page.click("#draw-clear");
+    // Convert from the drawing coordinates (y upwards) to the page using the SVG's transform
+    const screen = await page.evaluate((points) => {
+      const area = document.querySelector("#draw-area");
+      const matrix = area.getScreenCTM();
+      return points.map(([x, y]) => {
+        const p = new DOMPoint(x, -y).matrixTransform(matrix);
+        return [p.x, p.y];
+      });
+    }, points);
+    for (const [x, y] of screen) {
+      await page.mouse.click(x, y);
+    }
+  }
+  await page.selectOption("select[name=shape]", "drawn");
+  await draw([[0, 0], [1.5, 1.5], [1.5, 0], [0, 1.2]]);
+  const invalid = await page.textContent("#draw-status");
+  console.log(`Bow tie: ${invalid}`);
+  check(invalid.includes("not simple"), "A self-intersecting shape is rejected");
+  check(await page.isDisabled("#search"), "Searching is disabled for an invalid shape");
+
+  await draw([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]);
+  const valid = await page.textContent("#draw-status");
+  console.log(`Square: ${valid}`);
+  check(valid.includes("4 vertices") && valid.includes("area 1.000") && valid.includes("4-fold"), "The drawn square is valid");
+  await page.fill("input[name=groups]", "p1,p2");
+  await page.fill("input[name=steps]", "3000");
+  await page.click("#search");
+  await page.waitForSelector("body[data-result]", { timeout: 120_000 });
+  const drawn = JSON.parse(await page.getAttribute("body", "data-result"));
+  console.log(`Drawn square: ${drawn.packing_fraction}`);
+  check(drawn.packing_fraction > 0.99, "Expected the drawn square to fill space");
+
+  // Independent shapes without symmetry in a periodic cell
+  await page.fill("input[name=unconstrained_shapes]", "1,2");
+  await page.click("#unconstrained");
+  await page.waitForSelector("body[data-result]", { timeout: 120_000 });
+  const free = JSON.parse(await page.getAttribute("body", "data-result"));
+  const counts = await page.$$eval("#results tbody tr", (rows) => rows.map((row) => row.dataset.label));
+  console.log(`Unconstrained: ${free.packing_fraction} ${counts.join(", ")}`);
+  check(free.group === "p1" && free.packing_fraction > 0.99, "Expected free squares to fill space");
 } finally {
   await browser.close();
   server.close();

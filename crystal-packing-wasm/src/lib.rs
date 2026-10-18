@@ -179,6 +179,24 @@ pub fn run_job_json(job: &str) -> Result<String, JsError> {
     serde_json::to_string(&run_job(&job)).map_err(to_js)
 }
 
+/// Check a shape is valid, returning a JSON summary of its properties, or an error explaining
+/// why it is invalid.
+#[wasm_bindgen(js_name = shapeInfo)]
+pub fn shape_info(shape: &str) -> Result<String, JsError> {
+    let spec: ShapeSpec = serde_json::from_str(shape).map_err(to_js)?;
+    let shape = spec.build().map_err(to_js)?;
+    let symmetry = shape.symmetry();
+    serde_json::to_string(&serde_json::json!({
+        "name": shape.name(),
+        "area": shape.area(),
+        "circumradius": shape.circumradius(),
+        "convex": shape.is_convex(),
+        "rotations": symmetry.rotations,
+        "mirrors": symmetry.mirrors.len(),
+    }))
+    .map_err(to_js)
+}
+
 /// Render a structure of a shape as an SVG image
 #[wasm_bindgen(js_name = renderSvg)]
 pub fn render_svg(shape: &str, structure: &str, cells: i32) -> Result<String, JsError> {

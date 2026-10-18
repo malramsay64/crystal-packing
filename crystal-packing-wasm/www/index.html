@@ -33,6 +33,17 @@
       #watch-chart polyline { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
       #watch-chart text { fill: var(--muted); font-size: 11px; }
       .muted { color: var(--muted); }
+      label.inline { flex-direction: row; align-items: center; }
+      #draw-area { border: 1px solid var(--border); border-radius: 6px; touch-action: none; cursor: crosshair; width: min(100%, 420px); aspect-ratio: 1; }
+      #draw-area .grid { stroke: var(--border); stroke-width: 0.005; }
+      #draw-area .axis { stroke: var(--muted); stroke-width: 0.01; }
+      #draw-area polygon { fill: var(--accent); fill-opacity: 0.6; stroke: currentColor; stroke-width: 0.015; }
+      #draw-area polygon.invalid { fill: #e45756; }
+      #draw-area circle { fill: currentColor; cursor: grab; }
+      #live { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+      .tile { border: 1px solid var(--border); border-radius: 6px; padding: 6px; font-size: 0.8em; }
+      .tile .view svg { max-height: 160px; }
+      .tile p { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
     </style>
   </head>
   <body>
@@ -43,6 +54,7 @@
           <option value="polygon">Regular polygon</option>
           <option value="disk">Disk</option>
           <option value="trimer">Trimer</option>
+          <option value="drawn">Draw a shape</option>
         </select>
       </label>
       <label>Potential
@@ -60,16 +72,36 @@
       <label>Replicas <input name="replicas" type="number" min="1" value="4" /></label>
       <label>Steps <input name="steps" type="number" min="100" step="100" value="10000" /></label>
       <label>Show results within (%) <input name="within" type="number" min="0" step="any" value="2" /></label>
+      <label>Maximum results <input name="max_results" type="number" min="1" placeholder="All" /></label>
       <label>Seed <input name="seed" type="number" min="0" value="0" /></label>
       <label>Watch group <input name="watch_group" value="p2" /></label>
       <label>Watch sites <input name="watch_sites" value="e" /></label>
+      <label>Unconstrained shapes <input name="unconstrained_shapes" value="1,2,3,4" /></label>
       <div class="actions">
         <button type="button" id="search">Search</button>
         <button type="button" id="survey" title="Optimise every candidate of every group">Survey all groups</button>
         <button type="button" id="watch" title="Animate the optimisation of one group and set of sites">Watch optimisation</button>
+        <button type="button" id="unconstrained" title="Independent shapes in a periodic cell, without symmetry">Unconstrained</button>
         <button type="button" id="stop" disabled>Stop</button>
       </div>
     </form>
+    <section id="draw-section" hidden>
+      <h2>Draw a shape</h2>
+      <div class="columns">
+        <svg id="draw-area" viewBox="-2 -2 4 4" role="img" aria-label="Drawing area: click to add a vertex, drag to move one, double click to remove one"></svg>
+        <div>
+          <p>Click to add a vertex, drag a vertex to move it, and double click a vertex to remove it.
+            The shape is centred on its centroid, which is the point placed on symmetry sites.</p>
+          <label class="inline"><input type="checkbox" name="snap" checked /> Snap to a grid of 0.1</label>
+          <div class="actions">
+            <button type="button" id="draw-undo">Undo</button>
+            <button type="button" id="draw-clear">Clear</button>
+          </div>
+          <p id="draw-status" class="muted">Add at least three vertices</p>
+        </div>
+      </div>
+    </section>
+
     <p id="status">Ready</p>
     <progress id="progress" value="0"></progress>
 
@@ -84,6 +116,11 @@
       </div>
     </section>
 
+    <section id="live-section" hidden>
+      <h2>Optimisers running</h2>
+      <div id="live"></div>
+    </section>
+
     <section id="results-section" hidden>
       <div class="columns">
         <div>
@@ -91,9 +128,9 @@
           <div id="structure"></div>
         </div>
         <div>
-          <h2>Ranking</h2>
-          <table id="ranking">
-            <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>N</th></tr></thead>
+          <h2 id="results-title">Results</h2>
+          <table id="results">
+            <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>Below (%)</th><th>N</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -109,7 +146,6 @@
     </section>
 
     <section id="near-section" hidden>
-      <h2 id="near-title">Structures near the best</h2>
       <div id="near-best"></div>
     </section>
 

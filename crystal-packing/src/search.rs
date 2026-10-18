@@ -103,6 +103,21 @@ impl AnyShape {
             AnyShape::Molecule(s) => s.name(),
         }
     }
+
+    pub fn circumradius(&self) -> f64 {
+        match self {
+            AnyShape::Polygon(s) => s.circumradius(),
+            AnyShape::Molecule(s) => s.circumradius(),
+        }
+    }
+
+    /// Whether the shape is convex, where molecules count as not convex
+    pub fn is_convex(&self) -> bool {
+        match self {
+            AnyShape::Polygon(s) => s.is_convex(),
+            AnyShape::Molecule(s) => s.atoms().len() == 1,
+        }
+    }
 }
 
 /// A plane group with a set of occupied Wyckoff sites

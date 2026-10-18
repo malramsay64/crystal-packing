@@ -7,8 +7,10 @@ const ready = init();
 
 self.onmessage = async (event) => {
   await ready;
-  const { id, job, watch } = event.data;
-  const slice = watch ? Math.max(100, Math.round(job.config.steps / 100)) : 2000;
+  // `frames` is the number of snapshots of the structure to send while the job runs
+  const { id, job, frames } = event.data;
+  const watch = frames > 0;
+  const slice = watch ? Math.max(100, Math.round(job.config.steps / frames)) : 2000;
   let outcome;
   try {
     const runner = new WasmJob(JSON.stringify(job));

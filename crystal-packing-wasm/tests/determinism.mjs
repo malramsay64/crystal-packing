@@ -36,3 +36,20 @@ reference.jobs.forEach((job, i) => {
 if (failures > 0) {
   process.exit(1);
 }
+
+// Shapes are validated, with an error explaining why a shape is invalid
+const { shapeInfo } = require("../node-pkg/crystal_packing_wasm.js");
+const square = JSON.parse(
+  shapeInfo(JSON.stringify({ type: "vertices", name: "square", vertices: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]] })),
+);
+if (Math.abs(square.area - 1) > 1e-12 || square.rotations !== 4 || square.mirrors !== 4 || !square.convex) {
+  console.log(`FAIL square info ${JSON.stringify(square)}`);
+  process.exit(1);
+}
+try {
+  shapeInfo(JSON.stringify({ type: "vertices", name: "bow tie", vertices: [[0, 0], [2, 1], [2, 0], [0, 1.5]] }));
+  console.log("FAIL bow tie accepted");
+  process.exit(1);
+} catch (error) {
+  console.log(`ok   bow tie rejected: ${error.message}`);
+}
