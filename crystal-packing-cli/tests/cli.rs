@@ -370,3 +370,37 @@ fn shapes_in_a_container() {
         serde_json::from_str(&fs::read_to_string(dir.join("shapes-1.json")).unwrap()).unwrap();
     assert!(one["structure"]["packing_fraction"].as_f64().unwrap() > 0.99);
 }
+
+#[test]
+fn strips_and_clusters() {
+    for (boundary, lines, walls) in [("strip", 2, true), ("cluster", 0, false)] {
+        let dir = output_dir(boundary);
+        let mut args = vec![
+            "unconstrained",
+            "--shape",
+            "polygon",
+            "--sides",
+            "4",
+            "--container",
+            boundary,
+            "--shapes",
+            "2",
+            "-o",
+        ];
+        args.push(dir.to_str().unwrap());
+        args.extend(FAST);
+        let output = packing(&args);
+        assert_success(&output);
+        let best: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(dir.join("shapes-2.json")).unwrap()).unwrap();
+        assert_eq!(best["structure"]["container"]["kind"], boundary);
+        // Two squares fill a strip and a cluster
+        let phi = best["structure"]["packing_fraction"].as_f64().unwrap();
+        assert!(phi > 0.99, "{} {}", boundary, phi);
+        let svg = fs::read_to_string(dir.join("shapes-2.svg")).unwrap();
+        assert_eq!(svg.matches("<line").count(), lines, "{}", boundary);
+        // The squares, and their images either side in a strip or the hull of a cluster
+        let polygons = if walls { 6 } else { 3 };
+        assert_eq!(svg.matches("<polygon").count(), polygons, "{}", boundary);
+    }
+}

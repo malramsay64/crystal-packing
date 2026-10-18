@@ -337,3 +337,48 @@ fn squares_in_a_rectangle() {
     );
     assert_container_found(&square, &found[0], &known, "2 squares in a rectangle");
 }
+
+#[test]
+#[ignore]
+fn disks_in_a_strip() {
+    let disk = Molecule::disk();
+    let s3 = 3f64.sqrt();
+    // A zig-zag of touching disks, two per period of 2, in a strip of width 2 + √3
+    let zig_zag = confined(
+        &disk,
+        Container::Strip,
+        2.,
+        2. + s3,
+        vec![site(-0.5, -0.5 * s3, 0.), site(0.5, 0.5 * s3, 0.)],
+    );
+    assert!((zig_zag.packing_fraction - PI / (2. + s3)).abs() < 1e-12);
+    let found = search_container(ShapeSpec::Disk, Container::Strip, vec![2]);
+    assert_container_found(&disk, &found[0], &zig_zag, "2 disks in a strip");
+}
+
+#[test]
+#[ignore]
+fn disk_clusters() {
+    let disk = Molecule::disk();
+    let s3 = 3f64.sqrt();
+    // A cluster is saved with the side of a square with the same area as its convex hull
+    let cluster =
+        |area: f64, sites| confined(&disk, Container::Cluster, area.sqrt(), area.sqrt(), sites);
+    // Three disks in a triangle, and four in a rhombus of two triangles
+    let triangle = cluster(
+        s3 + 6. + PI,
+        vec![site(-1., 0., 0.), site(1., 0., 0.), site(0., s3, 0.)],
+    );
+    let rhombus = cluster(
+        2. * s3 + 8. + PI,
+        vec![
+            site(-1.5, -0.5 * s3, 0.),
+            site(0.5, -0.5 * s3, 0.),
+            site(-0.5, 0.5 * s3, 0.),
+            site(1.5, 0.5 * s3, 0.),
+        ],
+    );
+    let found = search_container(ShapeSpec::Disk, Container::Cluster, vec![3, 4]);
+    assert_container_found(&disk, &found[0], &triangle, "3 disks in a cluster");
+    assert_container_found(&disk, &found[1], &rhombus, "4 disks in a cluster");
+}

@@ -3,7 +3,7 @@
 WebAssembly bindings and a browser front end for the crystal packing search.
 
 The page can search for the densest packing, survey every plane group, or pack independent shapes
-without symmetry, either in a periodic cell or in a square, rectangular or circular container. Every worker's current optimisation is shown as it runs, and the results list
+without symmetry, in a periodic cell, a strip periodic in one direction, a cluster with no boundaries, or a square, rectangular or circular container. Every worker's current optimisation is shown as it runs, and the results list
 the distinct structures within a chosen percentage of the best (2% by default), best first, with
 the other candidates which found the same structure, updating as the
 percentage or the maximum number of results is changed. Shapes can be drawn by hand: click to add

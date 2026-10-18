@@ -29,6 +29,10 @@ packing unconstrained --shape polygon --sides 5 --shapes 1,2,3,4
 # Or in a container with hard walls: square, rectangle (free aspect ratio) or circle
 packing unconstrained --shape disk --shapes 2,3,7 --container circle
 
+# Periodic in one direction (a strip between walls), or in none (a cluster)
+packing unconstrained --shape disk --shapes 1,2 --container strip
+packing unconstrained --shape disk --shapes 2,3,4 --container cluster
+
 # Optimise a single group and choice of Wyckoff sites
 packing optimise --shape polygon --sides 7 --group p2 --sites e
 
@@ -74,6 +78,12 @@ and set of sites can be animated.
   2 to 32 pentagons recover the double lattice packing.
 - **Containers**: a finite number of shapes in a square, rectangle or circle with hard walls,
   compressed around them, reproducing known optima such as 7 disks in a circle.
+- **Fewer periodic directions**: a strip is periodic along its length with walls either side,
+  with both the period and the width compressed, so two disks per period find the zig-zag at
+  π/(2 + √3). A cluster has no walls or periodic boundaries, and the packing fraction uses the area
+  of the convex hull of the shapes, which for disks of equal size is exact (A + Pr + πr² from the
+  hull of the centres). Moving a shape on the edge of a cluster changes the area, so these moves
+  are accepted with the same pressure as the compression.
 - **Distinct structures**: structures are compared by the distances between the vertices of each
   shape and its neighbours, which doesn't depend on the group, cell, origin or orientation.
 - **Search**: successive halving. Every candidate gets a short optimisation, then the best third
@@ -116,11 +126,13 @@ documentation with warnings as errors, runs every test suite, and audits the dep
   the shape, a 64-gon, a pentagram and a trimer of heavily overlapping atoms.
 - `tests/unconstrained.rs`: independent shapes find the known packings without symmetry,
   including systems of 12 pentagons and 24 disks.
-- `tests/confined.rs`: known optimal packings of disks, squares and triangles in containers.
+- `tests/confined.rs`: known optimal packings of disks, squares and triangles in containers,
+  strips and clusters.
 - `tests/distinct.rs`: full searches find a single distinct structure near the best for pentagons
   and disks, and three for heptagons.
 - `tests/known_geometries.rs`: known densest arrangements are constructed by hand (the hexagonal
-  disk packing, square lattice, triangle tiling and honeycomb, and disks and squares in containers)
+  disk packing, square lattice, triangle tiling and honeycomb, disks and squares in containers,
+  the zig-zag of disks in a strip and the triangle and rhombus clusters of disks)
   and the structures the search finds are compared with them, not just their packing fractions.
 - `crystal-packing-cli/tests`: run the `packing` binary.
 - `crystal-packing-wasm/tests`: the WebAssembly build matches the native build exactly, and the

@@ -31,6 +31,20 @@ fn main() {
             None,
             Some(Container::Circle),
         ),
+        (
+            ShapeSpec::Polygon { sides: 5 },
+            "finite",
+            vec!['a'; 3],
+            None,
+            Some(Container::Strip),
+        ),
+        (
+            ShapeSpec::Disk,
+            "finite",
+            vec!['a'; 4],
+            None,
+            Some(Container::Cluster),
+        ),
     ];
     let jobs: Vec<Job> = cases
         .into_iter()

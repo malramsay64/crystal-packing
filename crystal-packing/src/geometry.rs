@@ -236,11 +236,106 @@ pub fn angle_distance(a: f64, b: f64, period: f64) -> f64 {
     d.min(period - d)
 }
 
+/// The convex hull of a set of points, counter-clockwise, using the monotone chain algorithm.
+///
+/// Collinear points are left out. One or two distinct points give a hull of one or two points.
+///
+/// ```
+/// use crystal_packing::geometry::{convex_hull, Vec2};
+/// let points = [(0., 0.), (2., 0.), (1., 1.), (2., 2.), (0., 2.), (1., 0.)];
+/// let hull = convex_hull(&points.map(|(x, y)| Vec2::new(x, y)));
+/// assert_eq!(hull.len(), 4);
+/// ```
+pub fn convex_hull(points: &[Vec2]) -> Vec<Vec2> {
+    let mut points = points.to_vec();
+    points.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+    points.dedup();
+    if points.len() < 3 {
+        return points;
+    }
+    let mut hull: Vec<Vec2> = Vec::with_capacity(2 * points.len());
+    for pass in 0..2 {
+        let start = hull.len();
+        let iter: Box<dyn Iterator<Item = &Vec2>> = if pass == 0 {
+            Box::new(points.iter())
+        } else {
+            Box::new(points.iter().rev())
+        };
+        for &p in iter {
+            while hull.len() >= start + 2 {
+                let (a, b) = (hull[hull.len() - 2], hull[hull.len() - 1]);
+                if (b - a).cross(p - a) > 0. {
+                    break;
+                }
+                hull.pop();
+            }
+            hull.push(p);
+        }
+        // The last point of each chain is the first point of the other
+        hull.pop();
+    }
+    hull
+}
+
+/// The area of a simple polygon, positive when it is counter-clockwise
+pub fn polygon_area(vertices: &[Vec2]) -> f64 {
+    let n = vertices.len();
+    0.5 * (0..n)
+        .map(|i| vertices[i].cross(vertices[(i + 1) % n]))
+        .sum::<f64>()
+}
+
+/// The perimeter of a closed polygon; a polygon of two points is a segment traversed twice
+pub fn perimeter(vertices: &[Vec2]) -> f64 {
+    let n = vertices.len();
+    if n < 2 {
+        return 0.;
+    }
+    (0..n)
+        .map(|i| (vertices[(i + 1) % n] - vertices[i]).norm())
+        .sum()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use approx::assert_abs_diff_eq;
     use std::f64::consts::PI;
+
+    #[test]
+    fn hull_of_degenerate_sets() {
+        assert!(convex_hull(&[]).is_empty());
+        let a = Vec2::new(1., 2.);
+        assert_eq!(convex_hull(&[a, a]), vec![a]);
+        let b = Vec2::new(3., 2.);
+        let c = Vec2::new(2., 2.);
+        let hull = convex_hull(&[a, c, b]);
+        assert_eq!(hull.len(), 2);
+        assert_abs_diff_eq!(perimeter(&hull), 4., epsilon = 1e-12);
+        assert_abs_diff_eq!(polygon_area(&hull), 0., epsilon = 1e-12);
+    }
+
+    #[test]
+    fn hull_matches_brute_force() {
+        let mut rng = crate::random::Rng::seed_from_u64(3);
+        for _ in 0..50 {
+            let points: Vec<Vec2> = (0..20)
+                .map(|_| Vec2::new(rng.centered(), rng.centered()))
+                .collect();
+            let hull = convex_hull(&points);
+            assert!(polygon_area(&hull) > 0.);
+            // Every point is inside or on every edge of the hull
+            let n = hull.len();
+            for p in points.iter() {
+                for i in 0..n {
+                    let (a, b) = (hull[i], hull[(i + 1) % n]);
+                    assert!((b - a).cross(*p - a) >= -1e-12);
+                }
+            }
+            // Every hull vertex is one of the points
+            assert!(hull.iter().all(|v| points.contains(v)));
+        }
+    }
 
     #[test]
     fn inverse() {

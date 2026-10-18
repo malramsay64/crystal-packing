@@ -13,6 +13,7 @@
 
 use anyhow::{bail, Error};
 
+use crate::container::Container;
 use crate::engine::Structure;
 use crate::geometry::{Mat2, Vec2};
 use crate::hard_shape::{HardShape, Outline};
@@ -202,6 +203,9 @@ pub fn equivalent<S: HardShape>(shape: &S, a: &Structure, b: &Structure) -> Resu
 /// The containers need to be the same, and the arrangements are compared using the distances of
 /// the points of the shapes from the centre of the container and from each other, which don't
 /// change when the arrangement is rotated or reflected, or the shapes are listed in another order.
+/// In a strip, the distance from the centre line is used, with the distances between points
+/// measured to the nearest periodic image, so moving the shapes along the strip doesn't matter.
+/// A cluster uses the distances from the centre of its points.
 pub fn equivalent_confined<S: HardShape>(
     shape: &S,
     a: &Structure,
@@ -214,8 +218,11 @@ pub fn equivalent_confined<S: HardShape>(
     let tolerance = DISTANCE_TOLERANCE * scale;
     let mut size_a = [ca.width, ca.height];
     let mut size_b = [cb.width, cb.height];
-    size_a.sort_by(f64::total_cmp);
-    size_b.sort_by(f64::total_cmp);
+    // The period and width of a strip can't be swapped
+    if ca.kind != Container::Strip {
+        size_a.sort_by(f64::total_cmp);
+        size_b.sort_by(f64::total_cmp);
+    }
     if ca.kind != cb.kind
         || a.num_shapes != b.num_shapes
         || size_a
@@ -234,11 +241,29 @@ pub fn equivalent_confined<S: HardShape>(
                 points(&shape.outlines(&Mat2::rotation(site.angle), centre))
             })
             .collect();
-        let mut radial: Vec<f64> = points.iter().map(|p| p.norm()).collect();
+        let kind = ca.kind;
+        let period = structure.container.map_or(0., |c| c.width);
+        let centre =
+            points.iter().fold(Vec2::ZERO, |a, &p| a + p) * (1. / points.len().max(1) as f64);
+        let mut radial: Vec<f64> = points
+            .iter()
+            .map(|p| match kind {
+                Container::Strip => p.y.abs(),
+                Container::Cluster => (*p - centre).norm(),
+                _ => p.norm(),
+            })
+            .collect();
+        let separation = |p: Vec2, q: Vec2| {
+            let mut d = q - p;
+            if kind == Container::Strip {
+                d.x -= period * (d.x / period).round();
+            }
+            d.norm()
+        };
         let mut pairs: Vec<f64> = points
             .iter()
             .enumerate()
-            .flat_map(|(i, p)| points.iter().skip(i + 1).map(move |q| (*p - *q).norm()))
+            .flat_map(|(i, p)| points.iter().skip(i + 1).map(move |q| separation(*p, *q)))
             .collect();
         radial.sort_by(f64::total_cmp);
         pairs.sort_by(f64::total_cmp);
@@ -308,6 +333,93 @@ mod confined_test {
         c.sites.reverse();
         assert!(equivalent_confined(&disk, &a, &b).unwrap());
         assert!(equivalent_confined(&disk, &a, &c).unwrap());
+    }
+
+    /// Two disks in a zig-zag in a strip, shifted along the strip by `shift`
+    fn zig_zag(shift: f64, flip: bool) -> Structure {
+        let s3 = 3f64.sqrt();
+        let site = |x: f64, y: f64| SiteRecord {
+            letter: 'a',
+            x: x + shift,
+            y: if flip { -y } else { y },
+            angle: 0.,
+        };
+        Structure {
+            shape: "Disk".into(),
+            group: "finite".into(),
+            sites: vec![site(0., -0.5 * s3), site(1., 0.5 * s3)],
+            lattice: Lattice::from_parameters(LatticeFamily::Rectangular, &[2., 2. + s3]),
+            num_shapes: 2,
+            packing_fraction: std::f64::consts::PI / (2. + s3),
+            energy: None,
+            container: Some(ContainerState {
+                kind: Container::Strip,
+                width: 2.,
+                height: 2. + s3,
+            }),
+        }
+    }
+
+    #[test]
+    fn strip_shifted_and_reflected_are_equivalent() {
+        let disk = Molecule::disk();
+        let a = zig_zag(0., false);
+        assert!(equivalent_confined(&disk, &a, &zig_zag(0.7, false)).unwrap());
+        assert!(equivalent_confined(&disk, &a, &zig_zag(-0.3, true)).unwrap());
+        // Disks in a single row are different, even with the same container
+        let mut b = a.clone();
+        b.sites[1].y = 0.5;
+        assert!(!equivalent_confined(&disk, &a, &b).unwrap());
+    }
+
+    #[test]
+    fn cluster_moved_and_rotated_is_equivalent() {
+        let disk = Molecule::disk();
+        let s3 = 3f64.sqrt();
+        let cluster = |centres: &[(f64, f64)], rotation: f64, offset: (f64, f64)| {
+            let m = crate::geometry::Mat2::rotation(rotation);
+            let sites = centres
+                .iter()
+                .map(|&(x, y)| {
+                    let p = m * Vec2::new(x, y);
+                    SiteRecord {
+                        letter: 'a',
+                        x: p.x + offset.0,
+                        y: p.y + offset.1,
+                        angle: 0.,
+                    }
+                })
+                .collect();
+            let area = 2. * s3 + 8. + std::f64::consts::PI;
+            Structure {
+                shape: "Disk".into(),
+                group: "finite".into(),
+                sites,
+                lattice: Lattice::from_parameters(
+                    LatticeFamily::Rectangular,
+                    &[area.sqrt(), area.sqrt()],
+                ),
+                num_shapes: 4,
+                packing_fraction: 4. * std::f64::consts::PI / area,
+                energy: None,
+                container: Some(ContainerState {
+                    kind: Container::Cluster,
+                    width: area.sqrt(),
+                    height: area.sqrt(),
+                }),
+            }
+        };
+        let rhombus = [(0., 0.), (2., 0.), (1., s3), (3., s3)];
+        let a = cluster(&rhombus, 0., (0., 0.));
+        let b = cluster(&rhombus, 1.3, (5., -2.));
+        assert!(equivalent_confined(&disk, &a, &b).unwrap());
+        // The mirror image
+        let other = [(0., 0.), (2., 0.), (-1., s3), (1., s3)];
+        let c = cluster(&other, 0., (0., 0.));
+        assert!(equivalent_confined(&disk, &a, &c).unwrap());
+        let bent = [(0., 0.), (2., 0.), (1., s3), (3., s3 - 0.1)];
+        let d = cluster(&bent, 0., (0., 0.));
+        assert!(!equivalent_confined(&disk, &a, &d).unwrap());
     }
 
     #[test]

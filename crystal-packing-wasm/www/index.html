@@ -81,6 +81,8 @@
       <label>Boundary
         <select name="boundary">
           <option value="periodic">Periodic</option>
+          <option value="strip">Periodic in one direction (strip)</option>
+          <option value="cluster">No boundaries (cluster)</option>
           <option value="square">Square container</option>
           <option value="rectangle">Rectangular container</option>
           <option value="circle">Circular container</option>
@@ -90,7 +92,7 @@
         <button type="button" id="search">Search</button>
         <button type="button" id="survey" title="Optimise every candidate of every group">Survey all groups</button>
         <button type="button" id="watch" title="Animate the optimisation of one group and set of sites">Watch optimisation</button>
-        <button type="button" id="unconstrained" title="Independent shapes without symmetry, in a periodic cell or a container">Unconstrained</button>
+        <button type="button" id="unconstrained" title="Independent shapes without symmetry, in a periodic cell, a strip, a cluster or a container">Unconstrained</button>
         <button type="button" id="stop" disabled>Stop</button>
       </div>
     </form>

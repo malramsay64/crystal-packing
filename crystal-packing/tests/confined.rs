@@ -4,7 +4,8 @@
 // Distributed under terms of the MIT license.
 //
 
-//! Packing a finite number of shapes in a container, compared with known optimal packings.
+//! Packing a finite number of shapes in a container, compared with known optimal packings. This
+//! includes strips, which are periodic in one direction, and clusters with no boundaries.
 //!
 //! ```text
 //! cargo test --release -p crystal_packing --test confined -- --ignored
@@ -99,4 +100,57 @@ fn triangle_in_a_circle() {
     // A unit triangle is inscribed in a unit circle
     let found = confined(ShapeSpec::Polygon { sides: 3 }, Container::Circle, vec![1]);
     assert_close(found[0], 3. * 3f64.sqrt() / 4. / PI, "1 triangle");
+}
+
+#[test]
+#[ignore]
+fn disks_in_a_strip() {
+    // One disk per period is a single row, while two make a zig-zag of touching disks with a
+    // period of 2 and a width of 2 + √3
+    let found = confined(ShapeSpec::Disk, Container::Strip, vec![1, 2]);
+    assert_close(found[0], PI / 4., "1 disk");
+    assert_close(found[1], PI / (2. + 3f64.sqrt()), "2 disks");
+}
+
+#[test]
+#[ignore]
+fn polygons_fill_a_strip() {
+    let found = confined(
+        ShapeSpec::Polygon { sides: 4 },
+        Container::Strip,
+        vec![1, 2],
+    );
+    assert_close(found[0], 1., "1 square");
+    assert_close(found[1], 1., "2 squares");
+    // Triangles pointing up and down alternate along the strip
+    let found = confined(ShapeSpec::Polygon { sides: 3 }, Container::Strip, vec![2]);
+    assert_close(found[0], 1., "2 triangles");
+}
+
+#[test]
+#[ignore]
+fn disk_clusters() {
+    // The convex hull of touching unit disks has the area A + P + π of the hull of their centres:
+    // a segment for 2 disks, a triangle for 3 and a rhombus of two triangles for 4
+    let found = confined(ShapeSpec::Disk, Container::Cluster, vec![2, 3, 4]);
+    let s3 = 3f64.sqrt();
+    assert_close(found[0], 2. * PI / (4. + PI), "2 disks");
+    assert_close(found[1], 3. * PI / (s3 + 6. + PI), "3 disks");
+    assert_close(found[2], 4. * PI / (2. * s3 + 8. + PI), "4 disks");
+}
+
+#[test]
+#[ignore]
+fn polygon_clusters() {
+    // Squares in a row or a block, and two triangles making a rhombus, have no gaps in their hull
+    let found = confined(
+        ShapeSpec::Polygon { sides: 4 },
+        Container::Cluster,
+        vec![2, 3, 4],
+    );
+    assert_close(found[0], 1., "2 squares");
+    assert_close(found[1], 1., "3 squares");
+    assert_close(found[2], 1., "4 squares");
+    let found = confined(ShapeSpec::Polygon { sides: 3 }, Container::Cluster, vec![2]);
+    assert_close(found[0], 1., "2 triangles");
 }

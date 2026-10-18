@@ -11,6 +11,11 @@
 //! fraction is the area of the shapes divided by the area of the container. The same moves and
 //! compression schedule are used as for crystals, with the cell moves replaced by changes of the
 //! container size.
+//!
+//! Two containers have fewer walls. A strip is periodic in one direction: the shapes are repeated
+//! along x with a period equal to the width, between walls at the top and bottom, so the packing
+//! fraction is that of an infinite channel. A cluster has no walls or periodic boundaries at all,
+//! and the packing fraction is the area of the shapes divided by the area of their convex hull.
 
 use std::f64::consts::PI;
 
@@ -18,8 +23,8 @@ use anyhow::{bail, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::engine::{SiteRecord, Structure};
-use crate::geometry::{wrap_angle, Mat2, Vec2};
-use crate::hard_shape::{HardShape, OVERLAP_TOLERANCE};
+use crate::geometry::{convex_hull, perimeter, polygon_area, wrap_angle, Mat2, Vec2};
+use crate::hard_shape::{HardShape, Outline, OVERLAP_TOLERANCE};
 use crate::lattice::Lattice;
 use crate::monte_carlo::{MonteCarloConfig, Progress, StepSize};
 use crate::random::Rng;
@@ -33,6 +38,52 @@ pub enum Container {
     /// A rectangle with a free aspect ratio
     Rectangle,
     Circle,
+    /// Periodic along x with the width as the period, between walls at the top and bottom
+    Strip,
+    /// No walls or periodic boundaries, with the area being the convex hull of the shapes
+    Cluster,
+}
+
+/// The number of points used for the circles of molecules with atoms of different sizes
+const CIRCLE_POINTS: usize = 64;
+
+/// The area of the convex hull of a set of outlines.
+///
+/// The hull of circles of equal radius r is the hull of their centres grown by r, with an area of
+/// A + P r + π r², from the area A and perimeter P of the hull of the centres, which is exact. With
+/// circles of different sizes, each is shrunk by the smallest radius and replaced by a polygon
+/// around it, slightly overestimating the area.
+pub fn hull_area(outlines: &[Outline]) -> f64 {
+    let r0 = outlines
+        .iter()
+        .map(|o| match o {
+            Outline::Circle(_, r) => *r,
+            Outline::Polygon(_) => 0.,
+        })
+        .fold(f64::INFINITY, f64::min);
+    if !r0.is_finite() {
+        return 0.;
+    }
+    let mut points = vec![];
+    for outline in outlines {
+        match outline {
+            Outline::Polygon(p) => points.extend_from_slice(p),
+            Outline::Circle(c, r) => {
+                let rho = r - r0;
+                if rho <= 1e-12 * r {
+                    points.push(*c);
+                } else {
+                    // The vertices of a polygon containing the circle
+                    let radius = rho / libm::cos(PI / CIRCLE_POINTS as f64);
+                    points.extend((0..CIRCLE_POINTS).map(|k| {
+                        *c + Vec2::from_angle(2. * PI * k as f64 / CIRCLE_POINTS as f64) * radius
+                    }));
+                }
+            }
+        }
+    }
+    let hull = convex_hull(&points);
+    polygon_area(&hull) + perimeter(&hull) * r0 + PI * r0 * r0
 }
 
 /// The size of a container; a circle has a diameter equal to the width and height
@@ -66,16 +117,18 @@ impl ContainerState {
 impl Container {
     pub fn area(&self, size: &ContainerSize) -> f64 {
         match self {
-            Container::Square | Container::Rectangle => size.width * size.height,
+            Container::Square | Container::Rectangle | Container::Strip => size.width * size.height,
             Container::Circle => PI * size.width * size.width / 4.,
+            // A cluster is saved with the side of a square of the same area as its hull
+            Container::Cluster => size.width * size.height,
         }
     }
 
     /// Keep the size consistent with the container's shape
     fn constrain(&self, size: ContainerSize) -> ContainerSize {
         match self {
-            Container::Rectangle => size,
-            Container::Square | Container::Circle => ContainerSize {
+            Container::Rectangle | Container::Strip => size,
+            Container::Square | Container::Circle | Container::Cluster => ContainerSize {
                 width: size.width,
                 height: size.width,
             },
@@ -94,7 +147,23 @@ impl Container {
                     && S::support(placed, Vec2::new(0., -1.)) <= h
             }
             Container::Circle => S::farthest(placed, Vec2::ZERO) <= 0.5 * size.width + tolerance,
+            Container::Strip => {
+                let h = 0.5 * size.height + tolerance;
+                S::support(placed, Vec2::new(0., 1.)) <= h
+                    && S::support(placed, Vec2::new(0., -1.)) <= h
+            }
+            Container::Cluster => true,
         }
+    }
+
+    /// Whether the area of the container depends on the positions of the shapes
+    pub fn is_cluster(&self) -> bool {
+        *self == Container::Cluster
+    }
+
+    /// Whether the container is periodic along x
+    pub fn is_periodic(&self) -> bool {
+        *self == Container::Strip
     }
 }
 
@@ -102,6 +171,8 @@ impl Container {
 ///
 /// The positions of the shapes are stored relative to the size of the container, as fractions of
 /// its half width and half height, so changing the size of the container scales the positions.
+/// In a strip the x coordinate is wrapped into the period, and the size of a cluster only sets
+/// the scale of the positions.
 #[derive(Debug, Clone)]
 pub struct Confined<S: HardShape> {
     shape: S,
@@ -232,10 +303,11 @@ impl<S: HardShape> Confined<S> {
 
     /// Move a shape to a position (in Cartesian coordinates) and orientation
     pub fn set_shape(&mut self, index: usize, position: Vec2, angle: f64) {
-        self.positions[index] = Vec2::new(
-            2. * position.x / self.size.width,
-            2. * position.y / self.size.height,
-        );
+        let mut x = 2. * position.x / self.size.width;
+        if self.container.is_periodic() {
+            x -= 2. * libm::floor(0.5 * (x + 1.));
+        }
+        self.positions[index] = Vec2::new(x, 2. * position.y / self.size.height);
         self.angles[index] = wrap_angle(angle, 2. * PI);
         self.place(index);
     }
@@ -248,16 +320,52 @@ impl<S: HardShape> Confined<S> {
         }
     }
 
-    pub fn packing_fraction(&self) -> f64 {
-        self.num_shapes() as f64 * self.shape.area() / self.container.area(&self.size)
+    /// The area of the container, or of the convex hull of a cluster
+    pub fn area(&self) -> f64 {
+        if self.container.is_cluster() {
+            let outlines: Vec<Outline> = (0..self.num_shapes())
+                .flat_map(|i| {
+                    self.shape
+                        .outlines(&Mat2::rotation(self.angles[i]), self.position(i))
+                })
+                .collect();
+            hull_area(&outlines)
+        } else {
+            self.container.area(&self.size)
+        }
     }
 
-    fn pair_overlaps(&self, i: usize, j: usize) -> bool {
-        let d = (self.position(j) - self.position(i)).norm_sq();
+    pub fn packing_fraction(&self) -> f64 {
+        self.num_shapes() as f64 * self.shape.area() / self.area()
+    }
+
+    /// The periodic images along x which need checking, as multiples of the period
+    fn images(&self) -> i64 {
+        if self.container.is_periodic() {
+            libm::ceil(self.contact / self.size.width) as i64 + 1
+        } else {
+            0
+        }
+    }
+
+    fn image_overlaps(&self, i: usize, j: usize, shift: Vec2) -> bool {
+        let d = (self.position(j) + shift - self.position(i)).norm_sq();
         if d >= self.contact * self.contact {
             return false;
         }
-        d < self.core * self.core || S::overlaps(&self.placed[i], &self.placed[j], Vec2::ZERO)
+        d < self.core * self.core || S::overlaps(&self.placed[i], &self.placed[j], shift)
+    }
+
+    fn pair_overlaps(&self, i: usize, j: usize) -> bool {
+        let images = self.images();
+        (-images..=images)
+            .any(|k| self.image_overlaps(i, j, Vec2::new(k as f64 * self.size.width, 0.)))
+    }
+
+    /// Whether a shape overlaps its own periodic images
+    fn self_overlaps(&self, i: usize) -> bool {
+        (1..=self.images())
+            .any(|k| self.image_overlaps(i, i, Vec2::new(k as f64 * self.size.width, 0.)))
     }
 
     fn outside(&self, index: usize) -> bool {
@@ -269,15 +377,27 @@ impl<S: HardShape> Confined<S> {
     /// Whether a shape overlaps another shape or the walls of the container
     pub fn shape_overlaps(&self, index: usize) -> bool {
         self.outside(index)
+            || self.self_overlaps(index)
             || (0..self.num_shapes()).any(|j| j != index && self.pair_overlaps(index, j))
     }
 
     pub fn any_overlap(&self) -> bool {
         let n = self.num_shapes();
-        (0..n).any(|i| self.outside(i) || (i + 1..n).any(|j| self.pair_overlaps(i, j)))
+        (0..n).any(|i| {
+            self.outside(i) || self.self_overlaps(i) || (i + 1..n).any(|j| self.pair_overlaps(i, j))
+        })
     }
 
     pub fn structure(&self) -> Structure {
+        let size = if self.container.is_cluster() {
+            let side = self.area().sqrt();
+            ContainerSize {
+                width: side,
+                height: side,
+            }
+        } else {
+            self.size
+        };
         Structure {
             shape: self.shape.name().to_string(),
             group: "finite".into(),
@@ -294,17 +414,27 @@ impl<S: HardShape> Confined<S> {
                 .collect(),
             lattice: Lattice::from_parameters(
                 LatticeFamily::Rectangular,
-                &[self.size.width, self.size.height],
+                &[size.width, size.height],
             ),
             num_shapes: self.num_shapes(),
             packing_fraction: self.packing_fraction(),
             energy: None,
             container: Some(ContainerState {
                 kind: self.container,
-                width: self.size.width,
-                height: self.size.height,
+                width: size.width,
+                height: size.height,
             }),
         }
+    }
+
+    /// Move a cluster so the centre of its shapes is at the origin
+    fn centre(&mut self) {
+        let n = self.num_shapes() as f64;
+        let mean = self.positions.iter().fold(Vec2::ZERO, |a, &p| a + p) * (1. / n);
+        for p in self.positions.iter_mut() {
+            *p -= mean;
+        }
+        self.set_size(self.size);
     }
 
     /// Every placed shape, as (index, centre, orientation, placed shape), used for rendering
@@ -393,7 +523,20 @@ impl<S: HardShape> ConfinedOptimiser<S> {
             )
     }
 
-    fn move_shape(&mut self, index: usize, rotate: bool) -> bool {
+    /// Whether to accept a change in area, as a fraction of the area of a shape
+    fn accept_area(&mut self, change: f64, pressure: f64) -> bool {
+        if change <= 0. {
+            true
+        } else if pressure.is_infinite() {
+            false
+        } else {
+            self.rng.uniform() < libm::exp(-pressure * change)
+        }
+    }
+
+    fn move_shape(&mut self, index: usize, rotate: bool, pressure: f64) -> bool {
+        let cluster = self.confined.container.is_cluster();
+        let old_area = if cluster { self.confined.area() } else { 0. };
         let (old_position, old_angle) = (self.confined.position(index), self.confined.angle(index));
         let (position, angle) = if rotate {
             (
@@ -408,21 +551,30 @@ impl<S: HardShape> ConfinedOptimiser<S> {
         self.confined.set_shape(index, position, angle);
         if self.confined.shape_overlaps(index) {
             self.confined.set_shape(index, old_position, old_angle);
-            false
-        } else {
-            true
+            return false;
         }
+        if cluster {
+            // Moving a shape changes the area of the hull
+            let change = (self.confined.area() - old_area) / self.confined.shape.area();
+            if !self.accept_area(change, pressure) {
+                self.confined.set_shape(index, old_position, old_angle);
+                return false;
+            }
+        }
+        true
     }
 
     fn resize_container(&mut self, pressure: f64) -> bool {
         let old = self.confined.size;
         let delta = 2. * self.resize.size * self.rng.centered();
-        let new = match (self.confined.container, self.rng.index(3)) {
-            (Container::Rectangle, 0) => ContainerSize {
+        let container = self.confined.container;
+        let anisotropic = matches!(container, Container::Rectangle | Container::Strip);
+        let new = match (anisotropic, self.rng.index(3)) {
+            (true, 0) => ContainerSize {
                 width: old.width * libm::exp(delta),
                 height: old.height,
             },
-            (Container::Rectangle, 1) => ContainerSize {
+            (true, 1) => ContainerSize {
                 width: old.width,
                 height: old.height * libm::exp(delta),
             },
@@ -431,8 +583,14 @@ impl<S: HardShape> ConfinedOptimiser<S> {
                 height: old.height * libm::exp(delta),
             },
         };
-        let container = self.confined.container;
-        let (area_old, area_new) = (container.area(&old), container.area(&new));
+        let area_old = self.confined.area();
+        let area_new = if container.is_cluster() {
+            // Scaling the positions of a cluster changes the area of its hull
+            self.confined.set_size(new);
+            self.confined.area()
+        } else {
+            container.area(&new)
+        };
         let n = self.confined.num_shapes() as f64;
         let log_acceptance = if pressure.is_infinite() {
             if area_new <= area_old {
@@ -445,6 +603,9 @@ impl<S: HardShape> ConfinedOptimiser<S> {
                 + n * libm::log(area_new / area_old)
         };
         if log_acceptance < 0. && self.rng.uniform() >= libm::exp(log_acceptance) {
+            if container.is_cluster() {
+                self.confined.set_size(old);
+            }
             return false;
         }
         self.confined.set_size(new);
@@ -466,12 +627,17 @@ impl<S: HardShape> ConfinedOptimiser<S> {
             if accepted {
                 self.update_best();
             }
-        } else if self.rng.index(2) == 0 {
-            let accepted = self.move_shape(choice, false);
-            self.translate.record(accepted, interval, target);
         } else {
-            let accepted = self.move_shape(choice, true);
-            self.rotate.record(accepted, interval, target);
+            let rotate = self.rng.index(2) == 1;
+            let accepted = self.move_shape(choice, rotate, pressure);
+            if rotate {
+                self.rotate.record(accepted, interval, target);
+            } else {
+                self.translate.record(accepted, interval, target);
+            }
+            if accepted && self.confined.container.is_cluster() {
+                self.update_best();
+            }
         }
     }
 
@@ -534,6 +700,16 @@ impl<S: HardShape> ConfinedOptimiser<S> {
     pub fn finish(&mut self) -> Structure {
         let best = self.best.clone();
         self.restore(&best);
+        if self.confined.container.is_cluster() {
+            // Centre the cluster before squeezing, since moving shapes in contact afterwards can
+            // make them overlap through rounding
+            self.confined.centre();
+            if self.confined.any_overlap() {
+                self.restore(&best);
+            } else {
+                self.best = self.snapshot();
+            }
+        }
         self.squeeze();
         let rounds = 4;
         for _ in 0..rounds {
@@ -656,6 +832,8 @@ mod test {
             (Container::Square, 3),
             (Container::Circle, 4),
             (Container::Rectangle, 3),
+            (Container::Strip, 3),
+            (Container::Cluster, 3),
         ] {
             let pentagon = Polygon::regular(5).unwrap();
             let a = optimise(pentagon.clone(), container, n, 7);
@@ -683,6 +861,173 @@ mod test {
         container.width *= 0.95;
         container.height *= 0.95;
         structure.packing_fraction /= 0.95 * 0.95;
+        assert!(validate_confined(&disk, &structure).is_err());
+    }
+
+    #[test]
+    fn hull_of_disks() {
+        let disks = |centres: &[(f64, f64)], r: f64| -> Vec<Outline> {
+            centres
+                .iter()
+                .map(|&(x, y)| Outline::Circle(Vec2::new(x, y), r))
+                .collect()
+        };
+        assert_abs_diff_eq!(hull_area(&disks(&[(0., 0.)], 1.)), PI, epsilon = 1e-12);
+        assert_abs_diff_eq!(
+            hull_area(&disks(&[(0., 0.), (2., 0.)], 1.)),
+            PI + 4.,
+            epsilon = 1e-12
+        );
+        let s3 = 3f64.sqrt();
+        assert_abs_diff_eq!(
+            hull_area(&disks(&[(0., 0.), (2., 0.), (1., s3)], 1.)),
+            s3 + 6. + PI,
+            epsilon = 1e-12
+        );
+        // A small disk inside a large one doesn't change the hull, up to the polygon around it
+        let mut outlines = disks(&[(0., 0.)], 2.);
+        outlines.push(Outline::Circle(Vec2::new(0.5, 0.), 0.5));
+        let area = hull_area(&outlines);
+        assert!(
+            (4. * PI - 1e-9..4. * PI * 1.002).contains(&area),
+            "{}",
+            area
+        );
+        // Two squares side by side make a rectangle
+        let square = |x: f64| {
+            Outline::Polygon(vec![
+                Vec2::new(x, 0.),
+                Vec2::new(x + 1., 0.),
+                Vec2::new(x + 1., 1.),
+                Vec2::new(x, 1.),
+            ])
+        };
+        assert_abs_diff_eq!(hull_area(&[square(0.), square(1.)]), 2., epsilon = 1e-12);
+        assert_abs_diff_eq!(hull_area(&[]), 0.);
+    }
+
+    fn strip(n: usize, width: f64, height: f64) -> Confined<Molecule> {
+        let mut rng = Rng::seed_from_u64(0);
+        let mut confined = Confined::new(Molecule::disk(), Container::Strip, n, &mut rng).unwrap();
+        confined.set_size(ContainerSize { width, height });
+        confined
+    }
+
+    #[test]
+    fn strip_is_periodic() {
+        let mut confined = strip(1, 2., 2.);
+        confined.set_shape(0, Vec2::ZERO, 0.);
+        assert!(!confined.any_overlap());
+        assert_abs_diff_eq!(confined.packing_fraction(), PI / 4., epsilon = 1e-12);
+        // The disk overlaps its own image when the period is less than its diameter
+        confined.set_size(ContainerSize {
+            width: 1.99,
+            height: 2.,
+        });
+        assert!(confined.any_overlap());
+        assert!(confined.shape_overlaps(0));
+        // Positions wrap along x, but not y
+        let mut confined = strip(1, 2., 2.);
+        confined.set_shape(0, Vec2::new(1.5, 0.), 0.);
+        assert_abs_diff_eq!(confined.position(0).x, -0.5, epsilon = 1e-12);
+        assert!(!confined.any_overlap());
+        confined.set_shape(0, Vec2::new(0., 0.01), 0.);
+        assert!(confined.any_overlap());
+    }
+
+    #[test]
+    fn strip_images_overlap() {
+        // Two disks across the boundary of the period
+        let mut confined = strip(2, 4., 2.);
+        confined.set_shape(0, Vec2::new(-1.9, 0.), 0.);
+        confined.set_shape(1, Vec2::new(1.9, 0.), 0.);
+        assert!(confined.any_overlap());
+        assert!(confined.shape_overlaps(0));
+        confined.set_shape(1, Vec2::new(0.1, 0.), 0.);
+        assert!(!confined.any_overlap());
+        // The zig-zag arrangement of two disks per period
+        let s3 = 3f64.sqrt();
+        let mut confined = strip(2, 2., 2. + s3);
+        confined.set_shape(0, Vec2::new(0., -0.5 * s3), 0.);
+        confined.set_shape(1, Vec2::new(1., 0.5 * s3), 0.);
+        assert!(!confined.any_overlap());
+        assert_abs_diff_eq!(confined.packing_fraction(), PI / (2. + s3), epsilon = 1e-12);
+        confined.set_size(ContainerSize {
+            width: 1.99,
+            height: 2. + s3,
+        });
+        assert!(confined.any_overlap());
+    }
+
+    #[test]
+    fn cluster_has_no_walls() {
+        let mut rng = Rng::seed_from_u64(0);
+        let mut confined =
+            Confined::new(Molecule::disk(), Container::Cluster, 2, &mut rng).unwrap();
+        confined.set_shape(0, Vec2::new(-1., 0.), 0.);
+        confined.set_shape(1, Vec2::new(1., 0.), 0.);
+        assert!(!confined.any_overlap());
+        assert_abs_diff_eq!(
+            confined.packing_fraction(),
+            2. * PI / (PI + 4.),
+            epsilon = 1e-12
+        );
+        // Far from the origin is fine
+        confined.set_shape(0, Vec2::new(1000., 0.), 0.);
+        assert!(!confined.any_overlap());
+        confined.set_shape(0, Vec2::new(-0.99, 0.), 0.);
+        assert!(confined.any_overlap());
+        // The saved size is a square of the same area as the hull
+        confined.set_shape(0, Vec2::new(-1., 0.), 0.);
+        let structure = confined.structure();
+        assert_abs_diff_eq!(structure.container.unwrap().area(), PI + 4., epsilon = 1e-9);
+        validate_confined(&Molecule::disk(), &structure).unwrap();
+    }
+
+    #[test]
+    fn strip_and_cluster_of_disks() {
+        let disk = Molecule::disk();
+        let best = |container, n| {
+            (0..4)
+                .map(|seed| optimise(disk.clone(), container, n, seed))
+                .map(|s| {
+                    validate_confined(&disk, &s).unwrap();
+                    s.packing_fraction
+                })
+                .fold(0., f64::max)
+        };
+        let strip = best(Container::Strip, 1);
+        assert!(
+            strip > PI / 4. - 1e-3 && strip <= PI / 4. + 1e-9,
+            "{}",
+            strip
+        );
+        let cluster = best(Container::Cluster, 2);
+        let expected = 2. * PI / (PI + 4.);
+        assert!(
+            cluster > expected - 1e-3 && cluster <= expected + 1e-9,
+            "{}",
+            cluster
+        );
+    }
+
+    #[test]
+    fn validation_detects_strip_and_cluster_problems() {
+        let disk = Molecule::disk();
+        let mut structure = optimise(disk.clone(), Container::Strip, 2, 3);
+        validate_confined(&disk, &structure).unwrap();
+        // Shortening the period makes the shapes overlap their images
+        let container = structure.container.as_mut().unwrap();
+        container.width *= 0.9;
+        structure.packing_fraction /= 0.9;
+        assert!(validate_confined(&disk, &structure).is_err());
+
+        let mut structure = optimise(disk.clone(), Container::Cluster, 3, 3);
+        validate_confined(&disk, &structure).unwrap();
+        // The area doesn't match the hull of the shapes
+        let container = structure.container.as_mut().unwrap();
+        container.width *= 0.99;
+        structure.packing_fraction /= 0.99;
         assert!(validate_confined(&disk, &structure).is_err());
     }
 }

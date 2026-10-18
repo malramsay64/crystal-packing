@@ -67,6 +67,10 @@ enum Boundary {
     Rectangle,
     /// A circular container
     Circle,
+    /// Periodic in one direction: a channel with walls either side
+    Strip,
+    /// No walls or periodic boundaries, minimising the area of the convex hull
+    Cluster,
 }
 
 impl Boundary {
@@ -76,6 +80,8 @@ impl Boundary {
             Boundary::Square => Some(Container::Square),
             Boundary::Rectangle => Some(Container::Rectangle),
             Boundary::Circle => Some(Container::Circle),
+            Boundary::Strip => Some(Container::Strip),
+            Boundary::Cluster => Some(Container::Cluster),
         }
     }
 }
@@ -297,7 +303,8 @@ struct UnconstrainedArgs {
     /// Comma separated numbers of shapes in the periodic cell or container
     #[arg(long, value_delimiter = ',', default_value = "1,2,3,4")]
     shapes: Vec<usize>,
-    /// The boundary of the system: a periodic cell, or a container with hard walls
+    /// The boundary of the system: periodic in two directions (a cell), one (a strip) or none (a
+    /// cluster), or a container with hard walls
     #[arg(long, value_enum, default_value = "periodic")]
     container: Boundary,
     #[command(flatten)]
@@ -684,7 +691,8 @@ fn unconstrained(args: UnconstrainedArgs) -> Result<(), Error> {
             println!("{:>6} {:>9}", n, "failed");
             continue;
         };
-        // For a container, the lattice holds the width and height of the container
+        // For a container, the width and height of the container: the period and width of a
+        // strip, and for a cluster the side of a square with the area of its convex hull
         let (a, b, angle) = match structure.container {
             Some(c) => (c.width, c.height, 90.),
             None => (

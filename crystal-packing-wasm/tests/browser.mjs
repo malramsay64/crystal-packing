@@ -191,6 +191,28 @@ try {
   check(confined.container?.kind === "circle", "Expected a circular container");
   check(Math.abs(confined.packing_fraction - 7 / 9) < 2e-3, "Expected the hexagonal arrangement of 7 disks");
   check(circles === 8, "Expected the disks and the container to be drawn");
+
+  // Two disks in a strip, periodic in one direction, form a zig-zag
+  await page.selectOption("select[name=boundary]", "strip");
+  await page.fill("input[name=unconstrained_shapes]", "2");
+  await page.click("#unconstrained");
+  await page.waitForSelector("body[data-result]", { timeout: 120_000 });
+  const strip = JSON.parse(await page.getAttribute("body", "data-result"));
+  const walls = await page.$$eval("#structure svg line", (lines) => lines.length);
+  console.log(`2 disks in a strip: ${strip.packing_fraction}`);
+  check(strip.container?.kind === "strip", "Expected a strip");
+  check(Math.abs(strip.packing_fraction - Math.PI / (2 + Math.sqrt(3))) < 2e-3, "Expected the zig-zag of 2 disks");
+  check(walls === 2, "Expected the walls of the strip to be drawn");
+
+  // Three disks without any boundaries form a triangle
+  await page.selectOption("select[name=boundary]", "cluster");
+  await page.fill("input[name=unconstrained_shapes]", "3");
+  await page.click("#unconstrained");
+  await page.waitForSelector("body[data-result]", { timeout: 120_000 });
+  const cluster = JSON.parse(await page.getAttribute("body", "data-result"));
+  console.log(`3 disks in a cluster: ${cluster.packing_fraction}`);
+  check(cluster.container?.kind === "cluster", "Expected a cluster");
+  check(Math.abs(cluster.packing_fraction - 3 * Math.PI / (Math.sqrt(3) + 6 + Math.PI)) < 2e-3, "Expected a triangle of 3 disks");
 } finally {
   await browser.close();
   server.close();

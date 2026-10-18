@@ -14,6 +14,7 @@
 
 use anyhow::{bail, Error};
 
+use crate::container::Container;
 use crate::engine::Structure;
 use crate::geometry::{Mat2, Vec2};
 use crate::hard_shape::{HardShape, Outline};
@@ -214,8 +215,65 @@ pub fn validate<S: HardShape>(shape: &S, structure: &Structure) -> Result<(), Er
     Ok(())
 }
 
+/// The area of the convex hull of a set of points, found by gift wrapping
+fn wrapped_hull_area(points: &[Vec2]) -> f64 {
+    let Some(start) = points
+        .iter()
+        .copied()
+        .min_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)))
+    else {
+        return 0.;
+    };
+    let mut hull = vec![start];
+    let mut current = start;
+    loop {
+        // The next point has every other point to its left
+        let mut next = current;
+        for &p in points {
+            let turn = (next - current).cross(p - current);
+            if next == current
+                || turn < 0.
+                || (turn == 0. && (p - current).norm_sq() > (next - current).norm_sq())
+            {
+                next = p;
+            }
+        }
+        if next == start || next == current || hull.len() > points.len() {
+            break;
+        }
+        hull.push(next);
+        current = next;
+    }
+    let n = hull.len();
+    0.5 * (0..n)
+        .map(|i| hull[i].cross(hull[(i + 1) % n]))
+        .sum::<f64>()
+}
+
+/// The area of the convex hull of shapes, with each circle replaced by many points around it
+fn outline_hull_area(outlines: &[Outline]) -> f64 {
+    let points: Vec<Vec2> = outlines
+        .iter()
+        .flat_map(|o| match o {
+            Outline::Polygon(p) => p.clone(),
+            Outline::Circle(c, r) => {
+                let n = 2048;
+                let radius = r / (std::f64::consts::PI / n as f64).cos();
+                (0..n)
+                    .map(|k| {
+                        let t = 2. * std::f64::consts::PI * k as f64 / n as f64;
+                        *c + Vec2::new(t.cos(), t.sin()) * radius
+                    })
+                    .collect()
+            }
+        })
+        .collect();
+    wrapped_hull_area(&points)
+}
+
 /// Check a structure of shapes in a container is valid: every shape is inside the container and
-/// no two shapes overlap. This shares no code with the optimisation beyond the shape outlines.
+/// no two shapes overlap, including the periodic images of a strip. For a cluster, the area of the
+/// convex hull is checked. This shares no code with the optimisation beyond the shape outlines.
 pub fn validate_confined<S: HardShape>(shape: &S, structure: &Structure) -> Result<(), Error> {
     let Some(container) = structure.container else {
         bail!("The structure has no container");
@@ -248,10 +306,29 @@ pub fn validate_confined<S: HardShape>(shape: &S, structure: &Structure) -> Resu
             (centre, outlines)
         })
         .collect();
+    if container.kind == Container::Cluster {
+        let outlines: Vec<Outline> = structure
+            .sites
+            .iter()
+            .flat_map(|site| shape.outlines(&Mat2::rotation(site.angle), Vec2::new(site.x, site.y)))
+            .collect();
+        let hull = outline_hull_area(&outlines);
+        if (hull - container.area()).abs() > 1e-4 * hull {
+            bail!(
+                "The area of the convex hull {} doesn't match the structure {}",
+                hull,
+                container.area()
+            );
+        }
+    }
     let (half_width, half_height) = (0.5 * container.width, 0.5 * container.height);
     let inside = |p: Vec2, r: f64| match container.kind {
-        crate::container::Container::Circle => p.norm() + r <= half_width,
-        _ => p.x.abs() + r <= half_width && p.y.abs() + r <= half_height,
+        Container::Circle => p.norm() + r <= half_width,
+        Container::Square | Container::Rectangle => {
+            p.x.abs() + r <= half_width && p.y.abs() + r <= half_height
+        }
+        Container::Strip => p.y.abs() + r <= half_height,
+        Container::Cluster => true,
     };
     for (i, (_, outlines)) in shapes.iter().enumerate() {
         for outline in outlines {
@@ -264,10 +341,28 @@ pub fn validate_confined<S: HardShape>(shape: &S, structure: &Structure) -> Resu
             }
         }
     }
+    // The periodic images along x in a strip
+    let images = if container.kind == Container::Strip {
+        let reach = shapes
+            .iter()
+            .map(|(c, o)| bounding_radius(o, *c) + c.x.abs())
+            .fold(0., f64::max);
+        (2. * reach / container.width).ceil() as i64 + 1
+    } else {
+        0
+    };
     for (i, (_, a)) in shapes.iter().enumerate() {
-        for (j, (_, b)) in shapes.iter().enumerate().skip(i + 1) {
-            if a.iter().any(|x| b.iter().any(|y| outlines_overlap(x, y))) {
-                bail!("Shapes {} and {} overlap", i, j);
+        for (j, (_, b)) in shapes.iter().enumerate().skip(i) {
+            for k in -images..=images {
+                if j == i && k <= 0 {
+                    continue;
+                }
+                let shift = Vec2::new(k as f64 * container.width, 0.);
+                if a.iter()
+                    .any(|x| b.iter().any(|y| outlines_overlap(x, &translate(y, shift))))
+                {
+                    bail!("Shapes {} and {} overlap", i, j);
+                }
             }
         }
     }
