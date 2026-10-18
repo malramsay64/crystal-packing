@@ -174,21 +174,19 @@ impl Annealer {
     }
 
     fn try_site(&mut self, index: usize, new: SiteState, kt: f64) -> bool {
-        let old = self.packing.site_state(index);
         self.packing.set_site(index, new);
         let enthalpy = self.compute_enthalpy();
         if self.accept(enthalpy, kt) {
             self.enthalpy = enthalpy;
             true
         } else {
-            self.packing.set_site(index, old);
+            self.packing.undo();
             false
         }
     }
 
     fn try_cell(&mut self, kt: f64) -> bool {
-        let old = self.packing.lattice().clone();
-        let new = propose_lattice(&old, self.cell.size, &mut self.rng);
+        let new = propose_lattice(self.packing.lattice(), self.cell.size, &mut self.rng);
         if !new.is_valid() {
             return false;
         }
@@ -199,7 +197,7 @@ impl Annealer {
             keep_reduced(&mut self.packing);
             true
         } else {
-            self.packing.set_lattice(old);
+            self.packing.undo();
             false
         }
     }

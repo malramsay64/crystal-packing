@@ -210,6 +210,10 @@ impl HardShape for Molecule {
             .fold(0., f64::max)
     }
 
+    fn hull_circles(placed: &PlacedMolecule, out: &mut Vec<(Vec2, f64)>) {
+        out.extend_from_slice(&placed.atoms);
+    }
+
     fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline> {
         self.atoms
             .iter()
@@ -248,6 +252,11 @@ mod test {
             0.,
             epsilon = 1e-12
         );
+        let (lo, hi) = Molecule::bounds(&placed);
+        assert_abs_diff_eq!(lo.x, 2., epsilon = 1e-12);
+        assert_abs_diff_eq!(lo.y, 0., epsilon = 1e-12);
+        assert_abs_diff_eq!(hi.x, 4., epsilon = 1e-12);
+        assert_abs_diff_eq!(hi.y, 2., epsilon = 1e-12);
         assert_abs_diff_eq!(
             Molecule::farthest(&placed, Vec2::ZERO),
             10f64.sqrt() + 1.,

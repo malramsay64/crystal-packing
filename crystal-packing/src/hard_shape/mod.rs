@@ -163,8 +163,21 @@ pub trait HardShape: Clone + Send + Sync + fmt::Debug {
     /// where the direction is a unit vector.
     fn support(placed: &Self::Placed, direction: Vec2) -> f64;
 
+    /// The smallest box containing a placed shape, as its lower left and upper right corners
+    fn bounds(placed: &Self::Placed) -> (Vec2, Vec2) {
+        let (x, y) = (Vec2::new(1., 0.), Vec2::new(0., 1.));
+        (
+            Vec2::new(-Self::support(placed, -x), -Self::support(placed, -y)),
+            Vec2::new(Self::support(placed, x), Self::support(placed, y)),
+        )
+    }
+
     /// The largest distance from a point to any point of a placed shape
     fn farthest(placed: &Self::Placed, point: Vec2) -> f64;
+
+    /// Add circles to `out` whose convex hull is the convex hull of the placed shape, as
+    /// (centre, radius), where the vertices of a polygon have a radius of zero
+    fn hull_circles(placed: &Self::Placed, out: &mut Vec<(Vec2, f64)>);
 
     /// The outlines of the shape at a position and orientation, used for rendering and for the
     /// independent validation of structures.

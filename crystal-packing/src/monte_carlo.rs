@@ -49,6 +49,31 @@ pub struct MonteCarloConfig {
     pub squeeze_steps: u64,
 }
 
+/// The pressure through a compression, increasing geometrically from the start to the end
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PressureSchedule {
+    start: f64,
+    /// The logarithm of the ratio of the final to the initial pressure
+    log_ratio: f64,
+    steps: u64,
+}
+
+impl PressureSchedule {
+    pub(crate) fn new(config: &MonteCarloConfig) -> PressureSchedule {
+        PressureSchedule {
+            start: config.pressure_start,
+            log_ratio: libm::log(config.pressure_end / config.pressure_start),
+            steps: config.steps.max(1),
+        }
+    }
+
+    /// The pressure after a number of steps, staying at the final pressure after the end
+    pub(crate) fn at(&self, step: u64) -> f64 {
+        let fraction = (step as f64 / self.steps as f64).min(1.);
+        self.start * libm::exp(self.log_ratio * fraction)
+    }
+}
+
 impl Default for MonteCarloConfig {
     fn default() -> Self {
         MonteCarloConfig {
@@ -136,6 +161,7 @@ pub struct Progress {
 pub struct Optimiser<S: HardShape> {
     packing: Packing<S>,
     config: MonteCarloConfig,
+    schedule: PressureSchedule,
     rng: Rng,
     translate: StepSize,
     rotate: StepSize,
@@ -242,6 +268,7 @@ impl<S: HardShape> Optimiser<S> {
         let best_packing_fraction = packing.packing_fraction();
         Optimiser {
             packing,
+            schedule: PressureSchedule::new(&config),
             config,
             rng: Rng::seed_from_u64(seed),
             // Translations are in units of the shape's circumradius
@@ -281,12 +308,7 @@ impl<S: HardShape> Optimiser<S> {
 
     /// The reduced pressure at the current step, increasing geometrically through the run
     fn pressure(&self) -> f64 {
-        let fraction = self.step as f64 / self.config.steps.max(1) as f64;
-        self.config.pressure_start
-            * libm::pow(
-                self.config.pressure_end / self.config.pressure_start,
-                fraction.min(1.),
-            )
+        self.schedule.at(self.step)
     }
 
     fn update_best(&mut self) {
@@ -299,10 +321,9 @@ impl<S: HardShape> Optimiser<S> {
 
     /// Apply a change to a site, keeping it when there are no overlaps
     fn try_site(&mut self, index: usize, new: SiteState) -> bool {
-        let old = self.packing.site_state(index);
         self.packing.set_site(index, new);
         if self.packing.site_overlaps(index) {
-            self.packing.set_site(index, old);
+            self.packing.undo();
             false
         } else {
             true
@@ -334,13 +355,13 @@ impl<S: HardShape> Optimiser<S> {
         propose_lattice(self.packing.lattice(), self.cell.size, &mut self.rng)
     }
 
-    fn cell_move(&mut self, pressure: f64) -> bool {
-        let old = self.packing.lattice().clone();
+    fn cell_move(&mut self, pressure: Option<f64>) -> bool {
         let new = self.propose_lattice();
         if !new.is_valid() {
             return false;
         }
-        let (area_old, area_new) = (old.area(), new.area());
+        let pressure = pressure.unwrap_or_else(|| self.pressure());
+        let (area_old, area_new) = (self.packing.lattice().area(), new.area());
         let n = self.packing.num_shapes() as f64;
         let shape_area = self.packing.shape().area();
         let log_acceptance = if pressure.is_infinite() {
@@ -358,15 +379,16 @@ impl<S: HardShape> Optimiser<S> {
         }
         self.packing.set_lattice(new);
         if self.packing.any_overlap() {
-            self.packing.set_lattice(old);
+            self.packing.undo();
             return false;
         }
         keep_reduced(&mut self.packing);
         true
     }
 
-    /// Perform a single Monte Carlo move at the given pressure
-    fn step_once(&mut self, pressure: f64) {
+    /// Perform a single Monte Carlo move at a fixed pressure, or None for the pressure of the
+    /// schedule, which is only found for the moves which need it
+    fn step_once(&mut self, pressure: Option<f64>) {
         let num_sites = self.packing.sites().len();
         let interval = self.config.adapt_interval;
         let target = self.config.target_acceptance;
@@ -411,8 +433,7 @@ impl<S: HardShape> Optimiser<S> {
     pub fn run(&mut self, steps: u64) -> Progress {
         let end = (self.step + steps).min(self.config.steps);
         while self.step < end {
-            let pressure = self.pressure();
-            self.step_once(pressure);
+            self.step_once(None);
             self.step += 1;
         }
         self.progress()
@@ -473,7 +494,7 @@ impl<S: HardShape> Optimiser<S> {
             self.rotate.size = self.rotate.size.min(1e-3);
             self.cell.size = self.cell.size.min(1e-4);
             for _ in 0..self.config.squeeze_steps / rounds {
-                self.step_once(f64::INFINITY);
+                self.step_once(Some(f64::INFINITY));
             }
             self.squeeze_cell();
         }

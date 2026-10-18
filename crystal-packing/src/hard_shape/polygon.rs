@@ -7,7 +7,6 @@
 use std::f64::consts::PI;
 
 use anyhow::{bail, Error};
-use serde::{Deserialize, Serialize};
 
 use super::{HardShape, Outline, ShapeSymmetry, OVERLAP_TOLERANCE};
 use crate::geometry::{Mat2, Vec2};
@@ -23,13 +22,14 @@ use crate::geometry::{Mat2, Vec2};
 /// assert!((square.area() - 2.).abs() < 1e-12);
 /// assert_eq!(square.symmetry().rotations, 4);
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Polygon {
     name: String,
     /// The vertices in anticlockwise order
     vertices: Vec<Vec2>,
-    /// The indices of the vertices making up each convex piece
-    pieces: Vec<Vec<usize>>,
+    /// The convex pieces in the body frame, with their edge normals and bounding circles, which
+    /// only need rotating and translating to place the shape
+    pieces: Vec<PlacedPiece>,
     area: f64,
     circumradius: f64,
     inradius: f64,
@@ -37,7 +37,7 @@ pub struct Polygon {
 }
 
 /// A convex piece of a polygon in world coordinates
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct PlacedPiece {
     vertices: Vec<Vec2>,
     /// Outward unit normals of each edge, used as the separating axes
@@ -223,11 +223,15 @@ impl Polygon {
             vertices.reverse();
             area = -area;
         }
-        let pieces = if is_convex(&vertices) {
+        let indices = if is_convex(&vertices) {
             vec![(0..vertices.len()).collect()]
         } else {
             triangulate(&vertices)?
         };
+        let pieces = indices
+            .iter()
+            .map(|piece| PlacedPiece::new(piece.iter().map(|&i| vertices[i]).collect()))
+            .collect();
         let circumradius = vertices.iter().map(|v| v.norm()).fold(0., f64::max);
         let n = vertices.len();
         let inradius = if contains_point(&vertices, Vec2::ZERO) {
@@ -286,6 +290,33 @@ impl Polygon {
     }
 }
 
+impl PlacedPiece {
+    /// A piece from its vertices in anticlockwise order
+    fn new(vertices: Vec<Vec2>) -> PlacedPiece {
+        let n = vertices.len();
+        let axes: Vec<Vec2> = (0..n)
+            .map(|i| -(vertices[(i + 1) % n] - vertices[i]).perp().normalised())
+            .collect();
+        let offsets = axes
+            .iter()
+            .zip(vertices.iter())
+            .map(|(axis, v)| axis.dot(*v))
+            .collect();
+        let centre = vertices.iter().fold(Vec2::ZERO, |acc, &v| acc + v) * (1. / n as f64);
+        let radius = vertices
+            .iter()
+            .map(|&v| (v - centre).norm())
+            .fold(0., f64::max);
+        PlacedPiece {
+            vertices,
+            axes,
+            offsets,
+            centre,
+            radius,
+        }
+    }
+}
+
 /// Check for the overlap of two convex pieces using the separating axis theorem
 #[inline]
 fn pieces_overlap(a: &PlacedPiece, b: &PlacedPiece, shift: Vec2, tol: f64) -> bool {
@@ -333,41 +364,28 @@ impl HardShape for Polygon {
     }
 
     fn place(&self, orientation: &Mat2, position: Vec2, out: &mut PlacedPolygon) {
+        // The orientation is orthogonal, so it maps the outward normals of the body frame to
+        // outward normals, and an edge at a distance o along its normal a moves to o + (R a)·p
         out.pieces.resize_with(self.pieces.len(), Default::default);
         out.scale = self.circumradius;
-        for (indices, piece) in self.pieces.iter().zip(out.pieces.iter_mut()) {
+        for (body, piece) in self.pieces.iter().zip(out.pieces.iter_mut()) {
             piece.vertices.clear();
-            piece.vertices.extend(
-                indices
-                    .iter()
-                    .map(|&i| *orientation * self.vertices[i] + position),
-            );
-            let n = piece.vertices.len();
-            // The vertices are anticlockwise, unless the orientation includes a reflection
-            let sign = if orientation.det() > 0. { -1. } else { 1. };
+            piece
+                .vertices
+                .extend(body.vertices.iter().map(|&v| *orientation * v + position));
             piece.axes.clear();
-            piece.axes.extend((0..n).map(|i| {
-                (piece.vertices[(i + 1) % n] - piece.vertices[i])
-                    .perp()
-                    .normalised()
-                    * sign
-            }));
+            piece
+                .axes
+                .extend(body.axes.iter().map(|&a| *orientation * a));
             piece.offsets.clear();
             piece.offsets.extend(
-                piece
-                    .axes
+                body.offsets
                     .iter()
-                    .zip(piece.vertices.iter())
-                    .map(|(axis, v)| axis.dot(*v)),
+                    .zip(piece.axes.iter())
+                    .map(|(offset, axis)| offset + axis.dot(position)),
             );
-            let centre =
-                piece.vertices.iter().fold(Vec2::ZERO, |acc, &v| acc + v) * (1. / n as f64);
-            piece.radius = piece
-                .vertices
-                .iter()
-                .map(|&v| (v - centre).norm())
-                .fold(0., f64::max);
-            piece.centre = centre;
+            piece.centre = *orientation * body.centre + position;
+            piece.radius = body.radius;
         }
     }
 
@@ -396,6 +414,19 @@ impl HardShape for Polygon {
             .fold(f64::NEG_INFINITY, f64::max)
     }
 
+    fn bounds(placed: &PlacedPolygon) -> (Vec2, Vec2) {
+        let inf = f64::INFINITY;
+        placed.pieces.iter().flat_map(|p| p.vertices.iter()).fold(
+            (Vec2::new(inf, inf), Vec2::new(-inf, -inf)),
+            |(lo, hi), v| {
+                (
+                    Vec2::new(lo.x.min(v.x), lo.y.min(v.y)),
+                    Vec2::new(hi.x.max(v.x), hi.y.max(v.y)),
+                )
+            },
+        )
+    }
+
     fn farthest(placed: &PlacedPolygon, point: Vec2) -> f64 {
         placed
             .pieces
@@ -403,6 +434,18 @@ impl HardShape for Polygon {
             .flat_map(|p| p.vertices.iter())
             .map(|v| (*v - point).norm())
             .fold(0., f64::max)
+    }
+
+    fn hull_circles(placed: &PlacedPolygon, out: &mut Vec<(Vec2, f64)>) {
+        // The vertices shared by the pieces of a concave polygon are repeated, which doesn't
+        // change the hull
+        out.extend(
+            placed
+                .pieces
+                .iter()
+                .flat_map(|p| p.vertices.iter())
+                .map(|&v| (v, 0.)),
+        );
     }
 
     fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline> {
@@ -589,6 +632,9 @@ mod test {
             -2. + half,
             epsilon = 1e-12
         );
+        let (lo, hi) = Polygon::bounds(&placed);
+        assert_abs_diff_eq!(lo.x, 1. - half, epsilon = 1e-12);
+        assert_abs_diff_eq!(hi.y, 2. + half, epsilon = 1e-12);
         // The farthest vertex from the centre is at the circumradius
         assert_abs_diff_eq!(
             Polygon::farthest(&placed, Vec2::new(1., 2.)),

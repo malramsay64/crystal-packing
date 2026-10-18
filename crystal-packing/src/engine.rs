@@ -88,6 +88,14 @@ impl Structure {
     }
 }
 
+/// The state before the last change of a packing, so it can be undone
+#[derive(Debug, Clone)]
+enum Undo {
+    None,
+    Site(usize, SiteState),
+    Lattice(Lattice, Mat2, Mat2, Vec2),
+}
+
 #[derive(Debug, Clone)]
 pub struct Packing<S: HardShape> {
     shape: S,
@@ -106,6 +114,9 @@ pub struct Packing<S: HardShape> {
     /// Images closer than this distance must overlap
     core: f64,
     num_shapes: usize,
+    /// The images before the last change, swapped back to undo it without placing the shapes
+    saved: Vec<Vec<Image<S::Placed>>>,
+    undo: Undo,
 }
 
 impl<S: HardShape> Packing<S> {
@@ -184,7 +195,7 @@ impl<S: HardShape> Packing<S> {
         lattice: Lattice,
         state: Vec<SiteState>,
     ) -> Packing<S> {
-        let images = sites
+        let images: Vec<Vec<Image<S::Placed>>> = sites
             .iter()
             .map(|s| vec![Image::default(); s.wyckoff.multiplicity])
             .collect();
@@ -198,7 +209,9 @@ impl<S: HardShape> Packing<S> {
             sites,
             lattice: lattice.clone(),
             state,
+            saved: images.clone(),
             images,
+            undo: Undo::None,
             reduced: Mat2::IDENTITY,
             reduced_inverse: Mat2::IDENTITY,
             range: Vec2::ZERO,
@@ -314,15 +327,25 @@ impl<S: HardShape> Packing<S> {
         }
     }
 
-    /// Update the parameters of a site, updating the cached images
+    /// Update the parameters of a site, updating the cached images. This can be undone with
+    /// [`Packing::undo`].
     pub fn set_site(&mut self, index: usize, state: SiteState) {
+        self.undo = Undo::Site(index, self.state[index]);
+        std::mem::swap(&mut self.images[index], &mut self.saved[index]);
         self.state[index] = state;
         self.update_site_images(index);
     }
 
-    /// Update the lattice, updating all cached images
+    /// Update the lattice, updating all cached images. This can be undone with
+    /// [`Packing::undo`].
     pub fn set_lattice(&mut self, lattice: Lattice) {
-        self.lattice = lattice;
+        self.undo = Undo::Lattice(
+            std::mem::replace(&mut self.lattice, lattice),
+            self.reduced,
+            self.reduced_inverse,
+            self.range,
+        );
+        std::mem::swap(&mut self.images, &mut self.saved);
         self.reduced = self.lattice.reduced_basis();
         self.reduced_inverse = self.reduced.inverse();
         // A vector t = n u + m v of length at most c has |m| ≤ c |u| / |u × v| (from
@@ -332,6 +355,25 @@ impl<S: HardShape> Packing<S> {
         self.range = Vec2::new(v.norm() / det, u.norm() / det);
         for index in 0..self.sites.len() {
             self.update_site_images(index);
+        }
+    }
+
+    /// Undo the last change of a site or the lattice, restoring the images from before it
+    /// rather than placing the shapes again. Only the last change can be undone.
+    pub fn undo(&mut self) {
+        match std::mem::replace(&mut self.undo, Undo::None) {
+            Undo::None => {}
+            Undo::Site(index, state) => {
+                self.state[index] = state;
+                std::mem::swap(&mut self.images[index], &mut self.saved[index]);
+            }
+            Undo::Lattice(lattice, reduced, reduced_inverse, range) => {
+                self.lattice = lattice;
+                self.reduced = reduced;
+                self.reduced_inverse = reduced_inverse;
+                self.range = range;
+                std::mem::swap(&mut self.images, &mut self.saved);
+            }
         }
     }
 
@@ -824,6 +866,43 @@ mod test {
             }
             naive /= 2. * shapes.len() as f64;
             prop_assert!((energy - naive).abs() < 1e-9 * naive.abs().max(1.), "{} {}", energy, naive);
+        }
+
+        #[test]
+        fn undo_restores_previous_state(seed in 0u64..10_000, scale in 0.3f64..1.) {
+            let mut packing = random_packing("p2gg", &['c'], seed, scale);
+            let mut rng = Rng::seed_from_u64(seed);
+            for step in 0..20 {
+                let before = packing.clone();
+                if step % 3 == 0 {
+                    let lattice = packing.lattice().scaled(0.8 + 0.4 * rng.uniform());
+                    packing.set_lattice(lattice);
+                } else {
+                    let mut state = packing.site_state(0);
+                    state.position.x += rng.centered() * 0.3;
+                    state.angle += rng.centered();
+                    packing.set_site(0, state);
+                }
+                // Changes are kept or undone at random, and undoing twice does nothing more
+                if rng.index(2) == 0 {
+                    packing.undo();
+                    if rng.index(2) == 0 {
+                        packing.undo();
+                    }
+                    prop_assert_eq!(packing.structure(), before.structure());
+                    prop_assert_eq!(
+                        format!("{:?}", packing.placed_shapes(1)),
+                        format!("{:?}", before.placed_shapes(1))
+                    );
+                    prop_assert_eq!(packing.any_overlap(), before.any_overlap());
+                }
+                // The images always match placing the shapes from scratch
+                let fresh = Packing::from_structure(packing.shape().clone(), &packing.structure()).unwrap();
+                prop_assert_eq!(
+                    format!("{:?}", packing.placed_shapes(1)),
+                    format!("{:?}", fresh.placed_shapes(1))
+                );
+            }
         }
 
         #[test]

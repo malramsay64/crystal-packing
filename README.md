@@ -67,7 +67,9 @@ and set of sites can be animated.
   by a shift of the origin removed.
 - **Overlaps**: polygons use the separating axis theorem on convex pieces. Using the symmetry,
   only the first image of each site needs checking against the other shapes, and moving a site
-  only rechecks the pairs involving it. Periodic images are found exactly from the reduced
+  only rechecks the pairs involving it. Polygons store their convex pieces, edge normals and
+  bounding circles in their own frame, so placing a shape is only a rotation and translation, and
+  a rejected move swaps back the previous images rather than placing the shapes again. Periodic images are found exactly from the reduced
   lattice basis.
 - **Optimisation**: an isobaric ("floppy box") Monte Carlo compression with a rising pressure and
   adaptive step sizes, followed by a squeeze to contact. Every result is checked by an
@@ -99,15 +101,15 @@ A full search over all 17 plane groups, with default settings on 4 cores:
 
 | Shape | Packing fraction | Known optimum | Time |
 |---|---|---|---|
-| Disk | 0.906900 | π/√12 = 0.906900 | 1.3 s |
-| Triangle | 1.000000 | 1 | 3.5 s |
-| Square | 1.000000 | 1 | 5.3 s |
-| Pentagon | 0.921311 | (5−√5)/3 = 0.921311 | 1.8 s |
-| Hexagon | 1.000000 | 1 | 3.0 s |
-| Heptagon | 0.892691 | 0.892691 | 2.6 s |
-| Trimer | 0.946284 | — | 1.0 s |
+| Disk | 0.906900 | π/√12 = 0.906900 | 0.8 s |
+| Triangle | 1.000000 | 1 | 1.8 s |
+| Square | 1.000000 | 1 | 2.6 s |
+| Pentagon | 0.921311 | (5−√5)/3 = 0.921311 | 0.8 s |
+| Hexagon | 1.000000 | 1 | 1.7 s |
+| Heptagon | 0.892691 | 0.892691 | 1.2 s |
+| Trimer | 0.946284 | — | 0.7 s |
 
-A survey optimising every candidate of every group takes longer, about 22 s for pentagons.
+A survey optimising every candidate of every group takes longer, about 10 s for pentagons.
 
 For comparison, the previous optimiser reached 0.630 for pentagons, 0.767 for squares, 0.788 for
 disks and 0.449 for triangles, and didn't improve with more steps.

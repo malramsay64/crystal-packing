@@ -17,6 +17,7 @@
 //! fraction is that of an infinite channel. A cluster has no walls or periodic boundaries at all,
 //! and the packing fraction is the area of the shapes divided by the area of their convex hull.
 
+use std::cell::Cell;
 use std::f64::consts::PI;
 
 use anyhow::{bail, Error};
@@ -26,7 +27,7 @@ use crate::engine::{SiteRecord, Structure};
 use crate::geometry::{convex_hull, perimeter, polygon_area, wrap_angle, Mat2, Vec2};
 use crate::hard_shape::{HardShape, Outline, OVERLAP_TOLERANCE};
 use crate::lattice::Lattice;
-use crate::monte_carlo::{MonteCarloConfig, Progress, StepSize};
+use crate::monte_carlo::{MonteCarloConfig, PressureSchedule, Progress, StepSize};
 use crate::random::Rng;
 use crate::symmetry::LatticeFamily;
 
@@ -98,20 +99,13 @@ fn circle_hull_area(circles: &[(Vec2, f64)]) -> f64 {
     0.5 * total
 }
 
-/// The area of the convex hull of a set of outlines.
+/// The area of the convex hull of a set of circles, as (centre, radius).
 ///
 /// The hull of circles of equal radius r is the hull of their centres grown by r, with an area of
 /// A + P r + π r², from the area A and perimeter P of the hull of the centres, which also covers
 /// polygons with r = 0. Circles of different sizes use the support function of the hull. Both are
 /// exact.
-pub fn hull_area(outlines: &[Outline]) -> f64 {
-    let circles: Vec<(Vec2, f64)> = outlines
-        .iter()
-        .flat_map(|o| match o {
-            Outline::Polygon(p) => p.iter().map(|&v| (v, 0.)).collect(),
-            Outline::Circle(c, r) => vec![(*c, *r)],
-        })
-        .collect();
+pub fn circles_hull_area(circles: &[(Vec2, f64)]) -> f64 {
     let r0 = circles.iter().map(|c| c.1).fold(f64::INFINITY, f64::min);
     let r1 = circles.iter().map(|c| c.1).fold(0., f64::max);
     if circles.is_empty() {
@@ -121,8 +115,20 @@ pub fn hull_area(outlines: &[Outline]) -> f64 {
         let hull = convex_hull(&centres);
         polygon_area(&hull) + perimeter(&hull) * r0 + PI * r0 * r0
     } else {
-        circle_hull_area(&circles)
+        circle_hull_area(circles)
     }
+}
+
+/// The area of the convex hull of a set of outlines
+pub fn hull_area(outlines: &[Outline]) -> f64 {
+    let circles: Vec<(Vec2, f64)> = outlines
+        .iter()
+        .flat_map(|o| match o {
+            Outline::Polygon(p) => p.iter().map(|&v| (v, 0.)).collect(),
+            Outline::Circle(c, r) => vec![(*c, *r)],
+        })
+        .collect();
+    circles_hull_area(&circles)
 }
 
 /// The size of a container; a circle has a diameter equal to the width and height
@@ -180,16 +186,14 @@ impl Container {
         match self {
             Container::Square | Container::Rectangle => {
                 let (w, h) = (0.5 * size.width + tolerance, 0.5 * size.height + tolerance);
-                S::support(placed, Vec2::new(1., 0.)) <= w
-                    && S::support(placed, Vec2::new(-1., 0.)) <= w
-                    && S::support(placed, Vec2::new(0., 1.)) <= h
-                    && S::support(placed, Vec2::new(0., -1.)) <= h
+                let (lo, hi) = S::bounds(placed);
+                -lo.x <= w && hi.x <= w && -lo.y <= h && hi.y <= h
             }
             Container::Circle => S::farthest(placed, Vec2::ZERO) <= 0.5 * size.width + tolerance,
             Container::Strip => {
                 let h = 0.5 * size.height + tolerance;
-                S::support(placed, Vec2::new(0., 1.)) <= h
-                    && S::support(placed, Vec2::new(0., -1.)) <= h
+                let (lo, hi) = S::bounds(placed);
+                -lo.y <= h && hi.y <= h
             }
             Container::Cluster => true,
         }
@@ -204,6 +208,15 @@ impl Container {
     pub fn is_periodic(&self) -> bool {
         *self == Container::Strip
     }
+}
+
+/// The state before the last change of the shapes in a container, so it can be undone, with the
+/// area of a cluster before it
+#[derive(Debug, Clone)]
+enum Undo {
+    None,
+    Shape(usize, Vec2, f64, Option<f64>),
+    Size(ContainerSize, Option<f64>),
 }
 
 /// A finite number of shapes inside a container.
@@ -222,6 +235,11 @@ pub struct Confined<S: HardShape> {
     placed: Vec<S::Placed>,
     contact: f64,
     core: f64,
+    /// The area of the convex hull of a cluster, when it is up to date
+    hull: Cell<Option<f64>>,
+    /// The placed shapes before the last change, swapped back to undo it
+    saved: Vec<S::Placed>,
+    undo: Undo,
 }
 
 impl<S: HardShape> Confined<S> {
@@ -265,6 +283,9 @@ impl<S: HardShape> Confined<S> {
             placed: vec![S::Placed::default(); n],
             contact,
             core,
+            hull: Cell::new(None),
+            saved: vec![S::Placed::default(); n],
+            undo: Undo::None,
         };
         confined.set_size(confined.size);
         for _ in 0..200 {
@@ -295,6 +316,9 @@ impl<S: HardShape> Confined<S> {
             positions: vec![Vec2::ZERO; n],
             angles: vec![0.; n],
             placed: vec![S::Placed::default(); n],
+            hull: Cell::new(None),
+            saved: vec![S::Placed::default(); n],
+            undo: Undo::None,
         };
         for (i, site) in structure.sites.iter().enumerate() {
             confined.set_shape(i, Vec2::new(site.x, site.y), site.angle);
@@ -338,10 +362,19 @@ impl<S: HardShape> Confined<S> {
         let orientation = Mat2::rotation(self.angles[index]);
         self.shape
             .place(&orientation, position, &mut self.placed[index]);
+        self.hull.set(None);
     }
 
-    /// Move a shape to a position (in Cartesian coordinates) and orientation
+    /// Move a shape to a position (in Cartesian coordinates) and orientation. This can be undone
+    /// with [`Confined::undo`].
     pub fn set_shape(&mut self, index: usize, position: Vec2, angle: f64) {
+        self.undo = Undo::Shape(
+            index,
+            self.positions[index],
+            self.angles[index],
+            self.hull.get(),
+        );
+        std::mem::swap(&mut self.placed[index], &mut self.saved[index]);
         let mut x = 2. * position.x / self.size.width;
         if self.container.is_periodic() {
             x -= 2. * libm::floor(0.5 * (x + 1.));
@@ -351,8 +384,11 @@ impl<S: HardShape> Confined<S> {
         self.place(index);
     }
 
-    /// Change the size of the container, scaling the positions of the shapes with it
+    /// Change the size of the container, scaling the positions of the shapes with it. This can be
+    /// undone with [`Confined::undo`].
     pub fn set_size(&mut self, size: ContainerSize) {
+        self.undo = Undo::Size(self.size, self.hull.get());
+        std::mem::swap(&mut self.placed, &mut self.saved);
         self.size = self.container.constrain(size);
         for index in 0..self.positions.len() {
             self.place(index);
@@ -362,15 +398,37 @@ impl<S: HardShape> Confined<S> {
     /// The area of the container, or of the convex hull of a cluster
     pub fn area(&self) -> f64 {
         if self.container.is_cluster() {
-            let outlines: Vec<Outline> = (0..self.num_shapes())
-                .flat_map(|i| {
-                    self.shape
-                        .outlines(&Mat2::rotation(self.angles[i]), self.position(i))
-                })
-                .collect();
-            hull_area(&outlines)
+            if let Some(area) = self.hull.get() {
+                return area;
+            }
+            let mut circles = Vec::new();
+            for placed in self.placed.iter() {
+                S::hull_circles(placed, &mut circles);
+            }
+            let area = circles_hull_area(&circles);
+            self.hull.set(Some(area));
+            area
         } else {
             self.container.area(&self.size)
+        }
+    }
+
+    /// Undo the last change of a shape or the size of the container, restoring the placed shapes
+    /// from before it rather than placing them again. Only the last change can be undone.
+    pub fn undo(&mut self) {
+        match std::mem::replace(&mut self.undo, Undo::None) {
+            Undo::None => {}
+            Undo::Shape(index, position, angle, hull) => {
+                self.positions[index] = position;
+                self.angles[index] = angle;
+                std::mem::swap(&mut self.placed[index], &mut self.saved[index]);
+                self.hull.set(hull);
+            }
+            Undo::Size(size, hull) => {
+                self.size = size;
+                std::mem::swap(&mut self.placed, &mut self.saved);
+                self.hull.set(hull);
+            }
         }
     }
 
@@ -486,6 +544,7 @@ type Snapshot = (Vec<Vec2>, Vec<f64>, ContainerSize);
 pub struct ConfinedOptimiser<S: HardShape> {
     confined: Confined<S>,
     config: MonteCarloConfig,
+    schedule: PressureSchedule,
     rng: Rng,
     translate: StepSize,
     rotate: StepSize,
@@ -505,6 +564,7 @@ impl<S: HardShape> ConfinedOptimiser<S> {
         let best_packing_fraction = confined.packing_fraction();
         ConfinedOptimiser {
             confined,
+            schedule: PressureSchedule::new(&config),
             config,
             rng: Rng::seed_from_u64(seed),
             translate: StepSize::new(0.2, 1e-12, 1.),
@@ -543,26 +603,24 @@ impl<S: HardShape> ConfinedOptimiser<S> {
     }
 
     fn pressure(&self) -> f64 {
-        let fraction = (self.step as f64 / self.config.steps.max(1) as f64).min(1.);
-        self.config.pressure_start
-            * libm::pow(
-                self.config.pressure_end / self.config.pressure_start,
-                fraction,
-            )
+        self.schedule.at(self.step)
     }
 
-    /// Whether to accept a change in area, as a fraction of the area of a shape
-    fn accept_area(&mut self, change: f64, pressure: f64) -> bool {
+    /// Whether to accept a change in area, as a fraction of the area of a shape, at a fixed
+    /// pressure or None for the pressure of the schedule
+    fn accept_area(&mut self, change: f64, pressure: Option<f64>) -> bool {
         if change <= 0. {
-            true
-        } else if pressure.is_infinite() {
+            return true;
+        }
+        let pressure = pressure.unwrap_or_else(|| self.pressure());
+        if pressure.is_infinite() {
             false
         } else {
             self.rng.uniform() < libm::exp(-pressure * change)
         }
     }
 
-    fn move_shape(&mut self, index: usize, rotate: bool, pressure: f64) -> bool {
+    fn move_shape(&mut self, index: usize, rotate: bool, pressure: Option<f64>) -> bool {
         let cluster = self.confined.container.is_cluster();
         let old_area = if cluster { self.confined.area() } else { 0. };
         let (old_position, old_angle) = (self.confined.position(index), self.confined.angle(index));
@@ -578,21 +636,22 @@ impl<S: HardShape> ConfinedOptimiser<S> {
         };
         self.confined.set_shape(index, position, angle);
         if self.confined.shape_overlaps(index) {
-            self.confined.set_shape(index, old_position, old_angle);
+            self.confined.undo();
             return false;
         }
         if cluster {
             // Moving a shape changes the area of the hull
             let change = (self.confined.area() - old_area) / self.confined.shape.area();
             if !self.accept_area(change, pressure) {
-                self.confined.set_shape(index, old_position, old_angle);
+                self.confined.undo();
                 return false;
             }
         }
         true
     }
 
-    fn resize_container(&mut self, pressure: f64) -> bool {
+    fn resize_container(&mut self, pressure: Option<f64>) -> bool {
+        let pressure = pressure.unwrap_or_else(|| self.pressure());
         let old = self.confined.size;
         let delta = 2. * self.resize.size * self.rng.centered();
         let container = self.confined.container;
@@ -632,19 +691,22 @@ impl<S: HardShape> ConfinedOptimiser<S> {
         };
         if log_acceptance < 0. && self.rng.uniform() >= libm::exp(log_acceptance) {
             if container.is_cluster() {
-                self.confined.set_size(old);
+                self.confined.undo();
             }
             return false;
         }
-        self.confined.set_size(new);
+        if !container.is_cluster() {
+            self.confined.set_size(new);
+        }
         if self.confined.any_overlap() {
-            self.confined.set_size(old);
+            self.confined.undo();
             return false;
         }
         true
     }
 
-    fn step_once(&mut self, pressure: f64) {
+    /// Perform a single move at a fixed pressure, or None for the pressure of the schedule
+    fn step_once(&mut self, pressure: Option<f64>) {
         let n = self.confined.num_shapes();
         let interval = self.config.adapt_interval;
         let target = self.config.target_acceptance;
@@ -672,8 +734,7 @@ impl<S: HardShape> ConfinedOptimiser<S> {
     pub fn run(&mut self, steps: u64) -> Progress {
         let end = (self.step + steps).min(self.config.steps);
         while self.step < end {
-            let pressure = self.pressure();
-            self.step_once(pressure);
+            self.step_once(None);
             self.step += 1;
         }
         self.progress()
@@ -745,7 +806,7 @@ impl<S: HardShape> ConfinedOptimiser<S> {
             self.rotate.size = self.rotate.size.min(1e-3);
             self.resize.size = self.resize.size.min(1e-4);
             for _ in 0..self.config.squeeze_steps / rounds {
-                self.step_once(f64::INFINITY);
+                self.step_once(Some(f64::INFINITY));
             }
             self.squeeze();
         }

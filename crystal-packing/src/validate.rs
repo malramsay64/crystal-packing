@@ -231,34 +231,32 @@ pub fn validate<S: HardShape>(shape: &S, structure: &Structure) -> Result<(), Er
     Ok(())
 }
 
-/// The area of the convex hull of a set of points, found by gift wrapping
-fn wrapped_hull_area(points: &[Vec2]) -> f64 {
-    let Some(start) = points
+/// The area of the convex hull of a set of points, found by a Graham scan
+fn scanned_hull_area(points: &[Vec2]) -> f64 {
+    // The lowest point is on the hull, and the others are visited in order of their angle from it
+    let Some(pivot) = points
         .iter()
         .copied()
-        .min_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)))
+        .min_by(|a, b| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)))
     else {
         return 0.;
     };
-    let mut hull = vec![start];
-    let mut current = start;
-    loop {
-        // The next point has every other point to its left
-        let mut next = current;
-        for &p in points {
-            let turn = (next - current).cross(p - current);
-            if next == current
-                || turn < 0.
-                || (turn == 0. && (p - current).norm_sq() > (next - current).norm_sq())
-            {
-                next = p;
+    let mut others: Vec<(f64, f64, Vec2)> = points
+        .iter()
+        .filter(|&&p| p != pivot)
+        .map(|&p| ((p - pivot).angle(), (p - pivot).norm_sq(), p))
+        .collect();
+    others.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    let mut hull = vec![pivot];
+    for (_, _, p) in others {
+        while hull.len() >= 2 {
+            let (a, b) = (hull[hull.len() - 2], hull[hull.len() - 1]);
+            if (b - a).cross(p - a) > 0. {
+                break;
             }
+            hull.pop();
         }
-        if next == start || next == current || hull.len() > points.len() {
-            break;
-        }
-        hull.push(next);
-        current = next;
+        hull.push(p);
     }
     let n = hull.len();
     0.5 * (0..n)
@@ -284,7 +282,7 @@ fn outline_hull_area(outlines: &[Outline]) -> f64 {
             }
         })
         .collect();
-    wrapped_hull_area(&points)
+    scanned_hull_area(&points)
 }
 
 /// Check a structure of shapes in a container is valid: every shape is inside the container and
@@ -533,14 +531,14 @@ mod test {
     }
 
     #[test]
-    fn hull_by_gift_wrapping() {
+    fn hull_by_graham_scan() {
         let points: Vec<Vec2> = [(0., 0.), (2., 0.), (2., 2.), (0., 2.), (1., 1.), (1., 0.)]
             .iter()
             .map(|&(x, y)| Vec2::new(x, y))
             .collect();
-        assert!((wrapped_hull_area(&points) - 4.).abs() < 1e-12);
-        assert_eq!(wrapped_hull_area(&[]), 0.);
-        assert_eq!(wrapped_hull_area(&points[..1]), 0.);
-        assert_eq!(wrapped_hull_area(&points[..2]), 0.);
+        assert!((scanned_hull_area(&points) - 4.).abs() < 1e-12);
+        assert_eq!(scanned_hull_area(&[]), 0.);
+        assert_eq!(scanned_hull_area(&points[..1]), 0.);
+        assert_eq!(scanned_hull_area(&points[..2]), 0.);
     }
 }
