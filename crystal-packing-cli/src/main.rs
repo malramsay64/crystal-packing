@@ -488,8 +488,8 @@ fn report_near_best(search: &Search, shape: &ShapeSpec, report: &ReportArgs) -> 
         limited
     );
     println!(
-        "{:>4}  {:<16} {:>9} {:>10} {:>8} {:>7}  {}",
-        "rank", "candidate", "phi", "energy", "below %", "shapes", "also found in"
+        "{:>4}  {:<16} {:>9} {:>10} {:>8} {:>7}  also found in",
+        "rank", "candidate", "phi", "energy", "below %", "shapes"
     );
     let directory = report.output.join("near-best");
     if directory.exists() {
