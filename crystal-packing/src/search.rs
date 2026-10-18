@@ -444,8 +444,20 @@ pub fn run_job(job: &Job) -> Outcome {
     runner.finish()
 }
 
+/// How the computational budget is divided between the candidates
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Strategy {
+    /// Successive halving, focusing the budget on the most promising candidates
+    #[default]
+    Halving,
+    /// Every candidate is optimised for every round, to survey all the groups
+    Exhaustive,
+}
+
 /// Configuration of a search over candidates
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SearchConfig {
     /// The groups to search, or all groups when empty
     pub groups: Vec<String>,
@@ -460,10 +472,21 @@ pub struct SearchConfig {
     /// The fraction of candidates kept after each round is 1 / eta, while the number of steps
     /// increases by a factor of eta.
     pub eta: usize,
+    /// The number of steps grows by at most eta to this power
+    pub max_step_growth: u32,
+    pub strategy: Strategy,
+    /// Once the candidates are narrowed down, the search finishes after this many rounds
+    /// without the best score improving
+    pub patience: usize,
+    /// The relative change of the best score counted as an improvement
+    pub improvement: f64,
+    /// The maximum number of rounds, excluding the refinement round
+    pub max_rounds: usize,
+    /// Candidates within this fraction of the best score are refined with the final budget
+    pub within: f64,
     pub seed: u64,
     pub monte_carlo: MonteCarloConfig,
     /// Minimise the energy of this potential rather than maximising the packing fraction
-    #[serde(default)]
     pub potential: Option<LennardJones>,
 }
 
@@ -476,6 +499,12 @@ impl Default for SearchConfig {
             replicas: 4,
             steps: 10_000,
             eta: 3,
+            max_step_growth: 3,
+            strategy: Strategy::Halving,
+            patience: 2,
+            improvement: 1e-5,
+            max_rounds: 8,
+            within: 0.02,
             seed: 0,
             monte_carlo: MonteCarloConfig::default(),
             potential: None,
@@ -490,10 +519,31 @@ pub struct CandidateResult {
     pub best: Option<Structure>,
     /// The last round of the search the candidate took part in
     pub rounds: usize,
+    /// The largest number of steps of any optimisation of the candidate
+    #[serde(default)]
+    pub steps: u64,
     pub errors: Vec<String>,
 }
 
-/// A successive halving search over every candidate for a shape
+impl CandidateResult {
+    pub fn score(&self) -> f64 {
+        self.best.as_ref().map_or(f64::NEG_INFINITY, |s| s.score())
+    }
+}
+
+/// The stages of a search
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Phase {
+    /// Narrowing down the candidates
+    Explore,
+    /// Optimising the remaining candidates until they stop improving
+    Converge,
+    /// Giving every candidate close to the best the same budget as the best
+    Refine,
+    Finished,
+}
+
+/// A search over every candidate for a shape
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Search {
     pub config: SearchConfig,
@@ -501,7 +551,11 @@ pub struct Search {
     pub results: Vec<CandidateResult>,
     active: Vec<usize>,
     round: usize,
-    finished: bool,
+    phase: Phase,
+    /// The number of consecutive rounds without improvement in the converge phase
+    stale: usize,
+    /// The number of steps of the latest round before refinement
+    final_steps: u64,
 }
 
 impl Search {
@@ -534,21 +588,41 @@ impl Search {
                 candidate,
                 best: None,
                 rounds: 0,
+                steps: 0,
                 errors: vec![],
             })
             .collect();
+        let phase = match (config.strategy, results.len()) {
+            (Strategy::Exhaustive, _) | (_, 1) => Phase::Converge,
+            _ => Phase::Explore,
+        };
         Ok(Search {
             active: (0..results.len()).collect(),
             config,
             shape,
             results,
             round: 0,
-            finished: false,
+            phase,
+            stale: 0,
+            final_steps: 0,
         })
     }
 
     pub fn is_finished(&self) -> bool {
-        self.finished
+        self.phase == Phase::Finished
+    }
+
+    pub fn phase(&self) -> Phase {
+        self.phase
+    }
+
+    /// The number of steps for each optimisation in the current round
+    fn round_steps(&self) -> u64 {
+        if self.phase == Phase::Refine {
+            return self.final_steps;
+        }
+        let growth = (self.round as u32).min(self.config.max_step_growth);
+        self.config.steps * (self.config.eta as u64).pow(growth)
     }
 
     pub fn round(&self) -> usize {
@@ -561,10 +635,10 @@ impl Search {
 
     /// The jobs for the current round, which is empty once the search is finished
     pub fn jobs(&self) -> Vec<Job> {
-        if self.finished {
+        if self.is_finished() {
             return vec![];
         }
-        let steps = self.config.steps * (self.config.eta as u64).pow(self.round as u32);
+        let steps = self.round_steps();
         let mut jobs = vec![];
         for &index in self.active.iter() {
             let result = &self.results[index];
@@ -599,6 +673,9 @@ impl Search {
 
     /// Submit the outcomes of the current round's jobs, advancing to the next round
     pub fn submit(&mut self, outcomes: Vec<Outcome>) {
+        let steps = self.round_steps();
+        let previous_best = self.best_score();
+        let mut improved = false;
         for outcome in outcomes {
             let Some(result) = self
                 .results
@@ -608,42 +685,132 @@ impl Search {
                 continue;
             };
             result.rounds = self.round + 1;
+            result.steps = result.steps.max(steps);
             if let Some(error) = outcome.error {
                 result.errors.push(error);
             }
             if let Some(structure) = outcome.structure {
-                let better = result
-                    .best
-                    .as_ref()
-                    .is_none_or(|b| structure.score() > b.score());
-                if better {
+                let old = result.score();
+                if structure.score() > old {
+                    if structure.score() > old + self.config.improvement * old.abs() {
+                        improved = true;
+                    }
                     result.best = Some(structure);
                 }
             }
         }
-        if self.active.len() <= 1 {
-            self.finished = true;
-            return;
+        // In the halving phase only the change of the overall best matters
+        let best_improved =
+            self.best_score() > previous_best + self.config.improvement * previous_best.abs();
+
+        match self.phase {
+            Phase::Explore => {
+                let mut ranked = self.active.clone();
+                ranked.sort_by(|a, b| {
+                    self.results[*b]
+                        .score()
+                        .partial_cmp(&self.results[*a].score())
+                        .unwrap_or(Ordering::Equal)
+                });
+                ranked.truncate(ranked.len().div_ceil(self.config.eta).max(1));
+                self.active = ranked;
+                if self.active.len() == 1 {
+                    self.phase = Phase::Converge;
+                }
+                self.final_steps = steps;
+                self.round += 1;
+            }
+            Phase::Converge => {
+                let progress = match self.config.strategy {
+                    Strategy::Halving => best_improved,
+                    Strategy::Exhaustive => improved,
+                };
+                self.stale = if progress { 0 } else { self.stale + 1 };
+                self.final_steps = steps;
+                self.round += 1;
+                if self.stale >= self.config.patience || self.round >= self.config.max_rounds {
+                    self.start_refinement();
+                }
+            }
+            Phase::Refine => {
+                self.round += 1;
+                self.phase = Phase::Finished;
+            }
+            Phase::Finished => {}
         }
-        let score = |i: &usize| {
-            self.results[*i]
-                .best
-                .as_ref()
-                .map_or(f64::NEG_INFINITY, |s| s.score())
+        if self.phase != Phase::Finished && self.round >= self.config.max_rounds + 1 {
+            self.phase = Phase::Finished;
+        }
+    }
+
+    /// Give every candidate near the best which had a smaller budget a round with the final budget
+    fn start_refinement(&mut self) {
+        let threshold = self.threshold(self.config.within);
+        let refine: Vec<usize> = (0..self.results.len())
+            .filter(|&i| {
+                let result = &self.results[i];
+                result.score() >= threshold && result.steps < self.final_steps
+            })
+            .collect();
+        if refine.is_empty() {
+            self.phase = Phase::Finished;
+        } else {
+            self.active = refine;
+            self.phase = Phase::Refine;
+        }
+    }
+
+    fn best_score(&self) -> f64 {
+        self.results
+            .iter()
+            .map(|r| r.score())
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    /// The lowest score within a relative tolerance of the best score
+    fn threshold(&self, within: f64) -> f64 {
+        let best = self.best_score();
+        best - within * best.abs()
+    }
+
+    /// The candidates with a score within a fraction `within` of the best, best first
+    pub fn near_best(&self, within: f64) -> Vec<&CandidateResult> {
+        let threshold = self.threshold(within);
+        self.ranking()
+            .into_iter()
+            .filter(|r| r.best.is_some() && r.score() >= threshold)
+            .collect()
+    }
+
+    /// The best candidate of every group searched, in the order of the International Tables
+    pub fn best_per_group(&self) -> Vec<(String, Option<&CandidateResult>)> {
+        let mut groups: Vec<&PlaneGroup> = if self.config.groups.is_empty() {
+            PlaneGroup::all().iter().collect()
+        } else {
+            self.config
+                .groups
+                .iter()
+                .filter_map(|g| PlaneGroup::from_name(g).ok())
+                .collect()
         };
-        let mut ranked = self.active.clone();
-        ranked.sort_by(|a, b| score(b).partial_cmp(&score(a)).unwrap_or(Ordering::Equal));
-        let keep = ranked.len().div_ceil(self.config.eta).max(1);
-        ranked.truncate(keep);
-        self.active = ranked;
-        self.round += 1;
+        groups.sort_by_key(|g| g.number);
+        groups
+            .into_iter()
+            .map(|group| {
+                let best = self
+                    .results
+                    .iter()
+                    .filter(|r| r.candidate.group == group.name && r.best.is_some())
+                    .max_by(|a, b| a.score().total_cmp(&b.score()));
+                (group.name.clone(), best)
+            })
+            .collect()
     }
 
     /// All candidates ranked by their best packing fraction
     pub fn ranking(&self) -> Vec<&CandidateResult> {
         let mut ranked: Vec<&CandidateResult> = self.results.iter().collect();
-        let score = |r: &CandidateResult| r.best.as_ref().map_or(f64::NEG_INFINITY, |s| s.score());
-        ranked.sort_by(|a, b| score(b).total_cmp(&score(a)));
+        ranked.sort_by(|a, b| b.score().total_cmp(&a.score()));
         ranked
     }
 
@@ -653,7 +820,7 @@ impl Search {
 
     /// Run the whole search sequentially
     pub fn run(&mut self) -> Option<&Structure> {
-        while !self.finished {
+        while !self.is_finished() {
             let outcomes = self.jobs().iter().map(run_job).collect();
             self.submit(outcomes);
         }
@@ -796,6 +963,229 @@ mod test {
         let outcome = run_job(&job);
         assert!(outcome.structure.is_none());
         assert!(outcome.error.unwrap().contains("symmetry"));
+    }
+
+    /// A structure with a given packing fraction, standing in for the result of a job
+    fn fake_structure(candidate: &Candidate, phi: f64) -> Structure {
+        let group = PlaneGroup::from_name(&candidate.group).unwrap();
+        Structure {
+            shape: "fake".into(),
+            group: candidate.group.clone(),
+            sites: vec![],
+            lattice: crate::lattice::Lattice::with_length(group.family, 1.),
+            num_shapes: 1,
+            packing_fraction: phi,
+            energy: None,
+        }
+    }
+
+    /// Submit an outcome for every job, with the packing fraction given by `score`
+    fn submit_round(search: &mut Search, score: impl Fn(&Job) -> f64) -> Vec<Job> {
+        let jobs = search.jobs();
+        let outcomes = jobs
+            .iter()
+            .map(|job| Outcome {
+                candidate: job.candidate.clone(),
+                structure: Some(fake_structure(&job.candidate, score(job))),
+                error: None,
+            })
+            .collect();
+        search.submit(outcomes);
+        jobs
+    }
+
+    fn disk_search(config: SearchConfig) -> Search {
+        Search::new(ShapeSpec::Disk, config).unwrap()
+    }
+
+    fn all_groups() -> Vec<String> {
+        PlaneGroup::all().iter().map(|g| g.name.clone()).collect()
+    }
+
+    /// A score for each candidate which doesn't change between rounds
+    fn fixed_score(job: &Job) -> f64 {
+        let label = job.candidate.label();
+        let hash = label
+            .bytes()
+            .fold(7u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64));
+        0.5 + (hash % 1000) as f64 / 4000.
+    }
+
+    #[test]
+    fn halving_keeps_a_fraction_of_candidates() {
+        let mut search = disk_search(SearchConfig {
+            groups: all_groups(),
+            ..Default::default()
+        });
+        let n = search.num_active();
+        assert!(n > 9, "{}", n);
+        submit_round(&mut search, fixed_score);
+        assert_eq!(search.num_active(), n.div_ceil(3));
+        assert!(!search.is_finished());
+    }
+
+    #[test]
+    fn continues_while_improving() {
+        let mut search = disk_search(SearchConfig {
+            groups: vec!["p1".into()],
+            patience: 2,
+            max_rounds: 20,
+            ..Default::default()
+        });
+        assert_eq!(search.num_active(), 1);
+        // Keep improving for 5 rounds
+        for round in 0..5 {
+            submit_round(&mut search, |_| 0.5 + 0.01 * round as f64);
+            assert!(
+                !search.is_finished(),
+                "Finished while improving in round {}",
+                round
+            );
+        }
+        // Then stop improving, finishing after `patience` rounds
+        submit_round(&mut search, |_| 0.5);
+        assert!(!search.is_finished());
+        submit_round(&mut search, |_| 0.5);
+        assert!(search.is_finished());
+    }
+
+    #[test]
+    fn stops_at_max_rounds() {
+        let mut search = disk_search(SearchConfig {
+            groups: vec!["p1".into()],
+            max_rounds: 3,
+            ..Default::default()
+        });
+        for round in 0..3 {
+            assert!(!search.is_finished());
+            submit_round(&mut search, |_| 0.5 + 0.01 * round as f64);
+        }
+        assert!(search.is_finished());
+    }
+
+    #[test]
+    fn step_growth_is_capped() {
+        let mut search = disk_search(SearchConfig {
+            groups: vec!["p1".into()],
+            steps: 100,
+            eta: 3,
+            max_step_growth: 2,
+            max_rounds: 10,
+            ..Default::default()
+        });
+        let mut steps = vec![];
+        for round in 0..5 {
+            let jobs = submit_round(&mut search, |_| 0.5 + 0.01 * round as f64);
+            steps.push(jobs[0].config.steps);
+        }
+        assert_eq!(steps, vec![100, 300, 900, 900, 900]);
+    }
+
+    #[test]
+    fn refines_candidates_near_the_best() {
+        let mut search = disk_search(SearchConfig {
+            groups: all_groups(),
+            within: 0.02,
+            ..Default::default()
+        });
+        // Two candidates are close to the best, and the rest far below
+        let score = |job: &Job| match job.candidate.label().as_str() {
+            "p6mm:a" => 0.90,
+            "p3:a" => 0.89,
+            "p1:a" => 0.885,
+            _ => 0.5,
+        };
+        let mut final_steps = 0;
+        while !search.is_finished() {
+            let jobs = submit_round(&mut search, score);
+            final_steps = final_steps.max(jobs[0].config.steps);
+        }
+        let near: Vec<String> = search
+            .near_best(0.02)
+            .iter()
+            .map(|r| r.candidate.label())
+            .collect();
+        assert_eq!(near, vec!["p6mm:a", "p3:a", "p1:a"]);
+        // Every candidate within the tolerance had the full budget
+        for result in search.near_best(0.02) {
+            assert_eq!(result.steps, final_steps, "{}", result.candidate.label());
+        }
+        // Candidates far from the best were not refined
+        let far = search
+            .results
+            .iter()
+            .find(|r| r.candidate.label() == "p2mm:a")
+            .unwrap();
+        assert!(far.steps < final_steps);
+    }
+
+    #[test]
+    fn exhaustive_runs_every_candidate() {
+        let mut search = disk_search(SearchConfig {
+            groups: all_groups(),
+            strategy: Strategy::Exhaustive,
+            patience: 1,
+            ..Default::default()
+        });
+        let n = search.num_active();
+        submit_round(&mut search, fixed_score);
+        assert_eq!(search.num_active(), n);
+        submit_round(&mut search, fixed_score);
+        assert!(search.is_finished());
+        assert!(search.results.iter().all(|r| r.best.is_some()));
+    }
+
+    #[test]
+    fn best_per_group_lists_every_group() {
+        let mut search = disk_search(SearchConfig {
+            groups: all_groups(),
+            strategy: Strategy::Exhaustive,
+            patience: 1,
+            ..Default::default()
+        });
+        while !search.is_finished() {
+            submit_round(&mut search, fixed_score);
+        }
+        let per_group = search.best_per_group();
+        assert_eq!(per_group.len(), 17);
+        for (group, result) in per_group {
+            let result = result.expect("Every group has a candidate for disks");
+            assert_eq!(result.candidate.group, group);
+            // It is the best of the group's candidates
+            for other in search.results.iter().filter(|r| r.candidate.group == group) {
+                assert!(
+                    other.best.as_ref().unwrap().score() <= result.best.as_ref().unwrap().score()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn near_best_uses_relative_tolerance() {
+        let mut search = disk_search(SearchConfig {
+            groups: all_groups(),
+            strategy: Strategy::Exhaustive,
+            patience: 1,
+            ..Default::default()
+        });
+        while !search.is_finished() {
+            submit_round(&mut search, fixed_score);
+        }
+        let best = search.best().unwrap().score();
+        let near = search.near_best(0.05);
+        assert!(!near.is_empty());
+        let scores: Vec<f64> = near
+            .iter()
+            .map(|r| r.best.as_ref().unwrap().score())
+            .collect();
+        assert!(scores.windows(2).all(|w| w[0] >= w[1]), "Not sorted");
+        assert!(scores.iter().all(|&s| s >= best * 0.95));
+        let excluded = search
+            .results
+            .iter()
+            .filter(|r| r.best.as_ref().unwrap().score() < best * 0.95)
+            .count();
+        assert_eq!(near.len() + excluded, search.results.len());
     }
 
     #[test]

@@ -118,6 +118,51 @@ fn triangulate(vertices: &[Vec2]) -> Result<Vec<Vec<usize>>, Error> {
     Ok(triangles)
 }
 
+/// Whether two segments intersect, including touching at a point
+fn segments_intersect(p1: Vec2, p2: Vec2, q1: Vec2, q2: Vec2) -> bool {
+    let d1 = (p2 - p1).cross(q1 - p1);
+    let d2 = (p2 - p1).cross(q2 - p1);
+    let d3 = (q2 - q1).cross(p1 - q1);
+    let d4 = (q2 - q1).cross(p2 - q1);
+    if d1 * d2 < 0. && d3 * d4 < 0. {
+        return true;
+    }
+    // Collinear cases, where an endpoint lies on the other segment
+    let on_segment = |a: Vec2, b: Vec2, p: Vec2| {
+        p.x >= a.x.min(b.x) && p.x <= a.x.max(b.x) && p.y >= a.y.min(b.y) && p.y <= a.y.max(b.y)
+    };
+    (d1 == 0. && on_segment(p1, p2, q1))
+        || (d2 == 0. && on_segment(p1, p2, q2))
+        || (d3 == 0. && on_segment(q1, q2, p1))
+        || (d4 == 0. && on_segment(q1, q2, p2))
+}
+
+/// Find a pair of non-adjacent edges which intersect, if there are any
+fn self_intersection(vertices: &[Vec2]) -> Option<(usize, usize)> {
+    let n = vertices.len();
+    for i in 0..n {
+        for j in (i + 2)..n {
+            // The first and last edges share a vertex
+            if i == 0 && j == n - 1 {
+                continue;
+            }
+            let (a1, a2) = (vertices[i], vertices[(i + 1) % n]);
+            let (b1, b2) = (vertices[j], vertices[(j + 1) % n]);
+            if segments_intersect(a1, a2, b1, b2) {
+                return Some((i, j));
+            }
+        }
+    }
+    // Adjacent edges folding back on themselves
+    for i in 0..n {
+        let (a, b, c) = (vertices[i], vertices[(i + 1) % n], vertices[(i + 2) % n]);
+        if (b - a).cross(c - b) == 0. && (b - a).dot(c - b) < 0. {
+            return Some((i, (i + 1) % n));
+        }
+    }
+    None
+}
+
 fn segment_distance(p: Vec2, a: Vec2, b: Vec2) -> f64 {
     let ab = b - a;
     let t = ((p - a).dot(ab) / ab.norm_sq()).clamp(0., 1.);
@@ -148,6 +193,26 @@ impl Polygon {
     pub fn from_vertices(name: &str, vertices: Vec<Vec2>) -> Result<Polygon, Error> {
         if vertices.len() < 3 {
             bail!("A polygon requires at least 3 vertices")
+        }
+        if vertices
+            .iter()
+            .any(|v| !v.x.is_finite() || !v.y.is_finite())
+        {
+            bail!("The vertices of a polygon must be finite")
+        }
+        let n = vertices.len();
+        let scale = vertices
+            .iter()
+            .map(|v| v.norm())
+            .fold(0., f64::max)
+            .max(1e-300);
+        for i in 0..n {
+            if (vertices[(i + 1) % n] - vertices[i]).norm() < 1e-12 * scale {
+                bail!("The polygon has repeated vertices")
+            }
+        }
+        if let Some((i, j)) = self_intersection(&vertices) {
+            bail!("The polygon is not simple, edges {} and {} intersect", i, j)
         }
         let mut vertices = vertices;
         let mut area = signed_area(&vertices);
@@ -191,6 +256,9 @@ impl Polygon {
     pub fn from_radial(name: &str, radii: &[f64]) -> Result<Polygon, Error> {
         if radii.len() < 3 {
             bail!("The number of points provided is too few to create a 2D shape.")
+        }
+        if radii.iter().any(|r| !r.is_finite() || *r <= 0.) {
+            bail!("The distances of a radial shape must be positive")
         }
         let dtheta = 2. * PI / radii.len() as f64;
         let vertices = radii
@@ -459,6 +527,43 @@ mod test {
         let b = placed(&small, 0., Vec2::new(1.1, 1.1));
         assert!(!Polygon::overlaps(&a, &b, Vec2::ZERO));
         assert!(Polygon::overlaps(&a, &b, Vec2::new(-0.2, 0.)));
+    }
+
+    fn points(p: &[[f64; 2]]) -> Vec<Vec2> {
+        p.iter().map(|v| Vec2::new(v[0], v[1])).collect()
+    }
+
+    #[test]
+    fn rejects_self_intersecting() {
+        // An asymmetric bow tie has a non-zero signed area but isn't a simple polygon
+        let bow_tie = points(&[[0., 0.], [2., 1.], [2., 0.], [0., 1.5]]);
+        assert!(Polygon::from_vertices("bow tie", bow_tie).is_err());
+        let symmetric = points(&[[0., 0.], [1., 1.], [1., 0.], [0., 1.]]);
+        assert!(Polygon::from_vertices("bow tie", symmetric).is_err());
+    }
+
+    #[test]
+    fn rejects_degenerate() {
+        let collinear = points(&[[0., 0.], [1., 0.], [2., 0.]]);
+        assert!(Polygon::from_vertices("line", collinear).is_err());
+        let duplicate = points(&[[0., 0.], [1., 0.], [1., 0.], [0., 1.]]);
+        assert!(Polygon::from_vertices("duplicate", duplicate).is_err());
+        let not_finite = points(&[[0., 0.], [1., f64::NAN], [0., 1.]]);
+        assert!(Polygon::from_vertices("nan", not_finite).is_err());
+        let infinite = points(&[[0., 0.], [f64::INFINITY, 0.], [0., 1.]]);
+        assert!(Polygon::from_vertices("inf", infinite).is_err());
+        assert!(Polygon::from_vertices("two", points(&[[0., 0.], [1., 0.]])).is_err());
+        assert!(Polygon::from_radial("negative", &[1., -1., 1.]).is_err());
+        assert!(Polygon::from_radial("zero", &[1., 0., 1., 0.]).is_err());
+    }
+
+    #[test]
+    fn accepts_collinear_vertex_on_edge() {
+        // A square with an extra vertex in the middle of an edge is still a valid shape
+        let square = points(&[[0., 0.], [0.5, 0.], [1., 0.], [1., 1.], [0., 1.]]);
+        let shape = Polygon::from_vertices("square", square).unwrap();
+        assert_abs_diff_eq!(shape.area(), 1., epsilon = 1e-12);
+        assert!(shape.is_convex());
     }
 
     proptest! {

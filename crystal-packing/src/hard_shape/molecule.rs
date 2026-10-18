@@ -34,23 +34,55 @@ pub struct Molecule {
 /// A disk of unit radius
 pub type Disk = Molecule;
 
-fn lens_area(r: f64, d: f64) -> f64 {
-    r * r * libm::acos(d / r) - d * libm::sqrt(r * r - d * d)
-}
-
-/// The area of the overlap of two circles
-fn circle_overlap(a: (Vec2, f64), b: (Vec2, f64)) -> f64 {
-    let d = (a.0 - b.0).norm();
-    if d >= a.1 + b.1 {
-        return 0.;
+/// The area of the union of a set of circles.
+///
+/// This uses Green's theorem, integrating ½(x dy - y dx) around the boundary of the union, which
+/// is made of the arcs of each circle not inside any other circle. It is exact for any number of
+/// overlapping circles.
+fn union_area(circles: &[(Vec2, f64)]) -> f64 {
+    let mut area = 0.;
+    for (i, &(c, r)) in circles.iter().enumerate() {
+        // A circle inside (or identical to, and listed after) another doesn't contribute
+        let covered = circles.iter().enumerate().any(|(j, &(o, s))| {
+            let d = (o - c).norm();
+            j != i && (d + r < s || (d < 1e-12 && (r - s).abs() < 1e-12 && j < i))
+        });
+        if covered {
+            continue;
+        }
+        // The angles where other circles cross this one split it into arcs
+        let mut angles = vec![0., 2. * PI];
+        for (j, &(o, s)) in circles.iter().enumerate() {
+            let d = (o - c).norm();
+            if j == i || d >= r + s || d + s <= r || d < 1e-12 {
+                continue;
+            }
+            let base = (o - c).angle();
+            let half = libm::acos(((d * d + r * r - s * s) / (2. * d * r)).clamp(-1., 1.));
+            for angle in [base - half, base + half] {
+                angles.push(crate::geometry::wrap_angle(angle, 2. * PI));
+            }
+        }
+        angles.sort_by(f64::total_cmp);
+        for pair in angles.windows(2) {
+            let (a, b) = (pair[0], pair[1]);
+            if b - a < 1e-15 {
+                continue;
+            }
+            // Keep the arc when its midpoint is outside every other circle
+            let mid = c + Vec2::from_angle(0.5 * (a + b)) * r;
+            let inside = circles
+                .iter()
+                .enumerate()
+                .any(|(j, &(o, s))| j != i && (mid - o).norm_sq() < s * s);
+            if !inside {
+                let (sa, ca) = libm::sincos(a);
+                let (sb, cb) = libm::sincos(b);
+                area += 0.5 * (r * r * (b - a) + r * c.x * (sb - sa) - r * c.y * (cb - ca));
+            }
+        }
     }
-    if d <= (a.1 - b.1).abs() {
-        let r = a.1.min(b.1);
-        return PI * r * r;
-    }
-    let d1 = (d * d + a.1 * a.1 - b.1 * b.1) / (2. * d);
-    let d2 = (d * d + b.1 * b.1 - a.1 * a.1) / (2. * d);
-    lens_area(a.1, d1) + lens_area(b.1, d2)
+    area
 }
 
 impl Molecule {
@@ -61,15 +93,6 @@ impl Molecule {
         if atoms.iter().any(|(_, r)| *r <= 0.) {
             bail!("Atom radii must be positive");
         }
-        // The area is calculated as the sum of areas minus the pairwise overlaps, which is exact
-        // provided no point is covered by three or more atoms.
-        let total: f64 = atoms.iter().map(|(_, r)| PI * r * r).sum();
-        let mut overlap = 0.;
-        for (i, a) in atoms.iter().enumerate() {
-            for b in atoms.iter().skip(i + 1) {
-                overlap += circle_overlap(*a, *b);
-            }
-        }
         let circumradius = atoms.iter().map(|(p, r)| p.norm() + r).fold(0., f64::max);
         let inradius = atoms.iter().map(|(p, r)| r - p.norm()).fold(0., f64::max);
         let symmetry = if atoms.len() == 1 && atoms[0].0.norm() < 1e-12 {
@@ -77,10 +100,11 @@ impl Molecule {
         } else {
             ShapeSymmetry::detect(&atoms)
         };
+        let area = union_area(&atoms);
         Ok(Molecule {
             name: name.to_string(),
             atoms,
-            area: total - overlap,
+            area,
             circumradius,
             inradius,
             symmetry,
@@ -200,10 +224,61 @@ mod test {
         assert_abs_diff_eq!(trimer.symmetry().mirrors[0], PI / 2., epsilon = 1e-10);
     }
 
+    /// Estimate the area of a union of circles by sampling a fine grid
+    fn grid_area(atoms: &[(Vec2, f64)]) -> f64 {
+        let n = 1500;
+        let extent = 4.;
+        let h = 2. * extent / n as f64;
+        let mut inside = 0;
+        for i in 0..n {
+            for j in 0..n {
+                let p = Vec2::new(
+                    -extent + (i as f64 + 0.5) * h,
+                    -extent + (j as f64 + 0.5) * h,
+                );
+                if atoms.iter().any(|(c, r)| (p - *c).norm_sq() < r * r) {
+                    inside += 1;
+                }
+            }
+        }
+        inside as f64 * h * h
+    }
+
+    #[test]
+    fn union_area_three_overlapping() {
+        // Every pair overlaps and all three share a common region, which the sum of pairwise
+        // overlaps would count incorrectly
+        let trimer = Molecule::trimer(0.9, 60., 0.3).unwrap();
+        let expected = grid_area(trimer.atoms());
+        assert_abs_diff_eq!(trimer.area(), expected, epsilon = 2e-3 * expected);
+    }
+
+    #[test]
+    fn union_area_contained() {
+        let molecule = Molecule::new(
+            "contained",
+            vec![
+                (Vec2::ZERO, 1.),
+                (Vec2::new(0.2, 0.1), 0.5),
+                (Vec2::new(1.5, 0.), 0.7),
+            ],
+        )
+        .unwrap();
+        let expected = grid_area(molecule.atoms());
+        assert_abs_diff_eq!(molecule.area(), expected, epsilon = 2e-3 * expected);
+    }
+
+    #[test]
+    fn union_area_identical() {
+        let molecule = Molecule::new("twice", vec![(Vec2::ZERO, 1.), (Vec2::ZERO, 1.)]).unwrap();
+        assert_abs_diff_eq!(molecule.area(), PI, epsilon = 1e-12);
+    }
+
     #[test]
     fn overlap_area() {
-        // Two unit circles a unit distance apart
-        let area = circle_overlap((Vec2::ZERO, 1.), (Vec2::new(1., 0.), 1.));
-        assert_abs_diff_eq!(area, 2. * PI / 3. - 3f64.sqrt() / 2., epsilon = 1e-12);
+        // Two unit circles a unit distance apart overlap by a lens of area 2π/3 - √3/2
+        let union = union_area(&[(Vec2::ZERO, 1.), (Vec2::new(1., 0.), 1.)]);
+        let lens = 2. * PI / 3. - 3f64.sqrt() / 2.;
+        assert_abs_diff_eq!(union, 2. * PI - lens, epsilon = 1e-12);
     }
 }
