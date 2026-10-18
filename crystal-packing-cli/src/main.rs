@@ -14,6 +14,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use log::{info, LevelFilter};
 use rayon::prelude::*;
 
+use crystal_packing::container::Container;
 use crystal_packing::engine::Structure;
 use crystal_packing::monte_carlo::MonteCarloConfig;
 use crystal_packing::potential::LennardJones;
@@ -48,12 +49,35 @@ enum Command {
     Search(SearchArgs),
     /// Optimise every candidate of every plane group, reporting the best of each group
     Survey(SurveyArgs),
-    /// Pack independent shapes in a periodic cell, without any symmetry
+    /// Pack independent shapes, without any symmetry, in a periodic cell or a container
     Unconstrained(UnconstrainedArgs),
     /// Optimise a single plane group and choice of Wyckoff sites
     Optimise(OptimiseArgs),
     /// Render a saved structure as an SVG image
     Render(RenderArgs),
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Boundary {
+    /// Periodic boundary conditions with a fully flexible cell
+    Periodic,
+    /// A square container
+    Square,
+    /// A rectangular container with a free aspect ratio
+    Rectangle,
+    /// A circular container
+    Circle,
+}
+
+impl Boundary {
+    fn container(&self) -> Option<Container> {
+        match self {
+            Boundary::Periodic => None,
+            Boundary::Square => Some(Container::Square),
+            Boundary::Rectangle => Some(Container::Rectangle),
+            Boundary::Circle => Some(Container::Circle),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -270,9 +294,12 @@ struct UnconstrainedArgs {
     monte_carlo: MonteCarloArgs,
     #[command(flatten)]
     potential: PotentialArgs,
-    /// Comma separated numbers of shapes in the periodic cell
+    /// Comma separated numbers of shapes in the periodic cell or container
     #[arg(long, value_delimiter = ',', default_value = "1,2,3,4")]
     shapes: Vec<usize>,
+    /// The boundary of the system: a periodic cell, or a container with hard walls
+    #[arg(long, value_enum, default_value = "periodic")]
+    container: Boundary,
     #[command(flatten)]
     report: ReportArgs,
 }
@@ -632,6 +659,7 @@ fn unconstrained(args: UnconstrainedArgs) -> Result<(), Error> {
     let shape = args.shape.spec()?;
     let config = SearchConfig {
         unconstrained: args.shapes.clone(),
+        container: args.container.container(),
         steps_per_shape: args.monte_carlo.steps_per_shape.unwrap_or(2500),
         ..search_config(
             &args.monte_carlo,
@@ -656,11 +684,15 @@ fn unconstrained(args: UnconstrainedArgs) -> Result<(), Error> {
             println!("{:>6} {:>9}", n, "failed");
             continue;
         };
-        let (a, b, angle) = (
-            structure.lattice.a().norm(),
-            structure.lattice.b().norm(),
-            structure.lattice.reduced_angle_degrees(),
-        );
+        // For a container, the lattice holds the width and height of the container
+        let (a, b, angle) = match structure.container {
+            Some(c) => (c.width, c.height, 90.),
+            None => (
+                structure.lattice.a().norm(),
+                structure.lattice.b().norm(),
+                structure.lattice.reduced_angle_degrees(),
+            ),
+        };
         let below = percent_below(structure.score(), best);
         println!(
             "{:>6} {:>9.5} {:>10} {:>8.3} {:>9.4} {:>9.4} {:>8.2}",
@@ -786,6 +818,7 @@ fn optimise(args: OptimiseArgs) -> Result<(), Error> {
             config: args.monte_carlo.config(),
             start: start.clone(),
             potential: args.potential.config(),
+            container: None,
         })
         .collect();
     let outcomes = run_jobs(&jobs, candidate.label());

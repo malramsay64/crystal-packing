@@ -34,6 +34,7 @@ fn main() {
             },
             start: None,
             potential,
+            container: None,
         })
         .collect();
     let outcomes: Vec<_> = jobs.iter().map(run_job).collect();

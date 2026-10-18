@@ -23,6 +23,7 @@ use anyhow::{anyhow, bail, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::compare::Fingerprint;
+use crate::container::{Confined, ConfinedOptimiser, Container};
 use crate::engine::{Packing, Structure};
 use crate::geometry::Vec2;
 use crate::hard_shape::{HardShape, Molecule, Polygon, ShapeSymmetry};
@@ -30,7 +31,7 @@ use crate::monte_carlo::{MonteCarloConfig, Optimiser, Progress};
 use crate::potential::{Annealer, LennardJones};
 use crate::random::Rng;
 use crate::symmetry::{PlaneGroup, SymOp};
-use crate::validate::validate;
+use crate::validate::{validate, validate_confined};
 
 /// A serialisable description of a shape
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -302,6 +303,9 @@ pub fn enumerate_candidates(
     candidates
 }
 
+/// The group name of candidates in a container rather than a crystal
+pub const FINITE: &str = "finite";
+
 /// Candidates of independent shapes without symmetry, which are the general position of p1
 /// occupied once for each shape.
 pub fn unconstrained_candidates(counts: &[usize]) -> Result<Vec<Candidate>, Error> {
@@ -331,6 +335,10 @@ pub struct Job {
     /// Minimise the energy of this potential rather than maximising the packing fraction
     #[serde(default)]
     pub potential: Option<LennardJones>,
+    /// Pack the shapes in this container rather than a periodic cell, with one shape for each
+    /// site of the candidate
+    #[serde(default)]
+    pub container: Option<Container>,
 }
 
 /// The result of running a [`Job`]
@@ -377,6 +385,26 @@ fn start_annealer(shape: AnyShape, potential: LennardJones, job: &Job) -> Result
     Ok(Annealer::new(packing, potential, job.config.steps, seed))
 }
 
+fn start_confined<S: HardShape>(
+    shape: S,
+    container: Container,
+    job: &Job,
+) -> Result<ConfinedOptimiser<S>, Error> {
+    let mut rng = Rng::seed_from_u64(job.seed);
+    let confined = match &job.start {
+        Some(structure) => Confined::from_structure(shape, structure)?,
+        None => Confined::new(shape, container, job.candidate.sites.len(), &mut rng)?,
+    };
+    Ok(ConfinedOptimiser::new(confined, job.config, rng.next_u64()))
+}
+
+fn finish_confined<S: HardShape>(optimiser: &mut ConfinedOptimiser<S>) -> Result<Structure, Error> {
+    let structure = optimiser.finish();
+    validate_confined(optimiser.confined().shape(), &structure)
+        .map_err(|e| anyhow!("Optimised structure failed validation: {}", e))?;
+    Ok(structure)
+}
+
 fn finish_annealer(annealer: &mut Annealer) -> Result<Structure, Error> {
     let structure = annealer.finish();
     match structure.energy {
@@ -396,6 +424,8 @@ enum AnyOptimiser {
     Polygon(Box<Optimiser<Polygon>>),
     Molecule(Box<Optimiser<Molecule>>),
     Annealer(Box<Annealer>),
+    ConfinedPolygon(Box<ConfinedOptimiser<Polygon>>),
+    ConfinedMolecule(Box<ConfinedOptimiser<Molecule>>),
 }
 
 /// Runs a [`Job`] in slices, so the progress can be reported and the work interleaved with
@@ -412,6 +442,17 @@ impl JobRunner {
             .build()
             .and_then(|shape| {
                 Ok(match (shape, job.potential) {
+                    (_, Some(_)) if job.container.is_some() => {
+                        bail!("A potential can't be used with a container")
+                    }
+                    (AnyShape::Polygon(s), None) if job.container.is_some() => {
+                        let container = job.container.expect("Checked above");
+                        AnyOptimiser::ConfinedPolygon(Box::new(start_confined(s, container, job)?))
+                    }
+                    (AnyShape::Molecule(s), None) if job.container.is_some() => {
+                        let container = job.container.expect("Checked above");
+                        AnyOptimiser::ConfinedMolecule(Box::new(start_confined(s, container, job)?))
+                    }
                     (shape, Some(potential)) => {
                         AnyOptimiser::Annealer(Box::new(start_annealer(shape, potential, job)?))
                     }
@@ -436,6 +477,8 @@ impl JobRunner {
             AnyOptimiser::Polygon(o) => Some(o.run(steps)),
             AnyOptimiser::Molecule(o) => Some(o.run(steps)),
             AnyOptimiser::Annealer(o) => Some(o.run(steps)),
+            AnyOptimiser::ConfinedPolygon(o) => Some(o.run(steps)),
+            AnyOptimiser::ConfinedMolecule(o) => Some(o.run(steps)),
         }
     }
 
@@ -445,6 +488,8 @@ impl JobRunner {
             AnyOptimiser::Polygon(o) => Some(o.packing().structure()),
             AnyOptimiser::Molecule(o) => Some(o.packing().structure()),
             AnyOptimiser::Annealer(o) => Some(o.current_structure()),
+            AnyOptimiser::ConfinedPolygon(o) => Some(o.confined().structure()),
+            AnyOptimiser::ConfinedMolecule(o) => Some(o.confined().structure()),
         }
     }
 
@@ -453,6 +498,8 @@ impl JobRunner {
             Ok(AnyOptimiser::Polygon(o)) => o.is_complete(),
             Ok(AnyOptimiser::Molecule(o)) => o.is_complete(),
             Ok(AnyOptimiser::Annealer(o)) => o.is_complete(),
+            Ok(AnyOptimiser::ConfinedPolygon(o)) => o.is_complete(),
+            Ok(AnyOptimiser::ConfinedMolecule(o)) => o.is_complete(),
             Err(_) => true,
         }
     }
@@ -463,6 +510,8 @@ impl JobRunner {
             Ok(AnyOptimiser::Polygon(o)) => finish_optimiser(o).map_err(|e| e.to_string()),
             Ok(AnyOptimiser::Molecule(o)) => finish_optimiser(o).map_err(|e| e.to_string()),
             Ok(AnyOptimiser::Annealer(o)) => finish_annealer(o).map_err(|e| e.to_string()),
+            Ok(AnyOptimiser::ConfinedPolygon(o)) => finish_confined(o).map_err(|e| e.to_string()),
+            Ok(AnyOptimiser::ConfinedMolecule(o)) => finish_confined(o).map_err(|e| e.to_string()),
             Err(e) => Err(e.clone()),
         };
         match result {
@@ -537,6 +586,8 @@ pub struct SearchConfig {
     /// Pack this many independent shapes in a periodic cell without any symmetry, one candidate
     /// for each number of shapes. When given, the groups and site options are ignored.
     pub unconstrained: Vec<usize>,
+    /// Pack the unconstrained shapes inside this container rather than a periodic cell
+    pub container: Option<Container>,
 }
 
 impl Default for SearchConfig {
@@ -559,6 +610,7 @@ impl Default for SearchConfig {
             monte_carlo: MonteCarloConfig::default(),
             potential: None,
             unconstrained: vec![],
+            container: None,
         }
     }
 }
@@ -631,6 +683,9 @@ impl Search {
         if config.eta < 2 {
             bail!("eta needs to be at least 2");
         }
+        if config.container.is_some() && config.unconstrained.is_empty() {
+            bail!("The numbers of shapes to pack in the container are required");
+        }
         let candidates = if config.unconstrained.is_empty() {
             enumerate_candidates(
                 built.symmetry(),
@@ -639,7 +694,13 @@ impl Search {
                 config.max_shapes,
             )
         } else {
-            unconstrained_candidates(&config.unconstrained)?
+            let mut candidates = unconstrained_candidates(&config.unconstrained)?;
+            if config.container.is_some() {
+                for candidate in candidates.iter_mut() {
+                    candidate.group = FINITE.into();
+                }
+            }
+            candidates
         };
         if candidates.is_empty() {
             bail!("No candidate structures are compatible with the shape");
@@ -745,6 +806,7 @@ impl Search {
                     config,
                     start,
                     potential: self.config.potential,
+                    container: self.config.container,
                 });
             }
         }
@@ -894,6 +956,17 @@ impl Search {
                 .best
                 .as_ref()
                 .expect("Results near the best have a structure");
+            // Different numbers of shapes in a container are always distinct structures
+            if structure.container.is_some() {
+                distinct.push((
+                    Fingerprint::unique(),
+                    DistinctResult {
+                        result,
+                        equivalent: vec![],
+                    },
+                ));
+                continue;
+            }
             let print = fingerprint(structure)?;
             match distinct.iter_mut().find(|(other, _)| other.matches(&print)) {
                 Some((_, group)) => group.equivalent.push(result),
@@ -1070,6 +1143,7 @@ mod test {
             },
             start: None,
             potential: None,
+            container: None,
         };
         let mut runner = JobRunner::new(&job);
         while !runner.is_complete() {
@@ -1093,6 +1167,7 @@ mod test {
             },
             start: None,
             potential: None,
+            container: None,
         };
         let mut runner = JobRunner::new(&job);
         let mut fractions = vec![];
@@ -1120,6 +1195,7 @@ mod test {
             config: MonteCarloConfig::default(),
             start: None,
             potential: None,
+            container: None,
         };
         let outcome = run_job(&job);
         assert!(outcome.structure.is_none());
@@ -1137,6 +1213,7 @@ mod test {
             num_shapes: 1,
             packing_fraction: phi,
             energy: None,
+            container: None,
         }
     }
 
@@ -1464,6 +1541,56 @@ mod test {
             0.5 + 0.01 * job.candidate.sites.len() as f64
         });
         assert_eq!(steps(&search.jobs()), vec![200, 400, 800]);
+    }
+
+    #[test]
+    fn container_results_are_distinct() {
+        let mut search = Search::new(
+            ShapeSpec::Disk,
+            SearchConfig {
+                unconstrained: vec![1, 2, 3],
+                container: Some(Container::Circle),
+                strategy: Strategy::Exhaustive,
+                patience: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let labels: Vec<String> = search.results.iter().map(|r| r.candidate.label()).collect();
+        assert_eq!(labels, vec!["finite:a", "finite:aa", "finite:aaa"]);
+        assert!(search
+            .jobs()
+            .iter()
+            .all(|j| j.container == Some(Container::Circle)));
+        while !search.is_finished() {
+            let jobs = search.jobs();
+            let outcomes = jobs
+                .iter()
+                .map(|job| {
+                    let mut structure = fake_structure(
+                        &Candidate {
+                            group: "p1".into(),
+                            sites: vec![],
+                        },
+                        0.5,
+                    );
+                    structure.group = FINITE.into();
+                    structure.container = Some(crate::container::ContainerState {
+                        kind: Container::Circle,
+                        width: 2.,
+                        height: 2.,
+                    });
+                    Outcome {
+                        candidate: job.candidate.clone(),
+                        structure: Some(structure),
+                        error: None,
+                    }
+                })
+                .collect();
+            search.submit(outcomes);
+        }
+        // Identical packing fractions, but each number of shapes is a distinct structure
+        assert_eq!(search.distinct_near_best(0.02, None).unwrap().len(), 3);
     }
 
     #[test]

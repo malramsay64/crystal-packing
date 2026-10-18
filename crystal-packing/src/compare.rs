@@ -161,6 +161,16 @@ impl Fingerprint {
         })
     }
 
+    /// A fingerprint which doesn't match any other
+    pub fn unique() -> Fingerprint {
+        Fingerprint {
+            packing_fraction: f64::NAN,
+            scale: 1.,
+            environments: vec![],
+            limit: 0.,
+        }
+    }
+
     /// Whether two fingerprints describe the same crystal
     pub fn matches(&self, other: &Fingerprint) -> bool {
         let phi = self.packing_fraction.abs().max(1e-12);

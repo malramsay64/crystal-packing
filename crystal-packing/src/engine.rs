@@ -59,6 +59,10 @@ pub struct Structure {
     /// The energy per shape, for structures optimised with a potential
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub energy: Option<f64>,
+    /// For a finite number of shapes in a container rather than a crystal, the container. The
+    /// site positions are then Cartesian coordinates relative to the centre of the container.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container: Option<crate::container::ContainerState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -260,6 +264,7 @@ impl<S: HardShape> Packing<S> {
             num_shapes: self.num_shapes,
             packing_fraction: self.packing_fraction(),
             energy: None,
+            container: None,
         }
     }
 

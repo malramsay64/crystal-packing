@@ -270,3 +270,63 @@ mod test {
         validate(&disk, &optimiser.finish()).unwrap();
     }
 }
+
+/// Check a structure of shapes in a container is valid: every shape is inside the container and
+/// no two shapes overlap. This shares no code with the optimisation beyond the shape outlines.
+pub fn validate_confined<S: HardShape>(shape: &S, structure: &Structure) -> Result<(), Error> {
+    let Some(container) = structure.container else {
+        bail!("The structure has no container");
+    };
+    if structure.sites.len() != structure.num_shapes {
+        bail!(
+            "Expected {} shapes, found {}",
+            structure.num_shapes,
+            structure.sites.len()
+        );
+    }
+    let phi = structure.num_shapes as f64 * shape.area() / container.area();
+    if (phi - structure.packing_fraction).abs() > 1e-9 {
+        bail!(
+            "Packing fraction {} doesn't match the structure {}",
+            phi,
+            structure.packing_fraction
+        );
+    }
+    let shapes: Vec<(Vec2, Vec<Outline>)> = structure
+        .sites
+        .iter()
+        .map(|site| {
+            let centre = Vec2::new(site.x, site.y);
+            let outlines = shape
+                .outlines(&Mat2::rotation(site.angle), centre)
+                .into_iter()
+                .map(|o| shrink(o, centre))
+                .collect();
+            (centre, outlines)
+        })
+        .collect();
+    let (half_width, half_height) = (0.5 * container.width, 0.5 * container.height);
+    let inside = |p: Vec2, r: f64| match container.kind {
+        crate::container::Container::Circle => p.norm() + r <= half_width,
+        _ => p.x.abs() + r <= half_width && p.y.abs() + r <= half_height,
+    };
+    for (i, (_, outlines)) in shapes.iter().enumerate() {
+        for outline in outlines {
+            let contained = match outline {
+                Outline::Polygon(p) => p.iter().all(|&v| inside(v, 0.)),
+                Outline::Circle(c, r) => inside(*c, *r),
+            };
+            if !contained {
+                bail!("Shape {} is outside the container", i);
+            }
+        }
+    }
+    for (i, (_, a)) in shapes.iter().enumerate() {
+        for (j, (_, b)) in shapes.iter().enumerate().skip(i + 1) {
+            if a.iter().any(|x| b.iter().any(|y| outlines_overlap(x, y))) {
+                bail!("Shapes {} and {} overlap", i, j);
+            }
+        }
+    }
+    Ok(())
+}

@@ -194,6 +194,22 @@ impl HardShape for Molecule {
         })
     }
 
+    fn support(placed: &PlacedMolecule, direction: Vec2) -> f64 {
+        placed
+            .atoms
+            .iter()
+            .map(|&(c, r)| c.dot(direction) + r)
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    fn farthest(placed: &PlacedMolecule, point: Vec2) -> f64 {
+        placed
+            .atoms
+            .iter()
+            .map(|&(c, r)| (c - point).norm() + r)
+            .fold(0., f64::max)
+    }
+
     fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline> {
         self.atoms
             .iter()
@@ -214,6 +230,28 @@ mod test {
         disk.place(&Mat2::IDENTITY, Vec2::ZERO, &mut a);
         assert!(!Molecule::overlaps(&a, &a, Vec2::new(2., 0.)));
         assert!(Molecule::overlaps(&a, &a, Vec2::new(1.999, 0.)));
+    }
+
+    #[test]
+    fn support_and_farthest() {
+        let disk = Molecule::disk();
+        let mut placed = PlacedMolecule::default();
+        disk.place(&Mat2::IDENTITY, Vec2::new(3., 1.), &mut placed);
+        assert_abs_diff_eq!(
+            Molecule::support(&placed, Vec2::new(1., 0.)),
+            4.,
+            epsilon = 1e-12
+        );
+        assert_abs_diff_eq!(
+            Molecule::support(&placed, Vec2::new(0., -1.)),
+            0.,
+            epsilon = 1e-12
+        );
+        assert_abs_diff_eq!(
+            Molecule::farthest(&placed, Vec2::ZERO),
+            10f64.sqrt() + 1.,
+            epsilon = 1e-12
+        );
     }
 
     #[test]

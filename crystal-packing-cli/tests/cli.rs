@@ -339,3 +339,34 @@ fn lennard_jones_reports_energy() {
         stdout(&output)
     );
 }
+
+#[test]
+fn shapes_in_a_container() {
+    let dir = output_dir("container");
+    let mut args = vec![
+        "unconstrained",
+        "--shape",
+        "disk",
+        "--container",
+        "circle",
+        "--shapes",
+        "1,2",
+        "-o",
+    ];
+    args.push(dir.to_str().unwrap());
+    args.extend(FAST);
+    let output = packing(&args);
+    assert_success(&output);
+    let csv = fs::read_to_string(dir.join("unconstrained.csv")).unwrap();
+    assert_eq!(csv.lines().count(), 3, "{}", csv);
+    let best: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("shapes-2.json")).unwrap()).unwrap();
+    assert_eq!(best["structure"]["container"]["kind"], "circle");
+    let svg = fs::read_to_string(dir.join("shapes-2.svg")).unwrap();
+    // Two disks and the container
+    assert_eq!(svg.matches("<circle").count(), 3);
+    // A single disk fills its circular container
+    let one: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("shapes-1.json")).unwrap()).unwrap();
+    assert!(one["structure"]["packing_fraction"].as_f64().unwrap() > 0.99);
+}

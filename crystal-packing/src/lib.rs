@@ -33,6 +33,7 @@
 #![forbid(unsafe_code)]
 
 pub mod compare;
+pub mod container;
 pub mod engine;
 pub mod geometry;
 pub mod hard_shape;

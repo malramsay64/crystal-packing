@@ -159,6 +159,13 @@ pub trait HardShape: Clone + Send + Sync + fmt::Debug {
     /// Check whether two placed shapes overlap, translating `b` by `shift`.
     fn overlaps(a: &Self::Placed, b: &Self::Placed, shift: Vec2) -> bool;
 
+    /// The furthest extent of a placed shape in a direction, max(p · direction) over the shape,
+    /// where the direction is a unit vector.
+    fn support(placed: &Self::Placed, direction: Vec2) -> f64;
+
+    /// The largest distance from a point to any point of a placed shape
+    fn farthest(placed: &Self::Placed, point: Vec2) -> f64;
+
     /// The outlines of the shape at a position and orientation, used for rendering and for the
     /// independent validation of structures.
     fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline>;

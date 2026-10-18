@@ -387,6 +387,24 @@ impl HardShape for Polygon {
         false
     }
 
+    fn support(placed: &PlacedPolygon, direction: Vec2) -> f64 {
+        placed
+            .pieces
+            .iter()
+            .flat_map(|p| p.vertices.iter())
+            .map(|v| v.dot(direction))
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    fn farthest(placed: &PlacedPolygon, point: Vec2) -> f64 {
+        placed
+            .pieces
+            .iter()
+            .flat_map(|p| p.vertices.iter())
+            .map(|v| (*v - point).norm())
+            .fold(0., f64::max)
+    }
+
     fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline> {
         vec![Outline::Polygon(
             self.vertices
@@ -531,6 +549,34 @@ mod test {
 
     fn points(p: &[[f64; 2]]) -> Vec<Vec2> {
         p.iter().map(|v| Vec2::new(v[0], v[1])).collect()
+    }
+
+    #[test]
+    fn support_and_farthest() {
+        let square = Polygon::regular(4).unwrap();
+        let placed = placed(&square, PI / 4., Vec2::new(1., 2.));
+        let half = 2f64.sqrt() / 2.;
+        assert_abs_diff_eq!(
+            Polygon::support(&placed, Vec2::new(1., 0.)),
+            1. + half,
+            epsilon = 1e-12
+        );
+        assert_abs_diff_eq!(
+            Polygon::support(&placed, Vec2::new(0., -1.)),
+            -2. + half,
+            epsilon = 1e-12
+        );
+        // The farthest vertex from the centre is at the circumradius
+        assert_abs_diff_eq!(
+            Polygon::farthest(&placed, Vec2::new(1., 2.)),
+            1.,
+            epsilon = 1e-12
+        );
+        assert_abs_diff_eq!(
+            Polygon::farthest(&placed, Vec2::ZERO),
+            Vec2::new(1. + half, 2. + half).norm(),
+            epsilon = 1e-12
+        );
     }
 
     #[test]
