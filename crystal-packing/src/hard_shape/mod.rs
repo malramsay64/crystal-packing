@@ -159,8 +159,9 @@ pub trait HardShape: Clone + Send + Sync + fmt::Debug {
     /// Check whether two placed shapes overlap, translating `b` by `shift`.
     fn overlaps(a: &Self::Placed, b: &Self::Placed, shift: Vec2) -> bool;
 
-    /// The outlines of a placed shape, used for rendering.
-    fn outlines(placed: &Self::Placed) -> Vec<Outline>;
+    /// The outlines of the shape at a position and orientation, used for rendering and for the
+    /// independent validation of structures.
+    fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline>;
 }
 
 #[cfg(test)]

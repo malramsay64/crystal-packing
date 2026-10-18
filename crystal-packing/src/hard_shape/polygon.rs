@@ -305,12 +305,13 @@ impl HardShape for Polygon {
         false
     }
 
-    fn outlines(placed: &PlacedPolygon) -> Vec<Outline> {
-        placed
-            .pieces
-            .iter()
-            .map(|p| Outline::Polygon(p.vertices.clone()))
-            .collect()
+    fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline> {
+        vec![Outline::Polygon(
+            self.vertices
+                .iter()
+                .map(|&v| *orientation * v + position)
+                .collect(),
+        )]
     }
 }
 

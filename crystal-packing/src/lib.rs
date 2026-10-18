@@ -18,6 +18,8 @@ pub mod monte_carlo;
 pub mod ops_macros;
 pub mod optimisation;
 pub mod random;
+pub mod render;
+pub mod search;
 pub mod shape;
 pub mod site;
 pub mod state;
@@ -25,6 +27,7 @@ pub mod symmetry;
 pub mod to_svg;
 pub mod traits;
 pub mod transform;
+pub mod validate;
 pub mod wallpaper;
 
 pub use crate::basis::*;

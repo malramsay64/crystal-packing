@@ -163,11 +163,10 @@ impl HardShape for Molecule {
         })
     }
 
-    fn outlines(placed: &PlacedMolecule) -> Vec<Outline> {
-        placed
-            .atoms
+    fn outlines(&self, orientation: &Mat2, position: Vec2) -> Vec<Outline> {
+        self.atoms
             .iter()
-            .map(|&(p, r)| Outline::Circle(p, r))
+            .map(|&(p, r)| Outline::Circle(*orientation * p + position, r))
             .collect()
     }
 }

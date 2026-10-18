@@ -381,8 +381,9 @@ impl<S: HardShape> Packing<S> {
         false
     }
 
-    /// All placed shapes within the given range of unit cells, used for rendering
-    pub fn placed_shapes(&self, cells: i32) -> Vec<(usize, Vec2, S::Placed)> {
+    /// Every placed shape within the given range of unit cells, as (site, centre, orientation,
+    /// placed shape), used for rendering
+    pub fn placed_shapes(&self, cells: i32) -> Vec<(usize, Vec2, Mat2, S::Placed)> {
         let mut shapes = vec![];
         for (index, site) in self.sites.iter().enumerate() {
             let rotation = Mat2::rotation(self.state[index].angle);
@@ -396,7 +397,7 @@ impl<S: HardShape> Packing<S> {
                         let centre = self.lattice.to_cartesian(f);
                         let mut placed = S::Placed::default();
                         self.shape.place(&orientation, centre, &mut placed);
-                        shapes.push((index, centre, placed));
+                        shapes.push((index, centre, orientation, placed));
                     }
                 }
             }
@@ -419,8 +420,8 @@ mod test {
         let shapes = packing.placed_shapes(0);
         let lattice = packing.lattice();
         let k = 15;
-        for (i, (_, ca, a)) in shapes.iter().enumerate() {
-            for (j, (_, cb, b)) in shapes.iter().enumerate() {
+        for (i, (_, ca, _, a)) in shapes.iter().enumerate() {
+            for (j, (_, cb, _, b)) in shapes.iter().enumerate() {
                 for n in -k..=k {
                     for m in -k..=k {
                         if i == j && n == 0 && m == 0 {
