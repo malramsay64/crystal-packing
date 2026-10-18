@@ -81,8 +81,8 @@ and set of sites can be animated.
 - **Fewer periodic directions**: a strip is periodic along its length with walls either side,
   with both the period and the width compressed, so two disks per period find the zig-zag at
   π/(2 + √3). A cluster has no walls or periodic boundaries, and the packing fraction uses the area
-  of the convex hull of the shapes, which for disks of equal size is exact (A + Pr + πr² from the
-  hull of the centres). Moving a shape on the edge of a cluster changes the area, so these moves
+  of the convex hull of the shapes. This is exact: A + Pr + πr² from the hull of the centres for
+  polygons and equal disks, and from the support function of the hull for atoms of different sizes. Moving a shape on the edge of a cluster changes the area, so these moves
   are accepted with the same pressure as the compression.
 - **Distinct structures**: structures are compared by the distances between the vertices of each
   shape and its neighbours, which doesn't depend on the group, cell, origin or orientation.
@@ -117,7 +117,9 @@ disks and 0.449 for triangles, and didn't improve with more steps.
 The minimum supported Rust version is 1.88. CI checks formatting, clippy (native and wasm) and the
 documentation with warnings as errors, runs every test suite, and audits the dependencies.
 
-- Unit and property tests compare the overlap checks with brute force implementations, check the
+- Unit and property tests compare every overlap check (convex, concave and reflected polygons,
+  molecules, the symmetry-reduced crystal checks, containers, strips and clusters) with the brute
+  force checks of the independent validator, check the
   symmetry data against the International Tables, and test the search scheduling with fake results.
 - `tests/regression.rs`: the known densest packings above.
 - `tests/adversarial.rs`: shapes chosen to stress the optimisation, most with known answers since

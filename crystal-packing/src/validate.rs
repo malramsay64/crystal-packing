@@ -49,7 +49,10 @@ fn segment_distance(p: Vec2, a: Vec2, b: Vec2) -> f64 {
     (a + ab * t - p).norm()
 }
 
-fn outlines_overlap(a: &Outline, b: &Outline) -> bool {
+/// Whether two outlines overlap: edges properly crossing, one containing a vertex of the other,
+/// or circles closer than the sum of their radii. Polygons with a vertex on the edge of the other
+/// can count as overlapping, which is why the validation shrinks the shapes first.
+pub(crate) fn outlines_overlap(a: &Outline, b: &Outline) -> bool {
     match (a, b) {
         (Outline::Circle(ca, ra), Outline::Circle(cb, rb)) => (*ca - *cb).norm() < ra + rb,
         (Outline::Polygon(pa), Outline::Polygon(pb)) => {
@@ -71,6 +74,19 @@ fn outlines_overlap(a: &Outline, b: &Outline) -> bool {
                 || (0..n).any(|i| segment_distance(*c, p[i], p[(i + 1) % n]) < *r)
         }
     }
+}
+
+/// A brute force overlap check of two shapes from their outlines, the reference for the tests of
+/// the overlap checks used in the optimisation
+#[cfg(test)]
+pub(crate) fn brute_force_overlap<S: HardShape>(
+    shape: &S,
+    a: (&Mat2, Vec2),
+    b: (&Mat2, Vec2),
+) -> bool {
+    let a = shape.outlines(a.0, a.1);
+    let b = shape.outlines(b.0, b.1);
+    a.iter().any(|x| b.iter().any(|y| outlines_overlap(x, y)))
 }
 
 fn shrink(outline: Outline, centre: Vec2) -> Outline {
@@ -378,6 +394,7 @@ mod test {
     use crate::monte_carlo::{MonteCarloConfig, Optimiser};
     use crate::random::Rng;
     use crate::symmetry::LatticeFamily;
+    use proptest::prelude::*;
 
     #[test]
     fn detects_overlap() {
@@ -423,5 +440,107 @@ mod test {
         let mut optimiser = Optimiser::new(packing, MonteCarloConfig::default(), 1);
         optimiser.run(20_000);
         validate(&disk, &optimiser.finish()).unwrap();
+    }
+
+    /// A packing at a random state, compressed by `scale` so overlaps are likely
+    fn compressed<S: HardShape>(
+        shape: S,
+        group: &str,
+        sites: &[char],
+        seed: u64,
+        scale: f64,
+    ) -> Packing<S> {
+        let group = PlaneGroup::from_name(group).unwrap();
+        let mut rng = Rng::seed_from_u64(seed);
+        let mut packing = Packing::new(shape, group, sites, &mut rng).unwrap();
+        let lattice = packing.lattice().scaled(scale);
+        packing.set_lattice(lattice);
+        packing
+    }
+
+    fn cases() -> impl Strategy<Value = (&'static str, Vec<char>)> {
+        prop::sample::select(vec![
+            ("p1", vec!['a']),
+            ("p1", vec!['a', 'a']),
+            ("p2", vec!['e']),
+            ("p2", vec!['e', 'e']),
+            ("p1g1", vec!['a']),
+            ("p2gg", vec!['c']),
+            ("p2mg", vec!['d']),
+            ("p3", vec!['d']),
+            ("p4", vec!['d']),
+            ("p6", vec!['d']),
+        ])
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(200))]
+
+        // The symmetry reduced overlap checks of the engine agree with the brute force checks of
+        // every shape in a supercell, for convex, concave and molecular shapes
+        #[test]
+        fn engine_matches_validation(
+            (group, sites) in cases(),
+            seed in 0u64..10_000,
+            scale in 0.25f64..1.,
+        ) {
+            let pentagon = compressed(Polygon::regular(5).unwrap(), group, &sites, seed, scale);
+            let valid = validate(pentagon.shape(), &pentagon.structure());
+            prop_assert_eq!(pentagon.any_overlap(), valid.is_err(), "{:?}", valid);
+
+            let star = Polygon::from_radial("star", &[1., 0.4, 0.9, 0.5, 1., 0.3]).unwrap();
+            let star = compressed(star, group, &sites, seed, scale);
+            let valid = validate(star.shape(), &star.structure());
+            prop_assert_eq!(star.any_overlap(), valid.is_err(), "{:?}", valid);
+
+            let trimer = Molecule::trimer(0.7, 100., 1.2).unwrap();
+            let trimer = compressed(trimer, group, &sites, seed, scale);
+            let valid = validate(trimer.shape(), &trimer.structure());
+            prop_assert_eq!(trimer.any_overlap(), valid.is_err(), "{:?}", valid);
+        }
+    }
+
+    #[test]
+    fn outline_overlaps() {
+        let square = |x: f64, y: f64, side: f64| {
+            Outline::Polygon(vec![
+                Vec2::new(x, y),
+                Vec2::new(x + side, y),
+                Vec2::new(x + side, y + side),
+                Vec2::new(x, y + side),
+            ])
+        };
+        // Crossing edges, containment either way, and separate shapes
+        assert!(outlines_overlap(&square(0., 0., 1.), &square(0.5, 0.5, 1.)));
+        assert!(outlines_overlap(&square(0., 0., 3.), &square(1., 1., 1.)));
+        assert!(outlines_overlap(&square(1., 1., 1.), &square(0., 0., 3.)));
+        assert!(!outlines_overlap(&square(0., 0., 1.), &square(2., 0., 1.)));
+        // Touching shapes don't overlap once shrunk about their centres, but do when pushed
+        // together by much more than the shrinking
+        let shrunk = |x: f64, y: f64| shrink(square(x, y, 1.), Vec2::new(x + 0.5, y + 0.5));
+        assert!(!outlines_overlap(&shrunk(0., 0.), &shrunk(1., 0.)));
+        assert!(!outlines_overlap(&shrunk(0., 0.), &shrunk(1., 1.)));
+        assert!(!outlines_overlap(&shrunk(0., 0.), &shrunk(1., 0.5)));
+        assert!(outlines_overlap(&shrunk(0., 0.), &shrunk(1. - 1e-5, 0.5)));
+        // Circles closer than the sum of their radii, touching and apart
+        let circle = |x: f64, r: f64| Outline::Circle(Vec2::new(x, 0.), r);
+        assert!(outlines_overlap(&circle(0., 1.), &circle(1.5, 1.)));
+        assert!(!outlines_overlap(&circle(0., 1.), &circle(2., 1.)));
+        // A circle against a polygon: inside, crossing an edge, and outside
+        assert!(outlines_overlap(&square(-1., -1., 2.), &circle(0., 0.1)));
+        assert!(outlines_overlap(&square(0., 0., 1.), &circle(-0.5, 0.6)));
+        assert!(!outlines_overlap(&square(0., 0., 1.), &circle(-0.5, 0.4)));
+    }
+
+    #[test]
+    fn hull_by_gift_wrapping() {
+        let points: Vec<Vec2> = [(0., 0.), (2., 0.), (2., 2.), (0., 2.), (1., 1.), (1., 0.)]
+            .iter()
+            .map(|&(x, y)| Vec2::new(x, y))
+            .collect();
+        assert!((wrapped_hull_area(&points) - 4.).abs() < 1e-12);
+        assert_eq!(wrapped_hull_area(&[]), 0.);
+        assert_eq!(wrapped_hull_area(&points[..1]), 0.);
+        assert_eq!(wrapped_hull_area(&points[..2]), 0.);
     }
 }

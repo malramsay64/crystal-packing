@@ -222,6 +222,7 @@ impl HardShape for Molecule {
 mod test {
     use super::*;
     use approx::assert_abs_diff_eq;
+    use proptest::prelude::*;
 
     #[test]
     fn disk_contact() {
@@ -318,5 +319,59 @@ mod test {
         let union = union_area(&[(Vec2::ZERO, 1.), (Vec2::new(1., 0.), 1.)]);
         let lens = 2. * PI / 3. - 3f64.sqrt() / 2.;
         assert_abs_diff_eq!(union, 2. * PI - lens, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn trimer_contact() {
+        // A trimer and its mirror image, with their small atoms touching side by side
+        let trimer = Molecule::trimer(0.5, 120., 1.).unwrap();
+        let (mut a, mut b) = (PlacedMolecule::default(), PlacedMolecule::default());
+        trimer.place(&Mat2::IDENTITY, Vec2::ZERO, &mut a);
+        trimer.place(&Mat2::reflection(PI / 2.), Vec2::ZERO, &mut b);
+        let reach = 2. * Molecule::support(&a, Vec2::new(1., 0.));
+        assert!(!Molecule::overlaps(&a, &b, Vec2::new(reach, 0.)));
+        assert!(Molecule::overlaps(&a, &b, Vec2::new(reach - 1e-6, 0.)));
+        // Moved up or down they no longer touch
+        assert!(!Molecule::overlaps(&a, &b, Vec2::new(reach - 1e-6, 0.1)));
+    }
+
+    proptest! {
+        #[test]
+        fn overlaps_match_brute_force(
+            radius in 0.2f64..1.,
+            angle in 60f64..180.,
+            distance in 0.3f64..1.5,
+            angle_a in 0. ..(2. * PI),
+            angle_b in 0. ..(2. * PI),
+            reflect in any::<bool>(),
+            x in -3f64..3.,
+            y in -3f64..3.,
+        ) {
+            let trimer = Molecule::trimer(radius, angle, distance);
+            prop_assume!(trimer.is_ok());
+            let trimer = trimer.unwrap();
+            let a = Mat2::rotation(angle_a);
+            let b = if reflect {
+                Mat2::reflection(0.4) * Mat2::rotation(angle_b)
+            } else {
+                Mat2::rotation(angle_b)
+            };
+            let shift = Vec2::new(x, y);
+            let (mut pa, mut pb) = (PlacedMolecule::default(), PlacedMolecule::default());
+            trimer.place(&a, Vec2::ZERO, &mut pa);
+            trimer.place(&b, Vec2::ZERO, &mut pb);
+            let expected =
+                crate::validate::brute_force_overlap(&trimer, (&a, Vec2::ZERO), (&b, shift));
+            prop_assert_eq!(Molecule::overlaps(&pa, &pb, shift), expected);
+            prop_assert_eq!(Molecule::overlaps(&pb, &pa, -shift), expected);
+            // Shapes closer than the sum of their inradii always overlap, which the engine uses
+            // to skip the full check, and further apart than their circumradii never do
+            if shift.norm() < 2. * trimer.inradius() {
+                prop_assert!(expected);
+            }
+            if shift.norm() >= 2. * trimer.circumradius() {
+                prop_assert!(!expected);
+            }
+        }
     }
 }

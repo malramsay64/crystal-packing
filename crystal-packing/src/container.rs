@@ -44,46 +44,85 @@ pub enum Container {
     Cluster,
 }
 
-/// The number of points used for the circles of molecules with atoms of different sizes
-const CIRCLE_POINTS: usize = 64;
+/// The area of the convex hull of circles of different sizes.
+///
+/// The hull is found from its support function h(θ), the furthest extent of any circle in the
+/// direction θ, which is made of sinusoids c·u(θ) + r, one for each circle on the hull. Sweeping
+/// θ around, the next circle on the hull is the first whose sinusoid rises above the current one,
+/// and the area is ½∮ h² - h'² dθ, which is integrated exactly over each part of the sweep.
+fn circle_hull_area(circles: &[(Vec2, f64)]) -> f64 {
+    let support = |(c, r): (Vec2, f64), t: f64| c.x * libm::cos(t) + c.y * libm::sin(t) + r;
+    // The circle on the hull at θ = 0, breaking ties by the one which stays furthest after it
+    let Some(mut current) = (0..circles.len()).max_by(|&a, &b| {
+        support(circles[a], 0.)
+            .total_cmp(&support(circles[b], 0.))
+            .then(circles[a].0.y.total_cmp(&circles[b].0.y))
+    }) else {
+        return 0.;
+    };
+    // The integral of h² - h'² for a single circle between two angles
+    let integral = |(c, r): (Vec2, f64), t0: f64, t1: f64| {
+        let (a, b) = (c.x, c.y);
+        0.5 * (a * a - b * b) * (libm::sin(2. * t1) - libm::sin(2. * t0))
+            - a * b * (libm::cos(2. * t1) - libm::cos(2. * t0))
+            + 2. * r * (a * (libm::sin(t1) - libm::sin(t0)) - b * (libm::cos(t1) - libm::cos(t0)))
+            + r * r * (t1 - t0)
+    };
+    let mut t = 0.;
+    let mut total = 0.;
+    for _ in 0..4 * circles.len() + 4 {
+        let (ci, ri) = circles[current];
+        // The first angle after t at which another circle rises above the current one, where
+        // (c_j - c_i)·u(θ) = r_i - r_j with the difference increasing
+        let mut next = (2. * PI, current);
+        for (j, &(cj, rj)) in circles.iter().enumerate() {
+            let d = cj - ci;
+            let distance = d.norm();
+            let k = ri - rj;
+            if j == current || distance <= k.abs() {
+                continue;
+            }
+            let crossing = d.angle() - libm::acos(k / distance);
+            let delta = wrap_angle(crossing - t, 2. * PI);
+            if delta > 1e-12 && t + delta < next.0 {
+                next = (t + delta, j);
+            }
+        }
+        total += integral(circles[current], t, next.0);
+        t = next.0;
+        current = next.1;
+        if t >= 2. * PI {
+            break;
+        }
+    }
+    0.5 * total
+}
 
 /// The area of the convex hull of a set of outlines.
 ///
 /// The hull of circles of equal radius r is the hull of their centres grown by r, with an area of
-/// A + P r + π r², from the area A and perimeter P of the hull of the centres, which is exact. With
-/// circles of different sizes, each is shrunk by the smallest radius and replaced by a polygon
-/// around it, slightly overestimating the area.
+/// A + P r + π r², from the area A and perimeter P of the hull of the centres, which also covers
+/// polygons with r = 0. Circles of different sizes use the support function of the hull. Both are
+/// exact.
 pub fn hull_area(outlines: &[Outline]) -> f64 {
-    let r0 = outlines
+    let circles: Vec<(Vec2, f64)> = outlines
         .iter()
-        .map(|o| match o {
-            Outline::Circle(_, r) => *r,
-            Outline::Polygon(_) => 0.,
+        .flat_map(|o| match o {
+            Outline::Polygon(p) => p.iter().map(|&v| (v, 0.)).collect(),
+            Outline::Circle(c, r) => vec![(*c, *r)],
         })
-        .fold(f64::INFINITY, f64::min);
-    if !r0.is_finite() {
-        return 0.;
+        .collect();
+    let r0 = circles.iter().map(|c| c.1).fold(f64::INFINITY, f64::min);
+    let r1 = circles.iter().map(|c| c.1).fold(0., f64::max);
+    if circles.is_empty() {
+        0.
+    } else if r1 - r0 <= 1e-12 * r1 {
+        let centres: Vec<Vec2> = circles.iter().map(|c| c.0).collect();
+        let hull = convex_hull(&centres);
+        polygon_area(&hull) + perimeter(&hull) * r0 + PI * r0 * r0
+    } else {
+        circle_hull_area(&circles)
     }
-    let mut points = vec![];
-    for outline in outlines {
-        match outline {
-            Outline::Polygon(p) => points.extend_from_slice(p),
-            Outline::Circle(c, r) => {
-                let rho = r - r0;
-                if rho <= 1e-12 * r {
-                    points.push(*c);
-                } else {
-                    // The vertices of a polygon containing the circle
-                    let radius = rho / libm::cos(PI / CIRCLE_POINTS as f64);
-                    points.extend((0..CIRCLE_POINTS).map(|k| {
-                        *c + Vec2::from_angle(2. * PI * k as f64 / CIRCLE_POINTS as f64) * radius
-                    }));
-                }
-            }
-        }
-    }
-    let hull = convex_hull(&points);
-    polygon_area(&hull) + perimeter(&hull) * r0 + PI * r0 * r0
 }
 
 /// The size of a container; a circle has a diameter equal to the width and height
@@ -348,24 +387,17 @@ impl<S: HardShape> Confined<S> {
         }
     }
 
-    fn image_overlaps(&self, i: usize, j: usize, shift: Vec2) -> bool {
-        let d = (self.position(j) + shift - self.position(i)).norm_sq();
-        if d >= self.contact * self.contact {
-            return false;
-        }
-        d < self.core * self.core || S::overlaps(&self.placed[i], &self.placed[j], shift)
-    }
-
+    /// Whether shape `j`, or any of its periodic images, overlaps shape `i`. For `i == j` this is
+    /// whether the shape overlaps its own images.
     fn pair_overlaps(&self, i: usize, j: usize) -> bool {
         let images = self.images();
-        (-images..=images)
-            .any(|k| self.image_overlaps(i, j, Vec2::new(k as f64 * self.size.width, 0.)))
-    }
-
-    /// Whether a shape overlaps its own periodic images
-    fn self_overlaps(&self, i: usize) -> bool {
-        (1..=self.images())
-            .any(|k| self.image_overlaps(i, i, Vec2::new(k as f64 * self.size.width, 0.)))
+        (-images..=images).filter(|&k| i != j || k != 0).any(|k| {
+            let shift = Vec2::new(k as f64 * self.size.width, 0.);
+            let d = (self.position(j) + shift - self.position(i)).norm_sq();
+            d < self.contact * self.contact
+                && (d < self.core * self.core
+                    || S::overlaps(&self.placed[i], &self.placed[j], shift))
+        })
     }
 
     fn outside(&self, index: usize) -> bool {
@@ -374,18 +406,14 @@ impl<S: HardShape> Confined<S> {
             .contains::<S>(&self.size, &self.placed[index], self.shape.circumradius())
     }
 
-    /// Whether a shape overlaps another shape or the walls of the container
+    /// Whether a shape overlaps another shape, its own periodic images or the walls
     pub fn shape_overlaps(&self, index: usize) -> bool {
-        self.outside(index)
-            || self.self_overlaps(index)
-            || (0..self.num_shapes()).any(|j| j != index && self.pair_overlaps(index, j))
+        self.outside(index) || (0..self.num_shapes()).any(|j| self.pair_overlaps(index, j))
     }
 
     pub fn any_overlap(&self) -> bool {
         let n = self.num_shapes();
-        (0..n).any(|i| {
-            self.outside(i) || self.self_overlaps(i) || (i + 1..n).any(|j| self.pair_overlaps(i, j))
-        })
+        (0..n).any(|i| self.outside(i) || (i..n).any(|j| self.pair_overlaps(i, j)))
     }
 
     pub fn structure(&self) -> Structure {
@@ -732,8 +760,10 @@ impl<S: HardShape> ConfinedOptimiser<S> {
 mod test {
     use super::*;
     use crate::hard_shape::{Molecule, Polygon};
+    use crate::random::Rng;
     use crate::validate::validate_confined;
     use approx::assert_abs_diff_eq;
+    use proptest::prelude::*;
 
     fn optimise<S: HardShape>(shape: S, container: Container, n: usize, seed: u64) -> Structure {
         let mut rng = Rng::seed_from_u64(seed);
@@ -884,15 +914,20 @@ mod test {
             s3 + 6. + PI,
             epsilon = 1e-12
         );
-        // A small disk inside a large one doesn't change the hull, up to the polygon around it
+        // A small disk inside a large one doesn't change the hull
         let mut outlines = disks(&[(0., 0.)], 2.);
         outlines.push(Outline::Circle(Vec2::new(0.5, 0.), 0.5));
-        let area = hull_area(&outlines);
-        assert!(
-            (4. * PI - 1e-9..4. * PI * 1.002).contains(&area),
-            "{}",
-            area
-        );
+        assert_abs_diff_eq!(hull_area(&outlines), 4. * PI, epsilon = 1e-12);
+        // Two disks of radius 1 and 2 with centres 4 apart: a disk sector on each, joined by
+        // tangents at an angle β = asin(1/4) to the line between the centres
+        let outlines = [
+            Outline::Circle(Vec2::ZERO, 2.),
+            Outline::Circle(Vec2::new(4., 0.), 1.),
+        ];
+        let beta = (0.25f64).asin();
+        let tangent = 4. * beta.cos();
+        let expected = (PI + 2. * beta) * 4. / 2. + (PI - 2. * beta) / 2. + tangent * 3.;
+        assert_abs_diff_eq!(hull_area(&outlines), expected, epsilon = 1e-12);
         // Two squares side by side make a rectangle
         let square = |x: f64| {
             Outline::Polygon(vec![
@@ -1029,5 +1064,117 @@ mod test {
         container.width *= 0.99;
         structure.packing_fraction /= 0.99;
         assert!(validate_confined(&disk, &structure).is_err());
+    }
+
+    /// Shapes at random positions and orientations in a container of the given size
+    fn random<S: HardShape>(
+        shape: S,
+        container: Container,
+        n: usize,
+        size: ContainerSize,
+        seed: u64,
+    ) -> Confined<S> {
+        let mut rng = Rng::seed_from_u64(seed);
+        let mut confined = Confined::new(shape, container, n, &mut rng).unwrap();
+        confined.set_size(size);
+        let size = confined.size();
+        for i in 0..n {
+            let position = Vec2::new(
+                0.6 * size.width * rng.centered(),
+                0.6 * size.height * rng.centered(),
+            );
+            confined.set_shape(i, position, 2. * PI * rng.uniform());
+        }
+        confined
+    }
+
+    /// The overlap checks agree with each other and with the independent validation
+    fn check_overlaps<S: HardShape>(confined: &Confined<S>) -> Result<(), TestCaseError> {
+        let overlap = confined.any_overlap();
+        let valid = validate_confined(confined.shape(), &confined.structure());
+        prop_assert_eq!(overlap, valid.is_err(), "{:?}", valid);
+        let any_shape = (0..confined.num_shapes()).any(|i| confined.shape_overlaps(i));
+        prop_assert_eq!(overlap, any_shape);
+        Ok(())
+    }
+
+    fn containers() -> impl Strategy<Value = Container> {
+        prop::sample::select(vec![
+            Container::Square,
+            Container::Rectangle,
+            Container::Circle,
+            Container::Strip,
+            Container::Cluster,
+        ])
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(200))]
+
+        #[test]
+        fn polygon_overlaps_match_validation(
+            container in containers(),
+            n in 1usize..5,
+            width in 1.5f64..6.,
+            height in 1.5f64..6.,
+            seed in 0u64..10_000,
+        ) {
+            // A concave shape, so the overlaps of its pieces and their images are tested
+            let shape = Polygon::from_radial("star", &[1., 0.5, 0.9, 0.4, 1., 0.6]).unwrap();
+            let size = ContainerSize { width, height };
+            check_overlaps(&random(shape, container, n, size, seed))?;
+        }
+
+        #[test]
+        fn molecule_overlaps_match_validation(
+            container in containers(),
+            n in 1usize..5,
+            width in 1.5f64..8.,
+            height in 1.5f64..8.,
+            seed in 0u64..10_000,
+        ) {
+            let trimer = Molecule::trimer(0.6, 120., 1.).unwrap();
+            let size = ContainerSize { width, height };
+            check_overlaps(&random(trimer, container, n, size, seed))?;
+        }
+
+        #[test]
+        fn narrow_strips_match_validation(
+            n in 1usize..4,
+            period in 0.3f64..3.,
+            height in 1.5f64..4.,
+            seed in 0u64..10_000,
+        ) {
+            // A period shorter than the shapes, so shapes overlap images several periods away
+            let shape = Polygon::regular(5).unwrap();
+            let size = ContainerSize { width: period, height };
+            check_overlaps(&random(shape, Container::Strip, n, size, seed))?;
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn circle_hull_matches_sampled_hull(
+            circles in prop::collection::vec((-3f64..3., -3f64..3., 0f64..1.5), 1..8),
+        ) {
+            let circles: Vec<(Vec2, f64)> =
+                circles.into_iter().map(|(x, y, r)| (Vec2::new(x, y), r)).collect();
+            // Many points on each circle give a hull slightly smaller than the exact one
+            let n = 4096;
+            let points: Vec<Vec2> = circles
+                .iter()
+                .flat_map(|&(c, r)| {
+                    (0..n).map(move |k| c + Vec2::from_angle(2. * PI * k as f64 / n as f64) * r)
+                })
+                .collect();
+            let sampled = polygon_area(&convex_hull(&points));
+            let exact = circle_hull_area(&circles);
+            prop_assert!(exact >= sampled - 1e-9, "{} {}", exact, sampled);
+            prop_assert!(exact <= sampled * (1. + 1e-5) + 1e-9, "{} {}", exact, sampled);
+            // With equal radii it matches the area of the grown hull of the centres
+            let equal: Vec<Outline> = circles.iter().map(|&(c, _)| Outline::Circle(c, 0.7)).collect();
+            let equal_circles: Vec<(Vec2, f64)> = circles.iter().map(|&(c, _)| (c, 0.7)).collect();
+            prop_assert!((hull_area(&equal) - circle_hull_area(&equal_circles)).abs() < 1e-9);
+        }
     }
 }

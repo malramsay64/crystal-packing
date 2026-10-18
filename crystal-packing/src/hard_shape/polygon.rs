@@ -427,33 +427,10 @@ mod test {
         out
     }
 
-    /// An independent, brute force overlap check for two simple polygons.
-    ///
-    /// Two polygons overlap if any of their edges properly cross or one contains a vertex of
-    /// the other.
-    fn brute_force_overlap(a: &[Vec2], b: &[Vec2]) -> bool {
-        let cross = |p1: Vec2, p2: Vec2, q1: Vec2, q2: Vec2| {
-            let d1 = (p2 - p1).cross(q1 - p1);
-            let d2 = (p2 - p1).cross(q2 - p1);
-            let d3 = (q2 - q1).cross(p1 - q1);
-            let d4 = (q2 - q1).cross(p2 - q1);
-            d1 * d2 < 0. && d3 * d4 < 0.
-        };
-        let n = a.len();
-        let m = b.len();
-        for i in 0..n {
-            for j in 0..m {
-                if cross(a[i], a[(i + 1) % n], b[j], b[(j + 1) % m]) {
-                    return true;
-                }
-            }
-        }
-        contains_point(a, b[0]) || contains_point(b, a[0])
-    }
-
-    fn world(shape: &Polygon, angle: f64, position: Vec2) -> Vec<Vec2> {
-        let r = Mat2::rotation(angle);
-        shape.vertices().iter().map(|&v| r * v + position).collect()
+    /// The independent overlap check of the validation, for a shape at each orientation and
+    /// position
+    fn brute_force(shape: &Polygon, a: (Mat2, Vec2), b: (Mat2, Vec2)) -> bool {
+        crate::validate::brute_force_overlap(shape, (&a.0, a.1), (&b.0, b.1))
     }
 
     #[test]
@@ -547,6 +524,52 @@ mod test {
         assert!(Polygon::overlaps(&a, &b, Vec2::new(-0.2, 0.)));
     }
 
+    #[test]
+    fn concave_shapes_in_contact() {
+        // Two L shapes fitting together into a 3 by 2 rectangle, rotated by π about the centre,
+        // so they touch along edges which cross the internal edges of their triangulations
+        let l = Polygon::from_vertices(
+            "L",
+            points(&[[0., 0.], [2., 0.], [2., 1.], [1., 1.], [1., 2.], [0., 2.]]),
+        )
+        .unwrap();
+        let a = placed(&l, 0., Vec2::ZERO);
+        let b = placed(&l, PI, Vec2::new(3., 2.));
+        assert!(!Polygon::overlaps(&a, &b, Vec2::ZERO));
+        // Each L touches the other along three edges, so any push towards it overlaps
+        for push in [
+            Vec2::new(-1e-6, 0.),
+            Vec2::new(0., -1e-6),
+            Vec2::new(-1e-6, -1e-6),
+        ] {
+            assert!(Polygon::overlaps(&a, &b, push), "{:?}", push);
+        }
+        assert!(!Polygon::overlaps(&a, &b, Vec2::new(1e-6, 1e-6)));
+        // Touching at a single vertex
+        let c = placed(&l, 0., Vec2::new(2., -2.));
+        assert!(!Polygon::overlaps(&a, &c, Vec2::ZERO));
+        assert!(Polygon::overlaps(&a, &c, Vec2::new(-1e-6, 1e-6)));
+    }
+
+    #[test]
+    fn overlaps_within_tolerance_are_touching() {
+        // Overlaps much smaller than the tolerance count as touching, so contacts converge
+        let square = Polygon::regular(4).unwrap();
+        let a = placed(&square, PI / 4., Vec2::ZERO);
+        let side = 2f64.sqrt();
+        let tolerance = OVERLAP_TOLERANCE * 2.;
+        assert!(!Polygon::overlaps(
+            &a,
+            &a,
+            Vec2::new(side - 0.1 * tolerance, 0.)
+        ));
+        assert!(Polygon::overlaps(
+            &a,
+            &a,
+            Vec2::new(side - 10. * tolerance, 0.)
+        ));
+    }
+
     fn points(p: &[[f64; 2]]) -> Vec<Vec2> {
         p.iter().map(|v| Vec2::new(v[0], v[1])).collect()
     }
@@ -622,16 +645,47 @@ mod test {
             x in -2.5f64..2.5,
             y in -2.5f64..2.5,
         ) {
+            // Two different regular polygons, compared with the brute force check of their outlines
             let a = Polygon::regular(sides_a).unwrap();
             let b = Polygon::regular(sides_b).unwrap();
             let pa = placed(&a, angle_a, Vec2::ZERO);
             let pb = placed(&b, angle_b, Vec2::ZERO);
             let shift = Vec2::new(x, y);
-            let expected = brute_force_overlap(
-                &world(&a, angle_a, Vec2::ZERO),
-                &world(&b, angle_b, shift),
-            );
+            let outline_a = a.outlines(&Mat2::rotation(angle_a), Vec2::ZERO);
+            let outline_b = b.outlines(&Mat2::rotation(angle_b), shift);
+            let expected = crate::validate::outlines_overlap(&outline_a[0], &outline_b[0]);
             prop_assert_eq!(Polygon::overlaps(&pa, &pb, shift), expected);
+        }
+
+        #[test]
+        fn concave_matches_brute_force(
+            radii in prop::collection::vec(0.2f64..1., 4..10),
+            angle_a in 0. ..(2. * PI),
+            angle_b in 0. ..(2. * PI),
+            reflect in any::<bool>(),
+            x in -2f64..2.,
+            y in -2f64..2.,
+        ) {
+            // Star shaped polygons, mostly concave, so they are split into several pieces. One is
+            // reflected, which reverses the winding order of its vertices.
+            let shape = Polygon::from_radial("star", &radii);
+            prop_assume!(shape.is_ok());
+            let shape = shape.unwrap();
+            let a = Mat2::rotation(angle_a);
+            let b = if reflect {
+                Mat2::reflection(0.3) * Mat2::rotation(angle_b)
+            } else {
+                Mat2::rotation(angle_b)
+            };
+            let shift = Vec2::new(x, y);
+            let (mut pa, mut pb) = (PlacedPolygon::default(), PlacedPolygon::default());
+            shape.place(&a, Vec2::ZERO, &mut pa);
+            shape.place(&b, Vec2::ZERO, &mut pb);
+            let expected = brute_force(&shape, (a, Vec2::ZERO), (b, shift));
+            prop_assert_eq!(Polygon::overlaps(&pa, &pb, shift), expected);
+            // Placing the second shape at the shifted position is the same as the shift
+            shape.place(&b, shift, &mut pb);
+            prop_assert_eq!(Polygon::overlaps(&pa, &pb, Vec2::ZERO), expected);
         }
 
         #[test]
@@ -649,8 +703,7 @@ mod test {
             let mut pb = PlacedPolygon::default();
             shape.place(&reflected, Vec2::ZERO, &mut pb);
             let shift = Vec2::new(x, y);
-            let world_b: Vec<Vec2> = shape.vertices().iter().map(|&v| reflected * v + shift).collect();
-            let expected = brute_force_overlap(&world(&shape, angle_a, Vec2::ZERO), &world_b);
+            let expected = brute_force(&shape, (Mat2::rotation(angle_a), Vec2::ZERO), (reflected, shift));
             prop_assert_eq!(Polygon::overlaps(&pa, &pb, shift), expected);
         }
 

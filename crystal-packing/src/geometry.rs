@@ -253,27 +253,24 @@ pub fn convex_hull(points: &[Vec2]) -> Vec<Vec2> {
     if points.len() < 3 {
         return points;
     }
+    // The lower chain from left to right, then the upper chain back, each turning left
     let mut hull: Vec<Vec2> = Vec::with_capacity(2 * points.len());
-    for pass in 0..2 {
+    let mut chain = |points: &mut dyn Iterator<Item = Vec2>| {
         let start = hull.len();
-        let iter: Box<dyn Iterator<Item = &Vec2>> = if pass == 0 {
-            Box::new(points.iter())
-        } else {
-            Box::new(points.iter().rev())
-        };
-        for &p in iter {
-            while hull.len() >= start + 2 {
-                let (a, b) = (hull[hull.len() - 2], hull[hull.len() - 1]);
-                if (b - a).cross(p - a) > 0. {
-                    break;
-                }
+        for p in points {
+            while hull.len() >= start + 2
+                && (hull[hull.len() - 1] - hull[hull.len() - 2]).cross(p - hull[hull.len() - 2])
+                    <= 0.
+            {
                 hull.pop();
             }
             hull.push(p);
         }
         // The last point of each chain is the first point of the other
         hull.pop();
-    }
+    };
+    chain(&mut points.iter().copied());
+    chain(&mut points.iter().rev().copied());
     hull
 }
 
