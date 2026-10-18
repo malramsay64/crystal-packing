@@ -286,6 +286,24 @@ pub fn enumerate_candidates(
     candidates
 }
 
+/// Candidates of independent shapes without symmetry, which are the general position of p1
+/// occupied once for each shape.
+pub fn unconstrained_candidates(counts: &[usize]) -> Result<Vec<Candidate>, Error> {
+    let mut counts = counts.to_vec();
+    counts.sort();
+    counts.dedup();
+    if counts.contains(&0) {
+        bail!("The number of shapes needs to be at least one");
+    }
+    Ok(counts
+        .into_iter()
+        .map(|n| Candidate {
+            group: "p1".into(),
+            sites: vec!['a'; n],
+        })
+        .collect())
+}
+
 /// A unit of work: optimise a single candidate from a random or given starting structure
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Job {
@@ -497,6 +515,9 @@ pub struct SearchConfig {
     pub monte_carlo: MonteCarloConfig,
     /// Minimise the energy of this potential rather than maximising the packing fraction
     pub potential: Option<LennardJones>,
+    /// Pack this many independent shapes in a periodic cell without any symmetry, one candidate
+    /// for each number of shapes. When given, the groups and site options are ignored.
+    pub unconstrained: Vec<usize>,
 }
 
 impl Default for SearchConfig {
@@ -517,6 +538,7 @@ impl Default for SearchConfig {
             seed: 0,
             monte_carlo: MonteCarloConfig::default(),
             potential: None,
+            unconstrained: vec![],
         }
     }
 }
@@ -582,12 +604,16 @@ impl Search {
         if config.eta < 2 {
             bail!("eta needs to be at least 2");
         }
-        let candidates = enumerate_candidates(
-            built.symmetry(),
-            &groups,
-            config.max_sites,
-            config.max_shapes,
-        );
+        let candidates = if config.unconstrained.is_empty() {
+            enumerate_candidates(
+                built.symmetry(),
+                &groups,
+                config.max_sites,
+                config.max_shapes,
+            )
+        } else {
+            unconstrained_candidates(&config.unconstrained)?
+        };
         if candidates.is_empty() {
             bail!("No candidate structures are compatible with the shape");
         }
@@ -789,6 +815,15 @@ impl Search {
             .into_iter()
             .filter(|r| r.best.is_some() && r.score() >= threshold)
             .collect()
+    }
+
+    /// The candidates near the best, at most `limit` of them
+    pub fn near_best_limited(&self, within: f64, limit: Option<usize>) -> Vec<&CandidateResult> {
+        let mut near = self.near_best(within);
+        if let Some(limit) = limit {
+            near.truncate(limit);
+        }
+        near
     }
 
     /// The best candidate of every group searched, in the order of the International Tables
@@ -1225,6 +1260,66 @@ mod test {
             .filter(|r| r.best.as_ref().unwrap().score() < best * 0.95)
             .count();
         assert_eq!(near.len() + excluded, search.results.len());
+    }
+
+    #[test]
+    fn unconstrained_candidates() {
+        let search = Search::new(
+            ShapeSpec::Polygon { sides: 5 },
+            SearchConfig {
+                unconstrained: vec![1, 2, 3],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let labels: Vec<String> = search.results.iter().map(|r| r.candidate.label()).collect();
+        assert_eq!(labels, vec!["p1:a", "p1:aa", "p1:aaa"]);
+    }
+
+    #[test]
+    fn unconstrained_rejects_zero_shapes() {
+        let config = SearchConfig {
+            unconstrained: vec![0],
+            ..Default::default()
+        };
+        assert!(Search::new(ShapeSpec::Disk, config).is_err());
+    }
+
+    #[test]
+    fn unconstrained_jobs_have_independent_shapes() {
+        let config = SearchConfig {
+            unconstrained: vec![3],
+            replicas: 1,
+            steps: 2000,
+            ..Default::default()
+        };
+        let search = Search::new(ShapeSpec::Polygon { sides: 4 }, config).unwrap();
+        let outcome = run_job(&search.jobs()[0]);
+        let structure = outcome.structure.unwrap();
+        assert_eq!(structure.group, "p1");
+        assert_eq!(structure.num_shapes, 3);
+        // Each shape has its own position and orientation
+        let angles: Vec<f64> = structure.sites.iter().map(|s| s.angle).collect();
+        assert!(angles[0] != angles[1] && angles[1] != angles[2]);
+    }
+
+    #[test]
+    fn near_best_can_be_limited() {
+        let mut search = disk_search(SearchConfig {
+            groups: all_groups(),
+            strategy: Strategy::Exhaustive,
+            patience: 1,
+            ..Default::default()
+        });
+        while !search.is_finished() {
+            submit_round(&mut search, fixed_score);
+        }
+        let all = search.near_best(0.5);
+        assert!(all.len() > 3);
+        let limited = search.near_best_limited(0.5, Some(3));
+        assert_eq!(limited.len(), 3);
+        assert_eq!(limited, all[..3].to_vec());
+        assert_eq!(search.near_best_limited(0.5, None), all);
     }
 
     #[test]
