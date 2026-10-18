@@ -78,11 +78,19 @@
       <label>Watch group <input name="watch_group" value="p2" /></label>
       <label>Watch sites <input name="watch_sites" value="e" /></label>
       <label>Unconstrained shapes <input name="unconstrained_shapes" value="1,2,3,4" /></label>
+      <label>Boundary
+        <select name="boundary">
+          <option value="periodic">Periodic</option>
+          <option value="square">Square container</option>
+          <option value="rectangle">Rectangular container</option>
+          <option value="circle">Circular container</option>
+        </select>
+      </label>
       <div class="actions">
         <button type="button" id="search">Search</button>
         <button type="button" id="survey" title="Optimise every candidate of every group">Survey all groups</button>
         <button type="button" id="watch" title="Animate the optimisation of one group and set of sites">Watch optimisation</button>
-        <button type="button" id="unconstrained" title="Independent shapes in a periodic cell, without symmetry">Unconstrained</button>
+        <button type="button" id="unconstrained" title="Independent shapes without symmetry, in a periodic cell or a container">Unconstrained</button>
         <button type="button" id="stop" disabled>Stop</button>
       </div>
     </form>

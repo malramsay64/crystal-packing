@@ -3,8 +3,9 @@
 WebAssembly bindings and a browser front end for the crystal packing search.
 
 The page can search for the densest packing, survey every plane group, or pack independent shapes
-without symmetry. Every worker's current optimisation is shown as it runs, and the results list
-every structure within a chosen percentage of the best (2% by default), best first, updating as the
+without symmetry, either in a periodic cell or in a square, rectangular or circular container. Every worker's current optimisation is shown as it runs, and the results list
+the distinct structures within a chosen percentage of the best (2% by default), best first, with
+the other candidates which found the same structure, updating as the
 percentage or the maximum number of results is changed. Shapes can be drawn by hand: click to add
 vertices, drag to move them and double click to remove them, with the shape checked as it is drawn.
 The optimisation of a single group and set of sites can be animated, with a plot of the packing

@@ -1,6 +1,7 @@
 //! Write a set of jobs and their outcomes as JSON, so other builds (e.g. WebAssembly) can check
 //! they produce bit-identical results.
 
+use crystal_packing::container::Container;
 use crystal_packing::monte_carlo::MonteCarloConfig;
 use crystal_packing::potential::LennardJones;
 use crystal_packing::search::{run_job, Candidate, Job, ShapeSpec};
@@ -12,16 +13,29 @@ fn main() {
         distance: 1.,
     };
     let cases = [
-        (ShapeSpec::Polygon { sides: 5 }, "p2", vec!['e'], None),
-        (ShapeSpec::Polygon { sides: 3 }, "p3m1", vec!['d'], None),
-        (ShapeSpec::Disk, "p6mm", vec!['a'], None),
-        (trimer.clone(), "p2gg", vec!['c'], None),
-        (trimer, "p2", vec!['e'], Some(LennardJones::default())),
+        (ShapeSpec::Polygon { sides: 5 }, "p2", vec!['e'], None, None),
+        (
+            ShapeSpec::Polygon { sides: 3 },
+            "p3m1",
+            vec!['d'],
+            None,
+            None,
+        ),
+        (ShapeSpec::Disk, "p6mm", vec!['a'], None, None),
+        (trimer.clone(), "p2gg", vec!['c'], None, None),
+        (trimer, "p2", vec!['e'], Some(LennardJones::default()), None),
+        (
+            ShapeSpec::Polygon { sides: 5 },
+            "finite",
+            vec!['a'; 4],
+            None,
+            Some(Container::Circle),
+        ),
     ];
     let jobs: Vec<Job> = cases
         .into_iter()
         .enumerate()
-        .map(|(i, (shape, group, sites, potential))| Job {
+        .map(|(i, (shape, group, sites, potential, container))| Job {
             shape,
             candidate: Candidate {
                 group: group.into(),
@@ -34,7 +48,7 @@ fn main() {
             },
             start: None,
             potential,
-            container: None,
+            container,
         })
         .collect();
     let outcomes: Vec<_> = jobs.iter().map(run_job).collect();

@@ -214,63 +214,6 @@ pub fn validate<S: HardShape>(shape: &S, structure: &Structure) -> Result<(), Er
     Ok(())
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::engine::Packing;
-    use crate::hard_shape::{Molecule, Polygon};
-    use crate::lattice::Lattice;
-    use crate::monte_carlo::{MonteCarloConfig, Optimiser};
-    use crate::random::Rng;
-    use crate::symmetry::LatticeFamily;
-
-    #[test]
-    fn detects_overlap() {
-        let square = Polygon::regular(4).unwrap();
-        let group = PlaneGroup::from_name("p1").unwrap();
-        let mut rng = Rng::seed_from_u64(0);
-        let mut packing = Packing::new(square.clone(), group, &['a'], &mut rng).unwrap();
-        assert!(validate(&square, &packing.structure()).is_ok());
-        packing.set_lattice(Lattice::from_parameters(
-            LatticeFamily::Oblique,
-            &[1., 0., 1.],
-        ));
-        assert!(validate(&square, &packing.structure()).is_err());
-    }
-
-    #[test]
-    fn optimised_structures_are_valid() {
-        let cases: Vec<(&str, Vec<char>)> = vec![
-            ("p2", vec!['e']),
-            ("p2gg", vec!['c']),
-            ("p1", vec!['a', 'a']),
-            ("p2mg", vec!['d']),
-            ("p6", vec!['d']),
-        ];
-        for (group, sites) in cases {
-            let shape = Polygon::regular(5).unwrap();
-            let g = PlaneGroup::from_name(group).unwrap();
-            let mut rng = Rng::seed_from_u64(1);
-            let packing = Packing::new(shape.clone(), g, &sites, &mut rng).unwrap();
-            let config = MonteCarloConfig {
-                steps: 5000,
-                ..Default::default()
-            };
-            let mut optimiser = Optimiser::new(packing, config, 1);
-            optimiser.run(5000);
-            let structure = optimiser.finish();
-            validate(&shape, &structure).unwrap();
-        }
-        let disk = Molecule::disk();
-        let g = PlaneGroup::from_name("p2").unwrap();
-        let mut rng = Rng::seed_from_u64(1);
-        let packing = Packing::new(disk.clone(), g, &['e'], &mut rng).unwrap();
-        let mut optimiser = Optimiser::new(packing, MonteCarloConfig::default(), 1);
-        optimiser.run(20_000);
-        validate(&disk, &optimiser.finish()).unwrap();
-    }
-}
-
 /// Check a structure of shapes in a container is valid: every shape is inside the container and
 /// no two shapes overlap. This shares no code with the optimisation beyond the shape outlines.
 pub fn validate_confined<S: HardShape>(shape: &S, structure: &Structure) -> Result<(), Error> {
@@ -329,4 +272,61 @@ pub fn validate_confined<S: HardShape>(shape: &S, structure: &Structure) -> Resu
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::engine::Packing;
+    use crate::hard_shape::{Molecule, Polygon};
+    use crate::lattice::Lattice;
+    use crate::monte_carlo::{MonteCarloConfig, Optimiser};
+    use crate::random::Rng;
+    use crate::symmetry::LatticeFamily;
+
+    #[test]
+    fn detects_overlap() {
+        let square = Polygon::regular(4).unwrap();
+        let group = PlaneGroup::from_name("p1").unwrap();
+        let mut rng = Rng::seed_from_u64(0);
+        let mut packing = Packing::new(square.clone(), group, &['a'], &mut rng).unwrap();
+        assert!(validate(&square, &packing.structure()).is_ok());
+        packing.set_lattice(Lattice::from_parameters(
+            LatticeFamily::Oblique,
+            &[1., 0., 1.],
+        ));
+        assert!(validate(&square, &packing.structure()).is_err());
+    }
+
+    #[test]
+    fn optimised_structures_are_valid() {
+        let cases: Vec<(&str, Vec<char>)> = vec![
+            ("p2", vec!['e']),
+            ("p2gg", vec!['c']),
+            ("p1", vec!['a', 'a']),
+            ("p2mg", vec!['d']),
+            ("p6", vec!['d']),
+        ];
+        for (group, sites) in cases {
+            let shape = Polygon::regular(5).unwrap();
+            let g = PlaneGroup::from_name(group).unwrap();
+            let mut rng = Rng::seed_from_u64(1);
+            let packing = Packing::new(shape.clone(), g, &sites, &mut rng).unwrap();
+            let config = MonteCarloConfig {
+                steps: 5000,
+                ..Default::default()
+            };
+            let mut optimiser = Optimiser::new(packing, config, 1);
+            optimiser.run(5000);
+            let structure = optimiser.finish();
+            validate(&shape, &structure).unwrap();
+        }
+        let disk = Molecule::disk();
+        let g = PlaneGroup::from_name("p2").unwrap();
+        let mut rng = Rng::seed_from_u64(1);
+        let packing = Packing::new(disk.clone(), g, &['e'], &mut rng).unwrap();
+        let mut optimiser = Optimiser::new(packing, MonteCarloConfig::default(), 1);
+        optimiser.run(20_000);
+        validate(&disk, &optimiser.finish()).unwrap();
+    }
 }

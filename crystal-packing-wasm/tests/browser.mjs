@@ -178,6 +178,19 @@ try {
   const counts = await page.$$eval("#results tbody tr", (rows) => rows.map((row) => row.dataset.label));
   console.log(`Unconstrained: ${free.packing_fraction} ${counts.join(", ")}`);
   check(free.group === "p1" && free.packing_fraction > 0.99, "Expected free squares to fill space");
+
+  // Seven disks in a circular container, which pack as a hexagon around a central disk
+  await page.selectOption("select[name=shape]", "disk");
+  await page.selectOption("select[name=boundary]", "circle");
+  await page.fill("input[name=unconstrained_shapes]", "7");
+  await page.click("#unconstrained");
+  await page.waitForSelector("body[data-result]", { timeout: 300_000 });
+  const confined = JSON.parse(await page.getAttribute("body", "data-result"));
+  const circles = await page.$$eval("#structure svg circle", (circles) => circles.length);
+  console.log(`7 disks in a circle: ${confined.packing_fraction}, ${circles} circles drawn`);
+  check(confined.container?.kind === "circle", "Expected a circular container");
+  check(Math.abs(confined.packing_fraction - 7 / 9) < 2e-3, "Expected the hexagonal arrangement of 7 disks");
+  check(circles === 8, "Expected the disks and the container to be drawn");
 } finally {
   await browser.close();
   server.close();

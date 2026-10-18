@@ -26,6 +26,9 @@ packing survey --shape polygon --sides 5 --output pentagon-survey
 # Independent shapes in a periodic cell without any symmetry, for 1 to 4 shapes
 packing unconstrained --shape polygon --sides 5 --shapes 1,2,3,4
 
+# Or in a container with hard walls: square, rectangle (free aspect ratio) or circle
+packing unconstrained --shape disk --shapes 2,3,7 --container circle
+
 # Optimise a single group and choice of Wyckoff sites
 packing optimise --shape polygon --sides 7 --group p2 --sites e
 
@@ -38,9 +41,10 @@ packing render pentagons/best.json
 
 Shapes are regular polygons (`--sides`), disks, trimers (`--radius --angle --distance`), radial
 shapes (`--radii 1,0.8,1,0.8`) or polygons from a JSON list of vertices (`--vertices file.json`),
-which can be concave. Every command lists every structure within `--within` percent (default 2%)
-of the best, best first, along with how many there are; `--max-results` limits how many are
-shown. A search writes `results.json`, `results.csv` (every candidate), and the structures near the
+which can be concave. Every command lists the structures within `--within` percent (default 2%)
+of the best, best first. Candidates which found the same crystal (e.g. the pentagon double lattice
+in p2, p1g1, p2mg and p2gg) are grouped into one distinct structure, listing where else it was
+found; `--show-equivalent` lists them separately and `--max-results` limits how many are shown. A search writes `results.json`, `results.csv` (every candidate), and the structures near the
 best to `near-best/`. A survey also writes `survey.csv` and
 the best structure of each group to `groups/`.
 
@@ -65,8 +69,13 @@ and set of sites can be animated.
   adaptive step sizes, followed by a squeeze to contact. Every result is checked by an
   independent validator.
 - **Unconstrained**: N independent shapes in a fully flexible periodic cell, which is the general
-  position of p1 occupied N times, so the same engine and optimiser are used. From independent
-  shapes, two to eight pentagons recover the double lattice packing.
+  position of p1 occupied N times, so the same engine and optimiser are used. The budget scales
+  with the number of shapes (`--steps-per-shape`, 2500 by default), and from independent shapes,
+  2 to 32 pentagons recover the double lattice packing.
+- **Containers**: a finite number of shapes in a square, rectangle or circle with hard walls,
+  compressed around them, reproducing known optima such as 7 disks in a circle.
+- **Distinct structures**: structures are compared by the distances between the vertices of each
+  shape and its neighbours, which doesn't depend on the group, cell, origin or orientation.
 - **Search**: successive halving. Every candidate gets a short optimisation, then the best third
   get three times as many steps, until one candidate remains, which is optimised until it stops
   improving. Every candidate within `--within` of the best then gets the same budget as the best,
@@ -102,7 +111,11 @@ disks and 0.449 for triangles, and didn't improve with more steps.
   they tile the plane: every triangle and quadrilateral (including concave ones) in p2, the
   L-tromino and plus pentomino, a 20:1 rectangle, shapes with their origin at a vertex or outside
   the shape, a 64-gon, a pentagram and a trimer of heavily overlapping atoms.
-- `tests/unconstrained.rs`: independent shapes find the known packings without symmetry.
+- `tests/unconstrained.rs`: independent shapes find the known packings without symmetry,
+  including systems of 12 pentagons and 24 disks.
+- `tests/confined.rs`: known optimal packings of disks, squares and triangles in containers.
+- `tests/distinct.rs`: full searches find a single distinct structure near the best for pentagons
+  and disks, and three for heptagons.
 - `crystal-packing-cli/tests`: run the `packing` binary.
 - `crystal-packing-wasm/tests`: the WebAssembly build matches the native build exactly, and the
   web front end runs a search with live views of every worker, filters the results near the best,
@@ -111,6 +124,7 @@ disks and 0.449 for triangles, and didn't improve with more steps.
 ```bash
 cargo test --workspace
 # The slower suites, in release mode
-cargo test --release -p crystal_packing --test regression --test adversarial --test unconstrained -- --ignored
+cargo test --release -p crystal_packing --test regression --test adversarial --test unconstrained \
+    --test confined --test distinct -- --ignored
 cargo bench -p crystal_packing --bench engine
 ```

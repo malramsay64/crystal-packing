@@ -249,7 +249,9 @@ function tileRenderer(shape, tiles) {
     scheduled = false;
     for (const [index, { job, progress, structure }] of pending) {
       const tile = tiles[index];
-      tile.querySelector(".view").innerHTML = renderSvg(JSON.stringify(shape), JSON.stringify(structure), 1);
+      // Neighbouring cells are only drawn for periodic structures
+      const cells = structure.container ? 0 : 1;
+      tile.querySelector(".view").innerHTML = renderSvg(JSON.stringify(shape), JSON.stringify(structure), cells);
       tile.querySelector(".caption").textContent = `${label(job.candidate)}: φ ${progress.packing_fraction.toFixed(4)}, step ${progress.steps} of ${progress.total_steps}`;
       tile.dataset.frames = String(Number(tile.dataset.frames) + 1);
     }
@@ -527,12 +529,15 @@ async function watch() {
 }
 
 function unconstrained() {
-  const counts = String(new FormData(form).get("unconstrained_shapes"))
+  const data = new FormData(form);
+  const boundary = String(data.get("boundary"));
+  const container = boundary === "periodic" ? null : boundary;
+  const counts = String(data.get("unconstrained_shapes"))
     .split(",")
     .map((n) => Number(n.trim()))
     .filter((n) => Number.isInteger(n) && n > 0);
   // Larger systems need a proportionally larger budget
-  search("exhaustive", { unconstrained: counts, steps_per_shape: 2500 });
+  search("exhaustive", { unconstrained: counts, steps_per_shape: 2500, container });
 }
 
 buttons.search.addEventListener("click", () => search("halving"));
