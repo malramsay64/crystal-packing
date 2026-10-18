@@ -22,6 +22,7 @@ use std::collections::BTreeSet;
 use anyhow::{anyhow, bail, Error};
 use serde::{Deserialize, Serialize};
 
+use crate::compare::Fingerprint;
 use crate::engine::{Packing, Structure};
 use crate::geometry::Vec2;
 use crate::hard_shape::{HardShape, Molecule, Polygon, ShapeSymmetry};
@@ -577,6 +578,13 @@ impl CandidateResult {
     }
 }
 
+/// A distinct structure, along with the other candidates which found the same crystal
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DistinctResult<'a> {
+    pub result: &'a CandidateResult,
+    pub equivalent: Vec<&'a CandidateResult>,
+}
+
 /// The stages of a search
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Phase {
@@ -839,6 +847,45 @@ impl Search {
             near.truncate(limit);
         }
         near
+    }
+
+    /// The distinct structures near the best, at most `limit` of them, best first.
+    ///
+    /// Candidates which found the same crystal (see [`crate::compare`]) are grouped together,
+    /// with the best candidate representing the structure and the others listed as equivalent.
+    pub fn distinct_near_best(
+        &self,
+        within: f64,
+        limit: Option<usize>,
+    ) -> Result<Vec<DistinctResult<'_>>, Error> {
+        let shape = self.shape.build()?;
+        let fingerprint = |structure: &Structure| match &shape {
+            AnyShape::Polygon(s) => Fingerprint::new(s, structure),
+            AnyShape::Molecule(s) => Fingerprint::new(s, structure),
+        };
+        let mut distinct: Vec<(Fingerprint, DistinctResult)> = vec![];
+        for result in self.near_best(within) {
+            let structure = result
+                .best
+                .as_ref()
+                .expect("Results near the best have a structure");
+            let print = fingerprint(structure)?;
+            match distinct.iter_mut().find(|(other, _)| other.matches(&print)) {
+                Some((_, group)) => group.equivalent.push(result),
+                None => distinct.push((
+                    print,
+                    DistinctResult {
+                        result,
+                        equivalent: vec![],
+                    },
+                )),
+            }
+        }
+        let mut distinct: Vec<DistinctResult> = distinct.into_iter().map(|(_, d)| d).collect();
+        if let Some(limit) = limit {
+            distinct.truncate(limit);
+        }
+        Ok(distinct)
     }
 
     /// The best candidate of every group searched, in the order of the International Tables
@@ -1335,6 +1382,39 @@ mod test {
         assert_eq!(limited.len(), 3);
         assert_eq!(limited, all[..3].to_vec());
         assert_eq!(search.near_best_limited(0.5, None), all);
+    }
+
+    #[test]
+    fn equivalent_results_are_grouped() {
+        // Search candidates which all find the pentagon double lattice, and one which can't
+        let mut search = Search::new(
+            ShapeSpec::Polygon { sides: 5 },
+            SearchConfig {
+                groups: vec!["p1".into(), "p2".into(), "p2gg".into()],
+                strategy: Strategy::Exhaustive,
+                seed: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        search.run();
+        let near = search.near_best(0.02);
+        let labels: Vec<String> = near.iter().map(|r| r.candidate.label()).collect();
+        assert_eq!(near.len(), 2, "{:?}", labels);
+
+        let distinct = search.distinct_near_best(0.02, None).unwrap();
+        assert_eq!(distinct.len(), 1);
+        assert_eq!(distinct[0].equivalent.len(), 1);
+        let all: Vec<String> = std::iter::once(distinct[0].result.candidate.label())
+            .chain(distinct[0].equivalent.iter().map(|r| r.candidate.label()))
+            .collect();
+        assert!(all.contains(&"p2:e".to_string()) && all.contains(&"p2gg:c".to_string()));
+
+        // Within 20%, the lattice packing in p1 is a second distinct structure
+        let distinct = search.distinct_near_best(0.2, None).unwrap();
+        assert_eq!(distinct.len(), 2);
+        assert_eq!(distinct[1].result.candidate.label(), "p1:a");
+        assert_eq!(search.distinct_near_best(0.2, Some(1)).unwrap().len(), 1);
     }
 
     #[test]
