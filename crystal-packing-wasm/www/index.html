@@ -25,7 +25,7 @@
       #watch-view svg { max-height: 420px; }
       table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.9em; }
       td, th { padding: 2px 6px; text-align: right; border-bottom: 1px solid var(--border); }
-      td:nth-child(2), th:nth-child(2) { text-align: left; }
+      td:nth-child(2), th:nth-child(2), td:nth-child(7), th:nth-child(7) { text-align: left; }
       progress { width: 100%; }
       #near-best { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
       .card { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
@@ -73,6 +73,7 @@
       <label>Steps <input name="steps" type="number" min="100" step="100" value="10000" /></label>
       <label>Show results within (%) <input name="within" type="number" min="0" step="any" value="2" /></label>
       <label>Maximum results <input name="max_results" type="number" min="1" placeholder="All" /></label>
+      <label class="inline"><input type="checkbox" name="show_equivalent" /> List equivalent structures separately</label>
       <label>Seed <input name="seed" type="number" min="0" value="0" /></label>
       <label>Watch group <input name="watch_group" value="p2" /></label>
       <label>Watch sites <input name="watch_sites" value="e" /></label>
@@ -130,7 +131,7 @@
         <div>
           <h2 id="results-title">Results</h2>
           <table id="results">
-            <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>Below (%)</th><th>N</th></tr></thead>
+            <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>Below (%)</th><th>N</th><th>Also found in</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>

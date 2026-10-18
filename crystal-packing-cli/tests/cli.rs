@@ -107,9 +107,9 @@ fn search_lists_results_near_the_best() {
         serde_json::from_str(&fs::read_to_string(dir.join("near-best.json")).unwrap()).unwrap();
     let near = near.as_array().unwrap();
     assert!(!near.is_empty());
-    let best = near[0]["packing_fraction"].as_f64().unwrap();
+    let best = near[0]["structure"]["packing_fraction"].as_f64().unwrap();
     for entry in near {
-        let phi = entry["packing_fraction"].as_f64().unwrap();
+        let phi = entry["structure"]["packing_fraction"].as_f64().unwrap();
         assert!(phi >= 0.98 * best - 1e-12, "{} vs {}", phi, best);
     }
     let images = fs::read_dir(dir.join("near-best")).unwrap().count();
@@ -128,8 +128,22 @@ fn table_fractions(text: &str, title: &str) -> Vec<f64> {
         .collect()
 }
 
+/// The number of results, and distinct structures, from the line introducing the table
+fn counts(text: &str, title: &str) -> (usize, usize) {
+    let line = text.lines().find(|l| l.contains(title)).unwrap();
+    let results: usize = line.split_whitespace().next().unwrap().parse().unwrap();
+    let distinct: usize = line
+        .split(", ")
+        .find(|part| part.contains("distinct"))
+        .and_then(|part| part.split_whitespace().next())
+        .unwrap()
+        .parse()
+        .unwrap();
+    (results, distinct)
+}
+
 #[test]
-fn search_shows_everything_near_the_best_in_order() {
+fn search_shows_distinct_structures_near_the_best_in_order() {
     let dir = output_dir("search-order");
     let mut args = vec!["search", "--shape", "polygon", "--sides", "5", "-o"];
     args.push(dir.to_str().unwrap());
@@ -137,14 +151,11 @@ fn search_shows_everything_near_the_best_in_order() {
     let output = packing(&args);
     assert_success(&output);
     let text = stdout(&output);
-    // By default every structure within 2% of the best is listed
-    let line = text
-        .lines()
-        .find(|l| l.contains("within 2% of the best"))
-        .unwrap();
-    let count: usize = line.split_whitespace().next().unwrap().parse().unwrap();
+    // By default the distinct structures within 2% of the best are listed
+    let (results, distinct) = counts(&text, "within 2% of the best");
+    assert!(distinct <= results);
     let fractions = table_fractions(&text, "within 2% of the best");
-    assert_eq!(fractions.len(), count, "{}", text);
+    assert_eq!(fractions.len(), distinct, "{}", text);
     assert!(
         fractions.windows(2).all(|w| w[0] >= w[1]),
         "Not ordered:\n{}",
@@ -153,7 +164,43 @@ fn search_shows_everything_near_the_best_in_order() {
     assert!(fractions.iter().all(|&f| f >= 0.98 * fractions[0] - 1e-9));
     // The CSV has every candidate, not only those near the best
     let csv = fs::read_to_string(dir.join("results.csv")).unwrap();
-    assert!(csv.lines().count() - 1 > count);
+    assert!(csv.lines().count() - 1 > results);
+    // Every equivalent candidate is listed with its structure
+    let near: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("near-best.json")).unwrap()).unwrap();
+    let listed: usize = near
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| 1 + d["equivalent"].as_array().unwrap().len())
+        .sum();
+    assert_eq!(listed, results);
+}
+
+#[test]
+fn equivalent_structures_can_be_listed_separately() {
+    let dir = output_dir("search-equivalent");
+    let mut args = vec![
+        "search",
+        "--shape",
+        "disk",
+        "--show-equivalent",
+        "--within",
+        "5",
+        "-o",
+    ];
+    args.push(dir.to_str().unwrap());
+    args.extend(FAST);
+    let output = packing(&args);
+    assert_success(&output);
+    let text = stdout(&output);
+    let (results, _) = counts(&text, "within 5% of the best");
+    assert_eq!(
+        table_fractions(&text, "within 5% of the best").len(),
+        results,
+        "{}",
+        text
+    );
 }
 
 #[test]
@@ -169,8 +216,9 @@ fn within_is_configurable() {
     let text = stdout(&output);
     let csv = fs::read_to_string(dir.join("results.csv")).unwrap();
     // Within 100% of the best includes every candidate
+    let (results, _) = counts(&text, "within 100% of the best");
+    assert_eq!(results, csv.lines().count() - 1, "{}", text);
     let fractions = table_fractions(&text, "within 100% of the best");
-    assert_eq!(fractions.len(), csv.lines().count() - 1, "{}", text);
     assert!(fractions.windows(2).all(|w| w[0] >= w[1]));
 }
 

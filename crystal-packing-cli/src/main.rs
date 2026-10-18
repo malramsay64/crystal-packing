@@ -18,7 +18,9 @@ use crystal_packing::engine::Structure;
 use crystal_packing::monte_carlo::MonteCarloConfig;
 use crystal_packing::potential::LennardJones;
 use crystal_packing::render::render_structure;
-use crystal_packing::search::{run_job, Candidate, Job, Search, SearchConfig, ShapeSpec, Strategy};
+use crystal_packing::search::{
+    run_job, Candidate, CandidateResult, Job, Search, SearchConfig, ShapeSpec, Strategy,
+};
 use crystal_packing::Rng;
 
 #[derive(Debug, Parser)]
@@ -225,6 +227,10 @@ struct ReportArgs {
     /// Report at most this many structures
     #[arg(long)]
     max_results: Option<usize>,
+    /// List every candidate near the best, rather than grouping those which found the same
+    /// crystal into distinct structures
+    #[arg(long)]
+    show_equivalent: bool,
     /// Finish after this many rounds without the best result improving
     #[arg(long, default_value = "2")]
     patience: usize,
@@ -445,45 +451,67 @@ fn percent_below(score: f64, best: f64) -> f64 {
     100. * (best - score) / best.abs()
 }
 
-/// Print and save every structure within the tolerance of the best, best first
+/// Print and save the structures within the tolerance of the best, best first.
+///
+/// By default candidates which found the same crystal are grouped into a single distinct
+/// structure, listing the equivalent candidates.
 fn report_near_best(search: &Search, shape: &ShapeSpec, report: &ReportArgs) -> Result<(), Error> {
-    let all = search.near_best(report.within / 100.);
-    let near = search.near_best_limited(report.within / 100., report.max_results);
+    let within = report.within / 100.;
+    let all = search.near_best(within);
+    let distinct = search.distinct_near_best(within, None)?;
+    // Each row is a structure with the candidates equivalent to it
+    let rows: Vec<(&CandidateResult, Vec<&CandidateResult>)> = if report.show_equivalent {
+        all.iter().map(|r| (*r, vec![])).collect()
+    } else {
+        distinct
+            .iter()
+            .map(|d| (d.result, d.equivalent.clone()))
+            .collect()
+    };
+    let total = rows.len();
+    let rows: Vec<_> = rows
+        .into_iter()
+        .take(report.max_results.unwrap_or(usize::MAX))
+        .collect();
     let best = search.best().map_or(0., |s| s.score());
-    let limited = if near.len() < all.len() {
-        format!(", showing the best {}", near.len())
+    let limited = if rows.len() < total {
+        format!(", showing the best {}", rows.len())
     } else {
         String::new()
     };
     println!(
-        "\n{} structures within {}% of the best{}:",
+        "\n{} results within {}% of the best, {} distinct structure{}{}:",
         all.len(),
         report.within,
+        distinct.len(),
+        if distinct.len() == 1 { "" } else { "s" },
         limited
     );
     println!(
-        "{:>4}  {:<16} {:>9} {:>10} {:>8} {:>7}",
-        "rank", "candidate", "phi", "energy", "below %", "shapes"
+        "{:>4}  {:<16} {:>9} {:>10} {:>8} {:>7}  {}",
+        "rank", "candidate", "phi", "energy", "below %", "shapes", "also found in"
     );
     let directory = report.output.join("near-best");
     if directory.exists() {
         fs::remove_dir_all(&directory)?;
     }
     fs::create_dir_all(&directory)?;
-    let mut structures = vec![];
-    for (rank, result) in near.iter().enumerate() {
+    let mut records = vec![];
+    for (rank, (result, equivalent)) in rows.iter().enumerate() {
         let structure = result
             .best
             .as_ref()
             .expect("Near best results have a structure");
+        let equivalent: Vec<String> = equivalent.iter().map(|r| r.candidate.label()).collect();
         println!(
-            "{:>4}  {:<16} {:>9.5} {:>10} {:>8.3} {:>7}",
+            "{:>4}  {:<16} {:>9.5} {:>10} {:>8.3} {:>7}  {}",
             rank + 1,
             result.candidate.label(),
             structure.packing_fraction,
             energy_text(Some(structure)),
             percent_below(structure.score(), best),
-            structure.num_shapes
+            structure.num_shapes,
+            equivalent.join(" ")
         );
         let name = format!(
             "{:02}-{}",
@@ -491,12 +519,16 @@ fn report_near_best(search: &Search, shape: &ShapeSpec, report: &ReportArgs) -> 
             result.candidate.label().replace(':', "-")
         );
         write_structure(&directory, &name, shape, structure)?;
-        structures.push(structure);
+        records.push(serde_json::json!({
+            "candidate": result.candidate.label(),
+            "structure": structure,
+            "equivalent": equivalent,
+        }));
     }
     println!();
     fs::write(
         report.output.join("near-best.json"),
-        serde_json::to_string_pretty(&structures)?,
+        serde_json::to_string_pretty(&records)?,
     )?;
     Ok(())
 }

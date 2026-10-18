@@ -78,10 +78,17 @@ try {
   console.log(await page.textContent("#status"));
   check(Math.abs(best.packing_fraction - 0.921311) < 1e-3, "Expected the pentagon double lattice");
 
+  // By default the candidates which found the same crystal are grouped into distinct structures
   let phis = await results();
-  console.log(`${phis.length} results within 2%: ${phis.map((p) => p.toFixed(5)).join(", ")}`);
-  check(phis.length === (await resultCount()), "Every result within 2% is listed");
-  check(phis.length >= 1, "Expected at least one result");
+  const title = await page.textContent("#results-title");
+  const total = await resultCount();
+  const distinct = Number(await page.getAttribute("#results-title", "data-distinct"));
+  console.log(`${title}: ${phis.map((p) => p.toFixed(5)).join(", ")}`);
+  check(distinct === 1, `Expected the double lattice to be a single distinct structure, found ${distinct}`);
+  check(total >= 2, "Expected the double lattice to be found in several groups");
+  check(phis.length === distinct, "Every distinct structure within 2% is listed");
+  const also = await page.$$eval("#results tbody tr", (rows) => rows.map((row) => row.dataset.equivalent));
+  check(also[0].split(" ").filter(Boolean).length === total - 1, "The equivalent candidates are listed");
   check(phis.every((p, i) => i === 0 || p <= phis[i - 1]), "Results are ordered best first");
   check(phis.every((p) => p >= 0.98 * best.packing_fraction - 1e-9), "Results are within 2%");
   check(
@@ -89,7 +96,14 @@ try {
     "Every result within 2% is drawn",
   );
 
+  // Every candidate can be listed separately
+  await page.check("input[name=show_equivalent]");
+  phis = await results();
+  check(phis.length === total, `Expected ${total} results when listing equivalent structures, found ${phis.length}`);
+  await page.uncheck("input[name=show_equivalent]");
+
   // Changing the tolerance and limit updates the results without searching again
+  await page.check("input[name=show_equivalent]");
   await page.fill("input[name=within]", "100");
   await page.dispatchEvent("input[name=within]", "change");
   phis = await results();
@@ -102,6 +116,7 @@ try {
   check((await page.textContent("#results-title")).includes("showing the best 3"), "The limit is reported");
   await page.fill("input[name=max_results]", "");
   await page.fill("input[name=within]", "2");
+  await page.uncheck("input[name=show_equivalent]");
   await page.dispatchEvent("input[name=within]", "change");
 
   // Watch a single optimisation, which should animate the structure and plot its progress

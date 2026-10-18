@@ -105,6 +105,17 @@ impl WasmSearch {
         serde_json::to_string(&self.search.near_best(within_percent / 100.)).map_err(to_js)
     }
 
+    /// The distinct structures within `within_percent` of the best score, best first, as JSON
+    /// objects with the `result` and the `equivalent` results which found the same crystal
+    #[wasm_bindgen(js_name = distinctNearBest)]
+    pub fn distinct_near_best(&self, within_percent: f64) -> Result<String, JsError> {
+        let distinct = self
+            .search
+            .distinct_near_best(within_percent / 100., None)
+            .map_err(to_js)?;
+        serde_json::to_string(&distinct).map_err(to_js)
+    }
+
     /// The best candidate of every group searched, as JSON pairs of [group, result or null]
     #[wasm_bindgen(js_name = bestPerGroup)]
     pub fn best_per_group(&self) -> Result<String, JsError> {

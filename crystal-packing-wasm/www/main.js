@@ -300,56 +300,67 @@ function runJobs(jobs, onProgress, onFrame) {
 
 // --- Results ---------------------------------------------------------------------------------
 
-/// Show every result within the chosen percentage of the best, best first
+/// Show the results within the chosen percentage of the best, best first. By default the
+/// candidates which found the same crystal are grouped into one distinct structure.
 function showResults() {
   if (!lastSearch) return;
-  const { shape, ranking } = lastSearch;
+  const { shape, ranking, searcher } = lastSearch;
   const data = new FormData(form);
   const within = Number(data.get("within"));
   const limit = data.get("max_results") ? Number(data.get("max_results")) : Infinity;
+  const showEquivalent = data.get("show_equivalent") !== null;
   const found = ranking.filter((r) => r.best);
   if (!found.length) return;
   const best = found[0].best;
   const threshold = score(best) - (within / 100) * Math.abs(score(best));
   const near = found.filter((r) => score(r.best) >= threshold - 1e-12);
-  const shown = near.slice(0, limit);
+  const distinct = JSON.parse(searcher.distinctNearBest(within));
+  const rows = showEquivalent
+    ? near.map((result) => ({ result, equivalent: [] }))
+    : distinct;
+  const shown = rows.slice(0, limit);
 
   const title = document.querySelector("#results-title");
   title.dataset.count = String(near.length);
+  title.dataset.distinct = String(distinct.length);
   title.dataset.candidates = String(ranking.length);
-  const limited = shown.length < near.length ? `, showing the best ${shown.length}` : "";
-  title.textContent = `${near.length} of ${ranking.length} results within ${within}% of the best${limited}`;
+  const limited = shown.length < rows.length ? `, showing the best ${shown.length}` : "";
+  title.textContent = `${near.length} of ${ranking.length} results within ${within}% of the best, ${distinct.length} distinct structure${distinct.length === 1 ? "" : "s"}${limited}`;
   document.querySelector("#results tbody").replaceChildren(
-    ...shown.map((result, index) => {
+    ...shown.map(({ result, equivalent }, index) => {
       const row = document.createElement("tr");
+      const also = equivalent.map((r) => label(r.candidate)).join(" ");
       row.dataset.phi = String(result.best.packing_fraction);
       row.dataset.label = label(result.candidate);
+      row.dataset.equivalent = also;
       cell(row, index + 1);
       cell(row, label(result.candidate));
       cell(row, result.best.packing_fraction.toFixed(5));
       cell(row, formatEnergy(result.best));
       cell(row, percentBelow(result.best, best).toFixed(2));
       cell(row, result.best.num_shapes);
+      cell(row, also);
       return row;
     }),
   );
   document.querySelector("#near-section").hidden = false;
   document.querySelector("#near-best").replaceChildren(
-    ...shown.map((result) => {
+    ...shown.map(({ result, equivalent }) => {
       const card = document.createElement("div");
       card.className = "card";
       card.dataset.phi = result.best.packing_fraction;
       card.innerHTML = renderSvg(JSON.stringify(shape), JSON.stringify(result.best), 1);
       const caption = document.createElement("p");
       const energy = result.best.energy != null ? `, energy ${formatEnergy(result.best)}` : "";
-      caption.textContent = `${label(result.candidate)}: φ ${result.best.packing_fraction.toFixed(5)}${energy}, ${percentBelow(result.best, best).toFixed(2)}% below the best`;
+      const also = equivalent.length ? `. Also found in ${equivalent.map((r) => label(r.candidate)).join(", ")}` : "";
+      caption.textContent = `${label(result.candidate)}: φ ${result.best.packing_fraction.toFixed(5)}${energy}, ${percentBelow(result.best, best).toFixed(2)}% below the best${also}`;
       card.append(caption);
       return card;
     }),
   );
 }
 
-for (const name of ["within", "max_results"]) {
+for (const name of ["within", "max_results", "show_equivalent"]) {
   form.elements[name].addEventListener("change", showResults);
   form.elements[name].addEventListener("input", showResults);
 }
@@ -405,7 +416,8 @@ async function search(strategy, extra = {}) {
     );
     if (cancelled) break;
     searcher.submit(JSON.stringify(outcomes));
-    lastSearch = { shape, ranking: JSON.parse(searcher.ranking()) };
+    if (lastSearch && lastSearch.searcher !== searcher) lastSearch.searcher.free();
+    lastSearch = { shape, searcher, ranking: JSON.parse(searcher.ranking()) };
     showResults();
     const best = JSON.parse(searcher.best());
     if (best) {
@@ -427,7 +439,8 @@ async function search(strategy, extra = {}) {
     }
     document.body.dataset.result = JSON.stringify(best);
   }
-  searcher.free();
+  // The search is kept so the results can be filtered again, unless it produced no results
+  if (!lastSearch || lastSearch.searcher !== searcher) searcher.free();
 }
 
 // Draw the packing fraction against the number of steps
