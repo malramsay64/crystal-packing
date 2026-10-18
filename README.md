@@ -117,7 +117,9 @@ disks and 0.449 for triangles, and didn't improve with more steps.
 ## Testing
 
 The minimum supported Rust version is 1.88. CI checks formatting, clippy (native and wasm) and the
-documentation with warnings as errors, runs every test suite, and audits the dependencies.
+documentation with warnings as errors, runs every test suite, and audits the dependencies. The
+workflows are checked with [zizmor](https://docs.zizmor.sh), with every action pinned to a commit,
+and Dependabot keeps the Rust crates, the actions and playwright up to date.
 
 - Unit and property tests compare every overlap check (convex, concave and reflected polygons,
   molecules, the symmetry-reduced crystal checks, containers, strips and clusters) with the brute

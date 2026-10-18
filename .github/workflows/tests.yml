@@ -1,27 +1,49 @@
-on: [push, pull_request]
-
 name: Test Suite
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Run tests
         run: cargo test --workspace
 
   msrv:
     name: Minimum supported Rust version
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.88
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+          persist-credentials: false
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.88 --profile minimal --target wasm32-unknown-unknown
+          rustup default 1.88
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Check
         run: |
           cargo check --workspace --all-targets
@@ -30,10 +52,15 @@ jobs:
   regression:
     name: Slow suites (release)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # Every test marked #[ignore] for being slow, across the workspace, so new suites run
       # without being listed here: known packings, adversarial shapes, unconstrained packings,
       # containers, strips and clusters, distinct structures and known geometries
@@ -43,15 +70,21 @@ jobs:
   wasm:
     name: WebAssembly
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Install wasm-bindgen
         run: |
           VERSION=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | grep version | cut -d'"' -f2)
@@ -65,16 +98,21 @@ jobs:
       - name: Browser search
         working-directory: crystal-packing-wasm
         run: |
-          npm install --no-save playwright
+          npm ci
           npx playwright install --with-deps chromium
-          node tests/browser.mjs
+          npm run test:browser
 
   bench:
     name: Benchmarks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Run benchmarks briefly
         run: cargo bench -p crystal_packing --bench engine -- --warm-up-time 1 --measurement-time 1

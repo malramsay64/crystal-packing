@@ -31,4 +31,11 @@ then open <http://localhost:8000>. Module workers are used, so a recent browser 
 `./build.sh node` additionally builds bindings for node, which are used by
 `tests/determinism.mjs` to check the WebAssembly build gives results identical to the native
 build for the same seed. `tests/browser.mjs` uses playwright to run a search and watch an optimisation in headless
-Chromium, checking the structures near the best and the animation.
+Chromium, checking the structures near the best and the animation. Playwright is pinned in
+`package-lock.json`:
+
+```bash
+./build.sh node
+npm ci && npx playwright install chromium
+npm run test:browser
+```

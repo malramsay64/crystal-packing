@@ -1,14 +1,43 @@
 version: 2
 updates:
-- package-ecosystem: github-actions
-  directory: "/"
-  schedule:
-    interval: monthly
-    time: "19:30"
-  open-pull-requests-limit: 10
-- package-ecosystem: cargo
-  directory: "/"
-  schedule:
-    interval: monthly
-    time: "19:30"
-  open-pull-requests-limit: 10
+  # The Rust workspace: Cargo.toml requirements and Cargo.lock
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+      time: "19:30"
+    open-pull-requests-limit: 10
+    # Wait a week after a release before updating, giving time for a compromised or broken
+    # release to be caught
+    cooldown:
+      default-days: 7
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # The actions used by the workflows, pinned to commits
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "19:30"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Playwright, used by the browser tests
+  - package-ecosystem: npm
+    directory: /crystal-packing-wasm
+    schedule:
+      interval: monthly
+      time: "19:30"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ["*"]
