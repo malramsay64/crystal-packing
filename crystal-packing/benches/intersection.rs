@@ -139,7 +139,7 @@ fn site_positions(c: &mut Criterion) {
     c.bench_function("Site Positions", |b| {
         b.iter(|| {
             for _ in site.positions() {
-                criterion::black_box(0);
+                std::hint::black_box(0);
             }
         })
     });

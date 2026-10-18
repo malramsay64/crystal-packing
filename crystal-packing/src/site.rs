@@ -45,7 +45,7 @@ impl OccupiedSite {
     }
 
     pub fn multiplicity(&self) -> usize {
-        self.wyckoff.symmetries.len() as usize
+        self.wyckoff.symmetries.len()
     }
 
     pub fn from_wyckoff(wyckoff: &WyckoffSite) -> Self {
@@ -62,7 +62,7 @@ impl OccupiedSite {
         }
     }
 
-    pub fn get_basis(&self) -> Vec<Basis> {
+    pub fn get_basis(&self) -> Vec<Basis<'_>> {
         let mut basis: Vec<Basis> = vec![];
         let dof = self.wyckoff.degrees_of_freedom();
 

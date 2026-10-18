@@ -44,8 +44,8 @@ impl Intersect for MolecularShape2 {
         let naive_overlap: f64 = self
             .items
             .iter()
-            .tuple_combinations()
-            .map(|(a1, a2)| Self::circle_overlap(a1, a2))
+            .array_combinations()
+            .map(|[a1, a2]| Self::circle_overlap(a1, a2))
             .sum();
 
         total_area - naive_overlap

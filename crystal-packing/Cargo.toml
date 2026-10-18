@@ -2,23 +2,24 @@
 name = "crystal_packing"
 version = "0.6.0"
 authors = ["Malcolm Ramsay <m@malramsay.com>"]
-edition = "2018"
-license = "MIT"
+edition.workspace = true
+license.workspace = true
 description = "Core library for packing shapes in an infinite crystal lattice."
 
 [dependencies]
-nalgebra = {version="~0.27.1", features=["serde-serialize"]}
-rand = "~0.8.0"
-rand_pcg = "0.3.0"
-log = "~0.4.8"
-itertools = "~0.10.0"
-serde = {version="~1.0.98", features=["derive"]}
+nalgebra = { version = "0.35", features = ["serde-serialize"] }
+libm = "0.2"
+log = "0.4"
+itertools = "0.15"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 anyhow = "1.0"
-svg = "~0.10.0"
+thiserror = "2"
+svg = "0.18"
 
 [dev-dependencies]
-approx = "~0.5.0"
-criterion = "0.3"
+approx = "0.5"
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 proptest = "1.0"
 proptest-attr-macro = "1.0"
 

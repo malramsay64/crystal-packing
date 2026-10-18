@@ -1,22 +1,19 @@
 [package]
-version = "0.1.0"
 name = "crystal-packing-wasm"
-repository = "https://github.com/malramsay64/crystal_packing"
-authors = ["Malcolm Ramsay <m@malramsay.com>"]
-description = "App Description"
-categories = ["category"]
-license = "MIT"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository = "https://github.com/malramsay64/crystal-packing"
+description = "WebAssembly bindings for finding dense packings of shapes in 2D crystals."
 readme = "./README.md"
-edition = "2018"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-crystal_packing = {path = "../crystal-packing"}
-seed = "0.8.0"
-
+crystal_packing = { path = "../crystal-packing" }
+wasm-bindgen = "0.2"
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.18"
-
+wasm-bindgen-test = "0.3"

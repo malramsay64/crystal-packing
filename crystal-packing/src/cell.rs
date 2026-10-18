@@ -133,7 +133,7 @@ impl Cell2 {
     /// Each of the different crystal families impose different restrictions on the degrees of
     /// freedom of a unit cell. This compiles these degrees of freedom into a vector of Bases,
     /// which is the data structure used to modify the values.
-    pub fn get_degrees_of_freedom(&self) -> Vec<Basis> {
+    pub fn get_degrees_of_freedom(&self) -> Vec<Basis<'_>> {
         let mut basis: Vec<Basis> = vec![
             // All cells have at least a single variable cell length
             Basis::StandardBasis {

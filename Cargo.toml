@@ -1,15 +1,29 @@
 [workspace]
+resolver = "2"
 members = [
     "crystal-packing",
     "crystal-packing-cli",
     "crystal-packing-wasm",
 ]
 
-[profile.release]
-lto = true
-panic =  "abort"
-opt-level = 's'
-codegen-units = 1
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["Malcolm Ramsay <m@malramsay.com>"]
+rust-version = "1.80"
 
-# [package.metadata.wasm-pack.profile.release]
-# wasm-opt = ['-Os']
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+# Optimised build used for the regression suite, keeping debug assertions off but
+# compiling much faster than the full LTO release profile.
+[profile.bench-fast]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+
+[profile.test]
+opt-level = 2

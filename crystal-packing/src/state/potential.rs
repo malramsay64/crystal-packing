@@ -62,7 +62,7 @@ where
     S: Shape + Potential,
 {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(&other).unwrap()
+        self.partial_cmp(other).unwrap()
     }
 }
 
@@ -70,7 +70,7 @@ impl<S> State for PotentialState<S>
 where
     S: Shape + Potential,
 {
-    fn generate_basis(&self) -> Vec<Basis> {
+    fn generate_basis(&self) -> Vec<Basis<'_>> {
         let mut basis: Vec<Basis> = vec![];
         basis.append(&mut self.cell.get_degrees_of_freedom());
         for site in self.occupied_sites.iter() {

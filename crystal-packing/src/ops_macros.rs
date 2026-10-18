@@ -40,7 +40,9 @@ macro_rules! _binop_impl(
 ///
 /// # Example
 ///
-/// ```
+/// The macro is internal to the crate, so this example is not compiled as a doctest.
+///
+/// ```ignore
 /// # use crate::ops_macros::binop_impl_all;
 /// struct Wrapper(f64);
 ///

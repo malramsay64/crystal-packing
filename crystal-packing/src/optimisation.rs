@@ -4,12 +4,9 @@
 // Distributed under terms of the MIT license.
 //
 
-use log::debug;
-use rand::distributions::Uniform;
-use rand::prelude::*;
-use rand_pcg::Pcg64Mcg;
-
 use crate::traits::*;
+use crate::Rng;
+use log::debug;
 
 pub struct MCOptimiser {
     kt_start: f64,
@@ -52,14 +49,8 @@ impl MCOptimiser {
         threshold < self.energy_surface(new, old, kt)
     }
 
-    fn accept_score<R: Rng + ?Sized>(
-        &self,
-        new: Option<f64>,
-        old: f64,
-        kt: f64,
-        rng: &mut R,
-    ) -> Option<f64> {
-        let threshold: f64 = rng.gen();
+    fn accept_score(&self, new: Option<f64>, old: f64, kt: f64, rng: &mut Rng) -> Option<f64> {
+        let threshold: f64 = rng.uniform();
 
         match new {
             // New score is better, keep updated state
@@ -83,14 +74,12 @@ impl MCOptimiser {
             _ => panic!("Invalid configuration passed to function, exiting."),
         };
 
-        let mut rng = Pcg64Mcg::seed_from_u64(self.seed);
+        let mut rng = Rng::seed_from_u64(self.seed);
         let mut rejections: u64 = 0;
 
         let mut kt: f64 = self.kt_start;
 
         let mut basis = state.generate_basis();
-        let basis_distribution = Uniform::new(0, basis.len() as usize);
-        let step_distribution = Uniform::from(-0.5..0.5);
 
         let mut step_ratio = 1.;
         let mut convergence_count = 0;
@@ -101,7 +90,7 @@ impl MCOptimiser {
             for _ in 0..self.inner_steps {
                 // Choose a basis at random to modify
                 // This is needed later if we need to undo the change
-                let basis_index: usize = basis_distribution.sample(&mut rng);
+                let basis_index: usize = rng.index(basis.len());
 
                 // Make a random modification to the selected basis
                 let b = basis
@@ -112,11 +101,7 @@ impl MCOptimiser {
 
                 let val = b.get_value();
 
-                let new_val = val
-                    + self.max_step_size
-                        * step_ratio
-                        * b.scale()
-                        * step_distribution.sample(&mut rng);
+                let new_val = val + self.max_step_size * step_ratio * b.scale() * rng.centered();
                 if b.set_value(new_val).is_err() {
                     loop_rejections += 1;
                     continue;

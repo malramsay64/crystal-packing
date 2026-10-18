@@ -85,7 +85,7 @@ where
         }
     }
 
-    fn generate_basis(&self) -> Vec<Basis> {
+    fn generate_basis(&self) -> Vec<Basis<'_>> {
         let mut basis: Vec<Basis> = vec![];
         basis.append(&mut self.cell.get_degrees_of_freedom());
         for site in self.occupied_sites.iter() {

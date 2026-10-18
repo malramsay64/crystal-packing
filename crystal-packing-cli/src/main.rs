@@ -12,54 +12,52 @@ use std::path;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Error};
-use clap::arg_enum;
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use log::{debug, info, LevelFilter};
-use rand::prelude::*;
 use rayon::prelude::*;
-use structopt::StructOpt;
 
 use crystal_packing::traits::*;
 use crystal_packing::wallpaper::{WallpaperGroup, WallpaperGroups};
 use crystal_packing::{
-    LJShape2, LineShape, MCOptimiser, MolecularShape2, PackedState2, PotentialState2,
+    LJShape2, LineShape, MCOptimiser, MolecularShape2, PackedState2, PotentialState2, Rng,
 };
 
-#[derive(StructOpt, Debug, Clone, Copy)]
+#[derive(ClapArgs, Debug, Clone, Copy)]
 pub struct BuildOptimiser {
     /// The number of steps to run the Monte-Carlo Optimisation.
-    #[structopt(short, long, default_value = "100")]
+    #[arg(short, long, default_value = "100")]
     steps: u64,
 
     /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
     /// a move can be yet still be accepted.
-    #[structopt(long, default_value = "0.1")]
+    #[arg(long, default_value = "0.1")]
     kt_start: f64,
 
     /// The initial value of the "temperature" for the simulation. This is an indicator of how bad
     /// a move can be yet still be accepted.
-    #[structopt(long)]
+    #[arg(long)]
     kt_finish: Option<f64>,
 
     /// The ratio the temperature is reduced every inner_steps
-    #[structopt(long)]
+    #[arg(long)]
     kt_ratio: Option<f64>,
 
     /// The maximum size of a Monte-Carlo move
-    #[structopt(long, default_value = "0.01")]
+    #[arg(long, default_value = "0.01")]
     max_step_size: f64,
 
     /// The number of steps to run before reducing the temperature. This also defines the number of
     /// steps before the step size is updated.
-    #[structopt(long, default_value = "1000")]
+    #[arg(long, default_value = "1000")]
     inner_steps: u64,
 
     /// This option is skipped on the command line and filled in when setting up the iterations.
-    #[structopt(skip)]
+    #[arg(skip)]
     seed: Option<u64>,
 
     /// The minimum change of the score within an inner loop. This is the indicator of convergence
     /// which allows for an early exit.
-    #[structopt(long)]
+    #[arg(long)]
     convergence: Option<f64>,
 }
 
@@ -127,7 +125,13 @@ impl BuildOptimiser {
         };
         debug!("Setting kt_ratio to: {}", kt_ratio);
         let seed = match self.seed {
-            None => rand_pcg::Pcg64Mcg::from_entropy().gen(),
+            None => Rng::seed_from_u64(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos() as u64)
+                    .unwrap_or_default(),
+            )
+            .next_u64(),
             Some(x) => x,
         };
 
@@ -143,72 +147,72 @@ impl BuildOptimiser {
     }
 }
 
-arg_enum! {
-    #[derive(Debug)]
-    enum Force {
-        LJ,
-        Hard,
-    }
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Force {
+    #[value(name = "LJ", alias = "lj")]
+    LJ,
+    #[value(name = "Hard", alias = "hard")]
+    Hard,
 }
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "packing")]
+#[derive(Debug, Parser)]
+#[command(name = "packing")]
 struct Args {
     /// Pass many times for more log output
     ///
     /// By default, it'll only report errors. Passing `-v` one time also prints
     /// warnings, `-vv` enables info logging, `-vvv` debug, and `-vvvv` trace.
-    #[structopt(long, short, parse(from_occurrences))]
+    #[arg(long, short, action = clap::ArgAction::Count)]
     verbosity: u8,
 
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     shape: Shapes,
 
     /// The defining symmetry of the unit cell
-    #[structopt(possible_values = &WallpaperGroups::variants())]
-    wallpaper: WallpaperGroups,
+    #[arg(value_parser = clap::builder::PossibleValuesParser::new(WallpaperGroups::variants()))]
+    wallpaper: String,
 
     /// The potential which is being optimised
-    #[structopt(short, long, possible_values = &Force::variants(), default_value = "Hard")]
+    #[arg(short, long, value_enum, default_value = "Hard")]
     potential: Force,
 
     /// Where to save the best packed structure
-    #[structopt(long, parse(from_os_str))]
+    #[arg(long)]
     outfile: PathBuf,
 
     /// An initial configuration which is the starting point for optimisation
-    #[structopt(long, parse(from_os_str))]
+    #[arg(long)]
     start_config: Option<PathBuf>,
 
     /// The number of independent starting configurations to optimise
-    #[structopt(long, default_value = "100")]
+    #[arg(long, default_value = "100")]
     replications: u64,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     optimisation: BuildOptimiser,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum Shapes {
-    #[structopt(name = "polygon")]
+    #[command(name = "polygon")]
     Polygon {
         /// The number of equally spaced sides
-        #[structopt(long, default_value = "4")]
+        #[arg(long, default_value = "4")]
         sides: usize,
     },
-    #[structopt(name = "trimer")]
+    #[command(name = "trimer")]
     Trimer {
         /// The distance from the central particle to the outer particles
-        #[structopt(short, long, default_value = "1.")]
+        #[arg(short, long, default_value = "1.")]
         distance: f64,
         /// The angle between the two outer particles in degrees
-        #[structopt(short, long, default_value = "120")]
+        #[arg(short, long, default_value = "120")]
         angle: f64,
         /// The radius of the outer small particles
-        #[structopt(short, long, default_value = "0.637556")]
+        #[arg(short, long, default_value = "0.637556")]
         radius: f64,
     },
-    #[structopt(name = "circle")]
+    #[command(name = "circle")]
     Circle {},
 }
 
@@ -262,14 +266,14 @@ fn analyse_state(
 
     let serialised = serde_json::to_string(&final_state)?;
 
-    File::create(outfile.with_extension("json"))?.write_all(&serialised.as_bytes())?;
+    File::create(outfile.with_extension("json"))?.write_all(serialised.as_bytes())?;
     svg::save(outfile.with_extension("svg"), &final_state.as_svg())?;
 
     Ok(())
 }
 
-#[paw::main]
-fn main(args: Args) -> Result<(), Error> {
+fn main() -> Result<(), Error> {
+    let args = Args::parse();
     let log_level = match args.verbosity {
         0 => LevelFilter::Info,
         1 => LevelFilter::Debug,
@@ -280,7 +284,8 @@ fn main(args: Args) -> Result<(), Error> {
 
     debug!("Logging Level: {}", log_level);
 
-    let wg: WallpaperGroup = args.wallpaper.try_into()?;
+    let wallpaper: WallpaperGroups = args.wallpaper.parse()?;
+    let wg: WallpaperGroup = wallpaper.try_into()?;
 
     match (args.shape, args.potential) {
         (

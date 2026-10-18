@@ -81,7 +81,7 @@ pub trait State:
     + ToSVG<Value = Document>
 {
     fn score(&self) -> Option<f64>;
-    fn generate_basis(&self) -> Vec<Basis>;
+    fn generate_basis(&self) -> Vec<Basis<'_>>;
     fn total_shapes(&self) -> usize;
     fn as_positions(&self) -> Result<String, Error>;
 }
