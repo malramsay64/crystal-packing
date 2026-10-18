@@ -28,24 +28,17 @@ jobs:
           cargo check -p crystal-packing-wasm --target wasm32-unknown-unknown
 
   regression:
-    name: Known packings
+    name: Slow suites (release)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run regression suite
-        run: cargo test --release -p crystal_packing --test regression -- --ignored --nocapture
-      - name: Run adversarial shapes
-        run: cargo test --release -p crystal_packing --test adversarial -- --ignored --nocapture
-      - name: Run unconstrained packings
-        run: cargo test --release -p crystal_packing --test unconstrained -- --ignored --nocapture
-      - name: Run packings in containers
-        run: cargo test --release -p crystal_packing --test confined -- --ignored --nocapture
-      - name: Run distinct structures
-        run: cargo test --release -p crystal_packing --test distinct -- --ignored --nocapture
-      - name: Run known geometries
-        run: cargo test --release -p crystal_packing --test known_geometries -- --ignored --nocapture
+      # Every test marked #[ignore] for being slow, across the workspace, so new suites run
+      # without being listed here: known packings, adversarial shapes, unconstrained packings,
+      # containers, strips and clusters, distinct structures and known geometries
+      - name: Run the slow suites
+        run: cargo test --release --workspace -- --ignored --nocapture
 
   wasm:
     name: WebAssembly
