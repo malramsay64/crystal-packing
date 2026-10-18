@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crystal Packing</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { max-width: 1100px; margin: 0 auto; padding: 16px; }
+      form { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px 16px; align-items: end; }
+      label { display: flex; flex-direction: column; font-size: 0.9em; gap: 4px; }
+      main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+      @media (max-width: 700px) { main { grid-template-columns: 1fr; } }
+      #structure svg { width: 100%; height: auto; }
+      table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+      td, th { padding: 2px 8px; text-align: right; }
+      td:nth-child(2), th:nth-child(2) { text-align: left; }
+      progress { width: 100%; }
+    </style>
+  </head>
+  <body>
+    <h1>Crystal Packing <small id="version"></small></h1>
+    <form id="controls">
+      <label>Shape
+        <select name="shape">
+          <option value="polygon">Regular polygon</option>
+          <option value="disk">Disk</option>
+          <option value="trimer">Trimer</option>
+        </select>
+      </label>
+      <label>Sides <input name="sides" type="number" min="3" value="5" /></label>
+      <label>Trimer radius <input name="radius" type="number" step="any" value="0.637556" /></label>
+      <label>Trimer angle <input name="angle" type="number" step="any" value="120" /></label>
+      <label>Trimer distance <input name="distance" type="number" step="any" value="1" /></label>
+      <label>Groups (blank for all) <input name="groups" placeholder="p2,p2gg" /></label>
+      <label>Max sites <input name="max_sites" type="number" min="1" max="3" value="1" /></label>
+      <label>Replicas <input name="replicas" type="number" min="1" value="4" /></label>
+      <label>Steps <input name="steps" type="number" min="100" step="100" value="10000" /></label>
+      <label>Seed <input name="seed" type="number" min="0" value="0" /></label>
+      <button type="submit">Search</button>
+      <button type="button" id="stop" disabled>Stop</button>
+    </form>
+    <p id="status">Ready</p>
+    <progress id="progress" value="0"></progress>
+    <main>
+      <div id="structure"></div>
+      <table id="ranking">
+        <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>N</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

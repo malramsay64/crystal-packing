@@ -324,6 +324,14 @@ impl<S: HardShape> Optimiser<S> {
             self.packing.set_lattice(old);
             return false;
         }
+        // Keep an oblique cell close to its reduced form, so the cell moves remain effective
+        let lattice = self.packing.lattice();
+        let p = lattice.parameters();
+        if lattice.family == LatticeFamily::Oblique
+            && (p[1].abs() > p[0] || p[0] > 1.5 * lattice.b().norm())
+        {
+            self.packing.reduce_lattice();
+        }
         true
     }
 

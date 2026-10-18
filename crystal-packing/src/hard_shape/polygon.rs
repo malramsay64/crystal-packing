@@ -40,8 +40,11 @@ pub struct Polygon {
 #[derive(Debug, Clone, Default)]
 pub struct PlacedPiece {
     vertices: Vec<Vec2>,
-    /// Unit normals of each edge, used as the separating axes
+    /// Outward unit normals of each edge, used as the separating axes
     axes: Vec<Vec2>,
+    /// The projection of each edge onto its normal, which is the furthest extent of the piece
+    /// along that axis.
+    offsets: Vec<f64>,
     /// The centre and radius of a circle enclosing the piece
     centre: Vec2,
     radius: f64,
@@ -218,24 +221,24 @@ impl Polygon {
 /// Check for the overlap of two convex pieces using the separating axis theorem
 #[inline]
 fn pieces_overlap(a: &PlacedPiece, b: &PlacedPiece, shift: Vec2, tol: f64) -> bool {
-    let separated_on = |axis: Vec2| {
-        let (mut min_a, mut max_a) = (f64::INFINITY, f64::NEG_INFINITY);
-        for v in a.vertices.iter() {
-            let p = axis.dot(*v);
-            min_a = min_a.min(p);
-            max_a = max_a.max(p);
+    // For convex pieces a separating axis, if one exists, is normal to an edge of one of the
+    // pieces. The furthest extent of a piece along one of its own outward edge normals is the
+    // edge itself, so the axis separates the pieces when every vertex of the other piece is beyond
+    // the edge. Checking stops at the first vertex which isn't, which makes the common case of an
+    // axis not separating the pieces cheap.
+    for (axis, offset) in a.axes.iter().zip(a.offsets.iter()) {
+        let limit = offset - tol - axis.dot(shift);
+        if b.vertices.iter().all(|v| axis.dot(*v) >= limit) {
+            return false;
         }
-        let offset = axis.dot(shift);
-        let (mut min_b, mut max_b) = (f64::INFINITY, f64::NEG_INFINITY);
-        for v in b.vertices.iter() {
-            let p = axis.dot(*v) + offset;
-            min_b = min_b.min(p);
-            max_b = max_b.max(p);
+    }
+    for (axis, offset) in b.axes.iter().zip(b.offsets.iter()) {
+        let limit = offset + axis.dot(shift) - tol;
+        if a.vertices.iter().all(|v| axis.dot(*v) >= limit) {
+            return false;
         }
-        max_a <= min_b + tol || max_b <= min_a + tol
-    };
-    !(a.axes.iter().any(|&axis| separated_on(axis))
-        || b.axes.iter().any(|&axis| separated_on(axis)))
+    }
+    true
 }
 
 impl HardShape for Polygon {
@@ -272,12 +275,23 @@ impl HardShape for Polygon {
                     .map(|&i| *orientation * self.vertices[i] + position),
             );
             let n = piece.vertices.len();
+            // The vertices are anticlockwise, unless the orientation includes a reflection
+            let sign = if orientation.det() > 0. { -1. } else { 1. };
             piece.axes.clear();
             piece.axes.extend((0..n).map(|i| {
                 (piece.vertices[(i + 1) % n] - piece.vertices[i])
                     .perp()
                     .normalised()
+                    * sign
             }));
+            piece.offsets.clear();
+            piece.offsets.extend(
+                piece
+                    .axes
+                    .iter()
+                    .zip(piece.vertices.iter())
+                    .map(|(axis, v)| axis.dot(*v)),
+            );
             let centre =
                 piece.vertices.iter().fold(Vec2::ZERO, |acc, &v| acc + v) * (1. / n as f64);
             piece.radius = piece
@@ -466,6 +480,26 @@ mod test {
                 &world(&a, angle_a, Vec2::ZERO),
                 &world(&b, angle_b, shift),
             );
+            prop_assert_eq!(Polygon::overlaps(&pa, &pb, shift), expected);
+        }
+
+        #[test]
+        fn sat_matches_brute_force_reflected(
+            angle_a in 0. ..(2. * PI),
+            angle_b in 0. ..(2. * PI),
+            mirror in 0. ..PI,
+            x in -2.5f64..2.5,
+            y in -2.5f64..2.5,
+        ) {
+            // An irregular shape, reflected so the winding order of the vertices is reversed
+            let shape = Polygon::from_radial("irregular", &[1., 0.6, 0.9, 0.4, 0.8]).unwrap();
+            let reflected = Mat2::reflection(mirror) * Mat2::rotation(angle_b);
+            let pa = placed(&shape, angle_a, Vec2::ZERO);
+            let mut pb = PlacedPolygon::default();
+            shape.place(&reflected, Vec2::ZERO, &mut pb);
+            let shift = Vec2::new(x, y);
+            let world_b: Vec<Vec2> = shape.vertices().iter().map(|&v| reflected * v + shift).collect();
+            let expected = brute_force_overlap(&world(&shape, angle_a, Vec2::ZERO), &world_b);
             prop_assert_eq!(Polygon::overlaps(&pa, &pb, shift), expected);
         }
 

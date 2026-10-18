@@ -13,6 +13,16 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
+  regression:
+    name: Known packings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run regression suite
+        run: cargo test --release -p crystal_packing --test regression -- --ignored --nocapture
+
   wasm:
     name: WebAssembly
     runs-on: ubuntu-latest
@@ -22,15 +32,32 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - name: Build wasm crate
-        run: cargo build -p crystal-packing-wasm --target wasm32-unknown-unknown --release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install wasm-bindgen
+        run: |
+          VERSION=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | grep version | cut -d'"' -f2)
+          cargo install wasm-bindgen-cli --version "$VERSION" --locked
+      - name: Build
+        run: crystal-packing-wasm/build.sh node
+      - name: Native and wasm give identical results
+        run: |
+          cargo run --release --example determinism -p crystal_packing > reference.json
+          node crystal-packing-wasm/tests/determinism.mjs reference.json
+      - name: Browser search
+        working-directory: crystal-packing-wasm
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node tests/browser.mjs
 
   bench:
-    name: Benchmarks compile
+    name: Benchmarks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build benchmarks
-        run: cargo bench --workspace --no-run
+      - name: Run benchmarks briefly
+        run: cargo bench -p crystal_packing --bench engine -- --warm-up-time 1 --measurement-time 1

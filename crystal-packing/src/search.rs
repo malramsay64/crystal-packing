@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use crate::engine::{Packing, Structure};
 use crate::geometry::Vec2;
 use crate::hard_shape::{HardShape, Molecule, Polygon, ShapeSymmetry};
-use crate::monte_carlo::{MonteCarloConfig, Optimiser};
+use crate::monte_carlo::{MonteCarloConfig, Optimiser, Progress};
 use crate::random::Rng;
 use crate::symmetry::{PlaneGroup, SymOp};
 use crate::validate::validate;
@@ -309,39 +309,100 @@ impl Outcome {
     }
 }
 
-fn optimise_shape<S: HardShape>(shape: S, job: &Job) -> Result<Structure, Error> {
+fn start_optimiser<S: HardShape>(shape: S, job: &Job) -> Result<Optimiser<S>, Error> {
     let group = PlaneGroup::from_name(&job.candidate.group)?;
     let mut rng = Rng::seed_from_u64(job.seed);
     let packing = match &job.start {
-        Some(structure) => Packing::from_structure(shape.clone(), structure)?,
-        None => Packing::new(shape.clone(), group, &job.candidate.sites, &mut rng)?,
+        Some(structure) => Packing::from_structure(shape, structure)?,
+        None => Packing::new(shape, group, &job.candidate.sites, &mut rng)?,
     };
-    let mut optimiser = Optimiser::new(packing, job.config, rng.next_u64());
-    optimiser.run(job.config.steps);
+    Ok(Optimiser::new(packing, job.config, rng.next_u64()))
+}
+
+fn finish_optimiser<S: HardShape>(optimiser: &mut Optimiser<S>) -> Result<Structure, Error> {
     let structure = optimiser.finish();
-    validate(&shape, &structure)
+    validate(optimiser.packing().shape(), &structure)
         .map_err(|e| anyhow!("Optimised structure failed validation: {}", e))?;
     Ok(structure)
 }
 
+enum AnyOptimiser {
+    Polygon(Box<Optimiser<Polygon>>),
+    Molecule(Box<Optimiser<Molecule>>),
+}
+
+/// Runs a [`Job`] in slices, so the progress can be reported and the work interleaved with
+/// other tasks, such as in a web worker.
+pub struct JobRunner {
+    candidate: Candidate,
+    optimiser: Result<AnyOptimiser, String>,
+}
+
+impl JobRunner {
+    pub fn new(job: &Job) -> JobRunner {
+        let optimiser = job
+            .shape
+            .build()
+            .and_then(|shape| {
+                Ok(match shape {
+                    AnyShape::Polygon(s) => {
+                        AnyOptimiser::Polygon(Box::new(start_optimiser(s, job)?))
+                    }
+                    AnyShape::Molecule(s) => {
+                        AnyOptimiser::Molecule(Box::new(start_optimiser(s, job)?))
+                    }
+                })
+            })
+            .map_err(|e| e.to_string());
+        JobRunner {
+            candidate: job.candidate.clone(),
+            optimiser,
+        }
+    }
+
+    /// Run up to `steps` Monte Carlo steps, returning the progress
+    pub fn run(&mut self, steps: u64) -> Option<Progress> {
+        match self.optimiser.as_mut().ok()? {
+            AnyOptimiser::Polygon(o) => Some(o.run(steps)),
+            AnyOptimiser::Molecule(o) => Some(o.run(steps)),
+        }
+    }
+
+    pub fn is_complete(&self) -> bool {
+        match &self.optimiser {
+            Ok(AnyOptimiser::Polygon(o)) => o.is_complete(),
+            Ok(AnyOptimiser::Molecule(o)) => o.is_complete(),
+            Err(_) => true,
+        }
+    }
+
+    /// Finish the job, compressing and validating the best structure found
+    pub fn finish(mut self) -> Outcome {
+        let result = match self.optimiser.as_mut() {
+            Ok(AnyOptimiser::Polygon(o)) => finish_optimiser(o).map_err(|e| e.to_string()),
+            Ok(AnyOptimiser::Molecule(o)) => finish_optimiser(o).map_err(|e| e.to_string()),
+            Err(e) => Err(e.clone()),
+        };
+        match result {
+            Ok(structure) => Outcome {
+                candidate: self.candidate,
+                structure: Some(structure),
+                error: None,
+            },
+            Err(error) => Outcome {
+                candidate: self.candidate,
+                structure: None,
+                error: Some(error),
+            },
+        }
+    }
+}
+
 /// Run a job to completion
 pub fn run_job(job: &Job) -> Outcome {
-    let result = job.shape.build().and_then(|shape| match shape {
-        AnyShape::Polygon(s) => optimise_shape(s, job),
-        AnyShape::Molecule(s) => optimise_shape(s, job),
-    });
-    match result {
-        Ok(structure) => Outcome {
-            candidate: job.candidate.clone(),
-            structure: Some(structure),
-            error: None,
-        },
-        Err(e) => Outcome {
-            candidate: job.candidate.clone(),
-            structure: None,
-            error: Some(e.to_string()),
-        },
-    }
+    let mut runner = JobRunner::new(job);
+    runner.run(job.config.steps);
+    runner.finish()
 }
 
 /// Configuration of a search over candidates
@@ -650,6 +711,45 @@ mod test {
         let a: Vec<Outcome> = search.jobs().iter().map(run_job).collect();
         let b: Vec<Outcome> = search.jobs().iter().rev().map(run_job).rev().collect();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn sliced_job_matches_complete_job() {
+        let job = Job {
+            shape: ShapeSpec::Polygon { sides: 5 },
+            candidate: Candidate {
+                group: "p2".into(),
+                sites: vec!['e'],
+            },
+            seed: 3,
+            config: MonteCarloConfig {
+                steps: 3000,
+                ..Default::default()
+            },
+            start: None,
+        };
+        let mut runner = JobRunner::new(&job);
+        while !runner.is_complete() {
+            runner.run(250);
+        }
+        assert_eq!(runner.finish(), run_job(&job));
+    }
+
+    #[test]
+    fn invalid_job_reports_error() {
+        let job = Job {
+            shape: ShapeSpec::Polygon { sides: 3 },
+            candidate: Candidate {
+                group: "p4".into(),
+                sites: vec!['a'],
+            },
+            seed: 0,
+            config: MonteCarloConfig::default(),
+            start: None,
+        };
+        let outcome = run_job(&job);
+        assert!(outcome.structure.is_none());
+        assert!(outcome.error.unwrap().contains("symmetry"));
     }
 
     #[test]

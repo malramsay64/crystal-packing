@@ -22,7 +22,7 @@ use crate::geometry::{Mat2, Vec2};
 use crate::hard_shape::HardShape;
 use crate::lattice::Lattice;
 use crate::random::Rng;
-use crate::symmetry::{OrientationFreedom, PlaneGroup, WyckoffPosition};
+use crate::symmetry::{LatticeFamily, OrientationFreedom, PlaneGroup, WyckoffPosition};
 
 /// The variable parameters of an occupied site
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -81,9 +81,11 @@ pub struct Packing<S: HardShape> {
     lattice: Lattice,
     state: Vec<SiteState>,
     images: Vec<Vec<Image<S::Placed>>>,
-    translations: Vec<Vec2>,
+    /// The reduced basis of the lattice, used to enumerate periodic images
     reduced: Mat2,
     reduced_inverse: Mat2,
+    /// The range of the coefficients of each reduced basis vector within the contact distance
+    range: Vec2,
     /// Images further apart than this distance can't overlap
     contact: f64,
     /// Images closer than this distance must overlap
@@ -182,9 +184,9 @@ impl<S: HardShape> Packing<S> {
             lattice: lattice.clone(),
             state,
             images,
-            translations: vec![],
             reduced: Mat2::IDENTITY,
             reduced_inverse: Mat2::IDENTITY,
+            range: Vec2::ZERO,
             contact,
             core,
             num_shapes,
@@ -306,14 +308,91 @@ impl<S: HardShape> Packing<S> {
         self.lattice = lattice;
         self.reduced = self.lattice.reduced_basis();
         self.reduced_inverse = self.reduced.inverse();
-        // Any separation can be wrapped to lie within the reduced cell centred at the origin, so
-        // only translations within the contact distance plus the size of that cell are needed.
+        // A vector t = n u + m v of length at most c has |m| ≤ c |u| / |u × v| (from
+        // |u × t| = |m| |u × v| ≤ |u| |t|), and similarly for n.
         let (u, v) = (self.reduced.column(0), self.reduced.column(1));
-        let cutoff = self.contact + 0.5 * (u.norm() + v.norm());
-        self.translations = self.lattice.translations(cutoff);
+        let det = self.reduced.det().abs();
+        self.range = Vec2::new(self.contact * v.norm() / det, self.contact * u.norm() / det);
         for index in 0..self.sites.len() {
             self.update_site_images(index);
         }
+    }
+
+    /// Remove the shear of an oblique cell by changing the basis to b' = b - k a.
+    ///
+    /// This describes exactly the same structure, so the overlaps and packing fraction are
+    /// unchanged, but keeps the cell parameters from drifting without bound during the
+    /// optimisation. The fractional coordinates of sites transform as x' = x + k y. Fixed sites of
+    /// p2 lie on half lattice points, which are only preserved when k is even.
+    pub fn reduce_shear(&mut self) {
+        if self.lattice.family != LatticeFamily::Oblique {
+            return;
+        }
+        let p = self.lattice.parameters();
+        let any_fixed = self.sites.iter().any(|s| s.wyckoff.is_fixed());
+        let k = if any_fixed {
+            2. * libm::round(p[1] / (2. * p[0]))
+        } else {
+            libm::round(p[1] / p[0])
+        };
+        if k == 0. {
+            return;
+        }
+        for (site, state) in self.sites.iter().zip(self.state.iter_mut()) {
+            if !site.wyckoff.is_fixed() {
+                let x = state.position.x + k * state.position.y;
+                state.position.x = x - libm::floor(x);
+            }
+        }
+        self.set_lattice(Lattice::from_parameters(
+            LatticeFamily::Oblique,
+            &[p[0], p[1] - k * p[0], p[2]],
+        ));
+    }
+
+    /// Replace an oblique cell with the reduced basis of the same lattice, rotated so the first
+    /// vector lies along the x axis.
+    ///
+    /// The whole structure is rotated with the cell, so the site orientations change by the same
+    /// angle, which is returned. This is only possible when every site is on a general position;
+    /// fixed sites lie on half lattice points which can be relabelled by the change of basis, so
+    /// only the shear is reduced and None is returned.
+    pub fn reduce_lattice(&mut self) -> Option<f64> {
+        if self.lattice.family != LatticeFamily::Oblique {
+            return None;
+        }
+        if self.sites.iter().any(|s| s.wyckoff.is_fixed()) {
+            self.reduce_shear();
+            return None;
+        }
+        let (u, mut v) = crate::lattice::gauss_reduce(self.lattice.a(), self.lattice.b());
+        if u.cross(v) < 0. {
+            v = -v;
+        }
+        // The change of basis as an integer matrix, rounded to remove numerical noise
+        let mut change = self.lattice.matrix.inverse() * Mat2::from_columns(u, v);
+        for value in change.m.iter_mut().flatten() {
+            *value = libm::round(*value);
+        }
+        if change.max_abs_diff(&Mat2::IDENTITY) == 0. {
+            return Some(0.);
+        }
+        let inverse = change.inverse();
+        let angle = u.angle();
+        let rotated = Mat2::rotation(-angle) * self.lattice.matrix * change;
+        for (site, state) in self.sites.iter().zip(self.state.iter_mut()) {
+            let p = inverse * state.position;
+            state.position = crate::symmetry::wrap_fractional(p);
+            if site.orientation == OrientationFreedom::Free {
+                state.angle =
+                    crate::geometry::wrap_angle(state.angle - angle, 2. * std::f64::consts::PI);
+            }
+        }
+        self.set_lattice(Lattice::from_parameters(
+            LatticeFamily::Oblique,
+            &[rotated.m[0][0], rotated.m[0][1], rotated.m[1][1]],
+        ));
+        Some(angle)
     }
 
     /// Check whether image `b` or any of its periodic copies overlaps image `a`
@@ -321,23 +400,30 @@ impl<S: HardShape> Packing<S> {
     /// When `same` is true a and b are the same image, so the zero translation is skipped.
     #[inline]
     fn images_overlap(&self, a: &Image<S::Placed>, b: &Image<S::Placed>, same: bool) -> bool {
+        // Find the lattice translations t, as coefficients of the reduced basis, which bring b
+        // within the contact distance of a, i.e. |d + t| < contact.
         let d = b.centre - a.centre;
         let f = self.reduced_inverse * d;
-        let wrapped = self.reduced * Vec2::new(f.x - libm::round(f.x), f.y - libm::round(f.y));
-        let base = wrapped - d;
+        let (u, v) = (self.reduced.column(0), self.reduced.column(1));
         let contact_sq = self.contact * self.contact;
         let core_sq = self.core * self.core;
-        for &t in self.translations.iter() {
-            let separation = wrapped + t;
-            let distance_sq = separation.norm_sq();
-            if distance_sq >= contact_sq {
-                continue;
-            }
-            if same && distance_sq < 1e-24 {
-                continue;
-            }
-            if distance_sq < core_sq || S::overlaps(&a.placed, &b.placed, base + t) {
-                return true;
+        let m_min = libm::ceil(-f.y - self.range.y) as i64;
+        let m_max = libm::floor(-f.y + self.range.y) as i64;
+        let n_min = libm::ceil(-f.x - self.range.x) as i64;
+        let n_max = libm::floor(-f.x + self.range.x) as i64;
+        for m in m_min..=m_max {
+            for n in n_min..=n_max {
+                if same && n == 0 && m == 0 {
+                    continue;
+                }
+                let t = u * n as f64 + v * m as f64;
+                let distance_sq = (d + t).norm_sq();
+                if distance_sq >= contact_sq {
+                    continue;
+                }
+                if distance_sq < core_sq || S::overlaps(&a.placed, &b.placed, t) {
+                    return true;
+                }
             }
         }
         false
@@ -561,6 +647,84 @@ mod test {
             );
             packing.set_lattice(lattice);
             prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+        }
+
+        #[test]
+        fn shear_reduction_preserves_structure(
+            seed in 0u64..10_000,
+            shear in -8f64..8.,
+            scale in 0.3f64..1.,
+            fixed in proptest::bool::ANY,
+        ) {
+            let sides = if fixed { 4 } else { 5 };
+            let letters: &[char] = if fixed { &['e', 'b'] } else { &['e', 'e'] };
+            let mut packing = random_polygon_packing(sides, "p2", letters, seed, 1.);
+            let p = packing.lattice().parameters();
+            packing.set_lattice(Lattice::from_parameters(
+                LatticeFamily::Oblique,
+                &[p[0] * scale, p[1] + shear * p[0] * scale, p[2] * scale],
+            ));
+            let overlap = packing.any_overlap();
+            let phi = packing.packing_fraction();
+            let lattice = packing.lattice().clone();
+            let before: Vec<Vec2> = packing.placed_shapes(0).iter().map(|s| s.1).collect();
+            packing.reduce_shear();
+            let p = packing.lattice().parameters();
+            let limit = if fixed { 1. } else { 0.5 };
+            prop_assert!(p[1].abs() <= p[0] * limit + 1e-9);
+            prop_assert_eq!(packing.any_overlap(), overlap);
+            prop_assert!((packing.packing_fraction() - phi).abs() < 1e-12);
+            // Every shape is at a position equivalent to a shape before the reduction
+            let inverse = lattice.matrix.inverse();
+            for s in packing.placed_shapes(0) {
+                let found = before.iter().any(|&b| {
+                    let f = inverse * (s.1 - b);
+                    (f.x - f.x.round()).abs() < 1e-8 && (f.y - f.y.round()).abs() < 1e-8
+                });
+                prop_assert!(found);
+            }
+        }
+
+        #[test]
+        fn lattice_reduction_preserves_structure(
+            seed in 0u64..10_000,
+            ax in 0.3f64..3.,
+            bx in -8f64..8.,
+            by in 0.1f64..3.,
+        ) {
+            let mut packing = random_polygon_packing(5, "p2", &['e', 'e'], seed, 1.);
+            let area = packing.lattice().area();
+            // A cell of the same area with an arbitrary, possibly very poor, shape
+            let raw = Lattice::from_parameters(LatticeFamily::Oblique, &[ax, bx, by]);
+            packing.set_lattice(raw.scaled((area / raw.area()).sqrt() * 0.6));
+            let overlap = packing.any_overlap();
+            let phi = packing.packing_fraction();
+            let lattice = packing.lattice().clone();
+            let before: Vec<(Vec2, Mat2)> = packing
+                .placed_shapes(0)
+                .iter()
+                .map(|s| (s.1, s.2))
+                .collect();
+            let angle = packing.reduce_lattice().unwrap();
+            let p = packing.lattice().parameters();
+            prop_assert!(p[1].abs() <= 0.5 * p[0] + 1e-9);
+            prop_assert!(p[0] <= packing.lattice().b().norm() + 1e-9);
+            prop_assert_eq!(packing.any_overlap(), overlap);
+            prop_assert!((packing.packing_fraction() - phi).abs() < 1e-9);
+            // Rotating back, every shape matches a shape from before the reduction
+            let back = Mat2::rotation(angle);
+            let inverse = lattice.matrix.inverse();
+            for s in packing.placed_shapes(0) {
+                let centre = back * s.1;
+                let orientation = back * s.2;
+                let found = before.iter().any(|(c, o)| {
+                    let f = inverse * (centre - *c);
+                    (f.x - f.x.round()).abs() < 1e-8
+                        && (f.y - f.y.round()).abs() < 1e-8
+                        && orientation.max_abs_diff(o) < 1e-8
+                });
+                prop_assert!(found);
+            }
         }
 
         #[test]

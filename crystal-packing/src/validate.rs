@@ -173,16 +173,22 @@ pub fn validate<S: HardShape>(shape: &S, structure: &Structure) -> Result<(), Er
         .map(|(c, o)| bounding_radius(o, *c))
         .fold(0., f64::max);
     let contact = 2. * radius;
-    let height_b = lattice.area() / a.norm();
-    let m_max = (contact / height_b).ceil() as i64 + 1;
-    for m in -m_max..=m_max {
-        let reach = contact + (m.abs() as f64 + 1.) * b.norm();
-        let n_max = (reach / a.norm()).ceil() as i64 + 1;
-        for n in -n_max..=n_max {
-            let shift = a * n as f64 + b * m as f64;
-            for (i, (ca, oa)) in shapes.iter().enumerate() {
-                for (j, (cb, ob)) in shapes.iter().enumerate() {
-                    if n == 0 && m == 0 && j <= i {
+    // For each pair, enumerate the translations t = n u + m v of the reduced basis which bring
+    // the shapes within the contact distance, using |m| ≤ |d + t| |u| / |u × v| and similarly
+    // for n, where d is the separation of the shapes.
+    let reduced = lattice.reduced_basis();
+    let (u, v) = (reduced.column(0), reduced.column(1));
+    let inverse = reduced.inverse();
+    let range_n = (contact * v.norm() / lattice.area()).ceil() as i64 + 1;
+    let range_m = (contact * u.norm() / lattice.area()).ceil() as i64 + 1;
+    for (i, (ca, oa)) in shapes.iter().enumerate() {
+        for (j, (cb, ob)) in shapes.iter().enumerate() {
+            let f = inverse * (*cb - *ca);
+            let (n0, m0) = (-f.x.round() as i64, -f.y.round() as i64);
+            for m in (m0 - range_m)..=(m0 + range_m) {
+                for n in (n0 - range_n)..=(n0 + range_n) {
+                    let shift = u * n as f64 + v * m as f64;
+                    if i == j && n == 0 && m == 0 {
                         continue;
                     }
                     if (*cb + shift - *ca).norm() >= contact {
