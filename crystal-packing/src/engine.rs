@@ -1,0 +1,593 @@
+//
+// engine.rs
+// Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
+// Distributed under terms of the MIT license.
+//
+
+//! The state of a periodic packing of hard shapes and the overlap checks on that state.
+//!
+//! A [`Packing`] holds a plane group, a set of occupied Wyckoff sites, the lattice, and the free
+//! parameters of each site. Every image of every site is placed into world coordinates and cached,
+//! with the cache updated only for the parts of the structure which change.
+//!
+//! Overlaps are found using the symmetry of the structure. Every pair of shapes in the crystal is
+//! related by a symmetry operation to a pair which includes the representative (first) image of
+//! a site, so it is sufficient to check each representative against every image within the
+//! contact distance. When a single site changes, only the pairs involving that site are checked.
+
+use anyhow::{anyhow, bail, Error};
+use serde::{Deserialize, Serialize};
+
+use crate::geometry::{Mat2, Vec2};
+use crate::hard_shape::HardShape;
+use crate::lattice::Lattice;
+use crate::random::Rng;
+use crate::symmetry::{OrientationFreedom, PlaneGroup, WyckoffPosition};
+
+/// The variable parameters of an occupied site
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SiteState {
+    /// The free parameters (x, y) of the Wyckoff position in fractional coordinates
+    pub position: Vec2,
+    /// The orientation of the shape on the representative image, in radians
+    pub angle: f64,
+}
+
+/// A Wyckoff position which is occupied by a shape, along with the constraints on the shape
+#[derive(Debug, Clone)]
+pub struct OccupiedSite {
+    pub wyckoff: &'static WyckoffPosition,
+    pub free: [bool; 2],
+    pub orientation: OrientationFreedom,
+}
+
+#[derive(Debug, Clone, Default)]
+struct Image<P> {
+    centre: Vec2,
+    placed: P,
+}
+
+/// A serialisable description of a packed structure
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Structure {
+    pub shape: String,
+    pub group: String,
+    pub sites: Vec<SiteRecord>,
+    pub lattice: Lattice,
+    pub num_shapes: usize,
+    pub packing_fraction: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SiteRecord {
+    pub letter: char,
+    pub x: f64,
+    pub y: f64,
+    pub angle: f64,
+}
+
+impl Structure {
+    /// The Wyckoff letters of the occupied sites, e.g. "ab"
+    pub fn sites_label(&self) -> String {
+        self.sites.iter().map(|s| s.letter).collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Packing<S: HardShape> {
+    shape: S,
+    group: &'static PlaneGroup,
+    sites: Vec<OccupiedSite>,
+    lattice: Lattice,
+    state: Vec<SiteState>,
+    images: Vec<Vec<Image<S::Placed>>>,
+    translations: Vec<Vec2>,
+    reduced: Mat2,
+    reduced_inverse: Mat2,
+    /// Images further apart than this distance can't overlap
+    contact: f64,
+    /// Images closer than this distance must overlap
+    core: f64,
+    num_shapes: usize,
+}
+
+impl<S: HardShape> Packing<S> {
+    /// Create a packing with the shape occupying the given Wyckoff sites of the group.
+    ///
+    /// The sites are given by their Wyckoff letters. The parameters of each site are chosen at
+    /// random and the lattice is made large enough that the shapes don't overlap.
+    pub fn new(
+        shape: S,
+        group: &'static PlaneGroup,
+        letters: &[char],
+        rng: &mut Rng,
+    ) -> Result<Packing<S>, Error> {
+        if letters.is_empty() {
+            bail!("At least one site needs to be occupied");
+        }
+        let mut sites = vec![];
+        for &letter in letters {
+            let wyckoff = group.wyckoff_position(letter)?;
+            let orientation = wyckoff
+                .orientation_freedom(shape.symmetry())
+                .ok_or_else(|| {
+                    anyhow!(
+                        "The shape doesn't have the symmetry required for site {} of {}",
+                        letter,
+                        group.name
+                    )
+                })?;
+            sites.push(OccupiedSite {
+                wyckoff,
+                free: wyckoff.free_parameters(),
+                orientation,
+            });
+        }
+        for (i, a) in sites.iter().enumerate() {
+            for b in sites.iter().skip(i + 1) {
+                if a.wyckoff.is_fixed() && a.wyckoff.letter == b.wyckoff.letter {
+                    bail!(
+                        "The fixed site {} can only be occupied once",
+                        a.wyckoff.letter
+                    );
+                }
+            }
+        }
+        let state: Vec<SiteState> = sites
+            .iter()
+            .map(|site| SiteState {
+                position: Vec2::new(rng.uniform(), rng.uniform()),
+                angle: match &site.orientation {
+                    OrientationFreedom::Free => rng.uniform() * 2. * std::f64::consts::PI,
+                    OrientationFreedom::Discrete(angles) => angles[rng.index(angles.len())],
+                },
+            })
+            .collect();
+
+        let num_shapes: usize = sites.iter().map(|s| s.wyckoff.multiplicity).sum();
+        // Start from a dilute structure, expanding until there are no overlaps
+        let target_area = num_shapes as f64 * shape.area() / 0.1;
+        let lattice = Lattice::with_length(group.family, 1.);
+        let lattice = lattice.scaled((target_area / lattice.area()).sqrt());
+        let mut packing = Packing::build(shape, group, sites, lattice, state);
+        for _ in 0..200 {
+            if !packing.any_overlap() {
+                return Ok(packing);
+            }
+            let expanded = packing.lattice.scaled(1.5);
+            packing.set_lattice(expanded);
+        }
+        bail!("Unable to find a starting configuration without overlaps")
+    }
+
+    fn build(
+        shape: S,
+        group: &'static PlaneGroup,
+        sites: Vec<OccupiedSite>,
+        lattice: Lattice,
+        state: Vec<SiteState>,
+    ) -> Packing<S> {
+        let images = sites
+            .iter()
+            .map(|s| vec![Image::default(); s.wyckoff.multiplicity])
+            .collect();
+        let num_shapes = sites.iter().map(|s| s.wyckoff.multiplicity).sum();
+        let contact = 2. * shape.circumradius();
+        // Reduced slightly so shapes in contact aren't considered overlapping
+        let core = 2. * shape.inradius() * (1. - 1e-8);
+        let mut packing = Packing {
+            shape,
+            group,
+            sites,
+            lattice: lattice.clone(),
+            state,
+            images,
+            translations: vec![],
+            reduced: Mat2::IDENTITY,
+            reduced_inverse: Mat2::IDENTITY,
+            contact,
+            core,
+            num_shapes,
+        };
+        packing.set_lattice(lattice);
+        packing
+    }
+
+    /// Recreate a packing from a saved structure
+    pub fn from_structure(shape: S, structure: &Structure) -> Result<Packing<S>, Error> {
+        let group = PlaneGroup::from_name(&structure.group)?;
+        let mut sites = vec![];
+        let mut state = vec![];
+        for record in structure.sites.iter() {
+            let wyckoff = group.wyckoff_position(record.letter)?;
+            let orientation = wyckoff
+                .orientation_freedom(shape.symmetry())
+                .ok_or_else(|| anyhow!("Shape incompatible with site {}", record.letter))?;
+            sites.push(OccupiedSite {
+                wyckoff,
+                free: wyckoff.free_parameters(),
+                orientation,
+            });
+            state.push(SiteState {
+                position: Vec2::new(record.x, record.y),
+                angle: record.angle,
+            });
+        }
+        if structure.lattice.family != group.family {
+            bail!(
+                "The lattice doesn't match the family of group {}",
+                group.name
+            );
+        }
+        Ok(Packing::build(
+            shape,
+            group,
+            sites,
+            structure.lattice.clone(),
+            state,
+        ))
+    }
+
+    pub fn structure(&self) -> Structure {
+        Structure {
+            shape: self.shape.name().to_string(),
+            group: self.group.name.clone(),
+            sites: self
+                .sites
+                .iter()
+                .zip(self.state.iter())
+                .map(|(site, state)| SiteRecord {
+                    letter: site.wyckoff.letter,
+                    x: state.position.x,
+                    y: state.position.y,
+                    angle: state.angle,
+                })
+                .collect(),
+            lattice: self.lattice.clone(),
+            num_shapes: self.num_shapes,
+            packing_fraction: self.packing_fraction(),
+        }
+    }
+
+    pub fn shape(&self) -> &S {
+        &self.shape
+    }
+
+    pub fn group(&self) -> &'static PlaneGroup {
+        self.group
+    }
+
+    pub fn sites(&self) -> &[OccupiedSite] {
+        &self.sites
+    }
+
+    pub fn lattice(&self) -> &Lattice {
+        &self.lattice
+    }
+
+    pub fn site_state(&self, index: usize) -> SiteState {
+        self.state[index]
+    }
+
+    pub fn num_shapes(&self) -> usize {
+        self.num_shapes
+    }
+
+    pub fn packing_fraction(&self) -> f64 {
+        self.num_shapes as f64 * self.shape.area() / self.lattice.area()
+    }
+
+    /// The fractional coordinates of an image, wrapped into the unit cell
+    fn image_fractional(&self, site: usize, image: usize) -> Vec2 {
+        self.sites[site].wyckoff.orbit[image].apply(self.state[site].position)
+    }
+
+    fn update_site_images(&mut self, index: usize) {
+        let site = &self.sites[index];
+        let state = self.state[index];
+        let rotation = Mat2::rotation(state.angle);
+        for (i, image) in self.images[index].iter_mut().enumerate() {
+            let fractional = site.wyckoff.orbit[i].apply(state.position);
+            let centre = self.lattice.to_cartesian(fractional);
+            let orientation = site.wyckoff.orientations[i] * rotation;
+            self.shape.place(&orientation, centre, &mut image.placed);
+            image.centre = centre;
+        }
+    }
+
+    /// Update the parameters of a site, updating the cached images
+    pub fn set_site(&mut self, index: usize, state: SiteState) {
+        self.state[index] = state;
+        self.update_site_images(index);
+    }
+
+    /// Update the lattice, updating all cached images
+    pub fn set_lattice(&mut self, lattice: Lattice) {
+        self.lattice = lattice;
+        self.reduced = self.lattice.reduced_basis();
+        self.reduced_inverse = self.reduced.inverse();
+        // Any separation can be wrapped to lie within the reduced cell centred at the origin, so
+        // only translations within the contact distance plus the size of that cell are needed.
+        let (u, v) = (self.reduced.column(0), self.reduced.column(1));
+        let cutoff = self.contact + 0.5 * (u.norm() + v.norm());
+        self.translations = self.lattice.translations(cutoff);
+        for index in 0..self.sites.len() {
+            self.update_site_images(index);
+        }
+    }
+
+    /// Check whether image `b` or any of its periodic copies overlaps image `a`
+    ///
+    /// When `same` is true a and b are the same image, so the zero translation is skipped.
+    #[inline]
+    fn images_overlap(&self, a: &Image<S::Placed>, b: &Image<S::Placed>, same: bool) -> bool {
+        let d = b.centre - a.centre;
+        let f = self.reduced_inverse * d;
+        let wrapped = self.reduced * Vec2::new(f.x - libm::round(f.x), f.y - libm::round(f.y));
+        let base = wrapped - d;
+        let contact_sq = self.contact * self.contact;
+        let core_sq = self.core * self.core;
+        for &t in self.translations.iter() {
+            let separation = wrapped + t;
+            let distance_sq = separation.norm_sq();
+            if distance_sq >= contact_sq {
+                continue;
+            }
+            if same && distance_sq < 1e-24 {
+                continue;
+            }
+            if distance_sq < core_sq || S::overlaps(&a.placed, &b.placed, base + t) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check for overlaps involving any image of the site
+    pub fn site_overlaps(&self, index: usize) -> bool {
+        let representative = &self.images[index][0];
+        for (j, images) in self.images.iter().enumerate() {
+            for (l, image) in images.iter().enumerate() {
+                if self.images_overlap(representative, image, j == index && l == 0) {
+                    return true;
+                }
+            }
+        }
+        for (j, images) in self.images.iter().enumerate() {
+            if j == index {
+                continue;
+            }
+            for image in self.images[index].iter() {
+                if self.images_overlap(&images[0], image, false) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Check for any overlaps in the structure
+    pub fn any_overlap(&self) -> bool {
+        for (i, site_images) in self.images.iter().enumerate() {
+            let representative = &site_images[0];
+            for (j, images) in self.images.iter().enumerate() {
+                for (l, image) in images.iter().enumerate() {
+                    if self.images_overlap(representative, image, i == j && l == 0) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// All placed shapes within the given range of unit cells, used for rendering
+    pub fn placed_shapes(&self, cells: i32) -> Vec<(usize, Vec2, S::Placed)> {
+        let mut shapes = vec![];
+        for (index, site) in self.sites.iter().enumerate() {
+            let rotation = Mat2::rotation(self.state[index].angle);
+            for image in 0..site.wyckoff.multiplicity {
+                let fractional =
+                    crate::symmetry::wrap_fractional(self.image_fractional(index, image));
+                let orientation = site.wyckoff.orientations[image] * rotation;
+                for n in -cells..=cells {
+                    for m in -cells..=cells {
+                        let f = fractional + Vec2::new(n as f64, m as f64);
+                        let centre = self.lattice.to_cartesian(f);
+                        let mut placed = S::Placed::default();
+                        self.shape.place(&orientation, centre, &mut placed);
+                        shapes.push((index, centre, placed));
+                    }
+                }
+            }
+        }
+        shapes
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::hard_shape::{Molecule, Polygon};
+    use crate::random::Rng;
+    use crate::symmetry::LatticeFamily;
+    use approx::assert_abs_diff_eq;
+    use proptest::prelude::*;
+
+    /// A brute force overlap check comparing every image with every image in a large supercell
+    fn naive_overlap<S: HardShape>(packing: &Packing<S>) -> bool {
+        let shapes = packing.placed_shapes(0);
+        let lattice = packing.lattice();
+        let k = 15;
+        for (i, (_, ca, a)) in shapes.iter().enumerate() {
+            for (j, (_, cb, b)) in shapes.iter().enumerate() {
+                for n in -k..=k {
+                    for m in -k..=k {
+                        if i == j && n == 0 && m == 0 {
+                            continue;
+                        }
+                        let shift = lattice.to_cartesian(Vec2::new(n as f64, m as f64));
+                        if (*cb + shift - *ca).norm() < packing.contact && S::overlaps(a, b, shift)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn square_lattice() {
+        let square = Polygon::regular(4).unwrap();
+        let group = PlaneGroup::from_name("p1").unwrap();
+        let mut rng = Rng::seed_from_u64(0);
+        let mut packing = Packing::new(square, group, &['a'], &mut rng).unwrap();
+        packing.set_site(
+            0,
+            SiteState {
+                position: Vec2::ZERO,
+                angle: std::f64::consts::FRAC_PI_4,
+            },
+        );
+        let side = 2f64.sqrt();
+        packing.set_lattice(Lattice::from_parameters(
+            LatticeFamily::Oblique,
+            &[side, 0., side],
+        ));
+        assert!(!packing.any_overlap());
+        assert_abs_diff_eq!(packing.packing_fraction(), 1., epsilon = 1e-12);
+        packing.set_lattice(Lattice::from_parameters(
+            LatticeFamily::Oblique,
+            &[side * 0.999, 0., side],
+        ));
+        assert!(packing.any_overlap());
+    }
+
+    #[test]
+    fn hexagonal_disks() {
+        let disk = Molecule::disk();
+        let group = PlaneGroup::from_name("p6mm").unwrap();
+        let mut rng = Rng::seed_from_u64(0);
+        let mut packing = Packing::new(disk, group, &['a'], &mut rng).unwrap();
+        packing.set_lattice(Lattice::from_parameters(LatticeFamily::Hexagonal, &[2.]));
+        assert!(!packing.any_overlap());
+        assert_abs_diff_eq!(
+            packing.packing_fraction(),
+            std::f64::consts::PI / (2. * 3f64.sqrt()),
+            epsilon = 1e-12
+        );
+        packing.set_lattice(Lattice::from_parameters(LatticeFamily::Hexagonal, &[1.999]));
+        assert!(packing.any_overlap());
+    }
+
+    #[test]
+    fn incompatible_site() {
+        let triangle = Polygon::regular(3).unwrap();
+        let group = PlaneGroup::from_name("p4").unwrap();
+        let mut rng = Rng::seed_from_u64(0);
+        assert!(Packing::new(triangle, group, &['a'], &mut rng).is_err());
+    }
+
+    #[test]
+    fn structure_round_trip() {
+        let shape = Polygon::regular(5).unwrap();
+        let group = PlaneGroup::from_name("p2gg").unwrap();
+        let mut rng = Rng::seed_from_u64(4);
+        let packing = Packing::new(shape.clone(), group, &['c'], &mut rng).unwrap();
+        let structure = packing.structure();
+        let json = serde_json::to_string(&structure).unwrap();
+        let restored: Structure = serde_json::from_str(&json).unwrap();
+        let packing2 = Packing::from_structure(shape, &restored).unwrap();
+        assert_eq!(packing2.structure(), structure);
+    }
+
+    fn random_packing(group: &str, letters: &[char], seed: u64, scale: f64) -> Packing<Polygon> {
+        random_polygon_packing(5, group, letters, seed, scale)
+    }
+
+    fn random_polygon_packing(
+        sides: usize,
+        group: &str,
+        letters: &[char],
+        seed: u64,
+        scale: f64,
+    ) -> Packing<Polygon> {
+        let shape = Polygon::regular(sides).unwrap();
+        let group = PlaneGroup::from_name(group).unwrap();
+        let mut rng = Rng::seed_from_u64(seed);
+        let mut packing = Packing::new(shape, group, letters, &mut rng).unwrap();
+        // Compress so that overlaps are likely
+        let lattice = packing.lattice().scaled(scale);
+        packing.set_lattice(lattice);
+        packing
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(300))]
+
+        #[test]
+        fn symmetry_reduced_check_matches_naive(
+            seed in 0u64..10_000,
+            scale in 0.2f64..1.,
+            group in prop::sample::select(vec!["p1", "p2", "p1g1", "p2mg", "p2gg", "p4", "p3", "p6", "c1m1"]),
+        ) {
+            let letters: Vec<char> = vec![PlaneGroup::from_name(group).unwrap().wyckoff[0].letter];
+            let packing = random_packing(group, &letters, seed, scale);
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+        }
+
+        #[test]
+        fn multiple_sites_match_naive(seed in 0u64..10_000, scale in 0.2f64..1.) {
+            let packing = random_polygon_packing(4, "p2", &['e', 'a'], seed, scale);
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+            let packing = random_polygon_packing(4, "p4mm", &['g', 'b'], seed, scale);
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+            let packing = random_polygon_packing(6, "p6mm", &['d', 'b'], seed, scale);
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+            let packing = random_packing("p1", &['a', 'a'], seed, scale);
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+        }
+
+        #[test]
+        fn sheared_cell_matches_naive(seed in 0u64..10_000, shear in -6f64..6., scale in 0.3f64..1.2) {
+            let mut packing = random_packing("p2", &['e'], seed, 1.);
+            let p = packing.lattice().parameters();
+            let lattice = Lattice::from_parameters(
+                LatticeFamily::Oblique,
+                &[p[0] * scale, p[1] + shear * p[0] * scale, p[2] * scale],
+            );
+            packing.set_lattice(lattice);
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+        }
+
+        #[test]
+        fn incremental_matches_full(seed in 0u64..10_000, scale in 0.3f64..1.) {
+            let mut packing = random_packing("p2", &['e', 'e'], seed, scale);
+            let mut rng = Rng::seed_from_u64(seed);
+            // Start from a valid configuration
+            while packing.any_overlap() {
+                let lattice = packing.lattice().scaled(1.2);
+                packing.set_lattice(lattice);
+            }
+            for _ in 0..20 {
+                let index = rng.index(2);
+                let mut state = packing.site_state(index);
+                state.position.x += rng.centered() * 0.3;
+                state.position.y += rng.centered() * 0.3;
+                state.angle += rng.centered();
+                packing.set_site(index, state);
+                let incremental = packing.site_overlaps(index);
+                prop_assert_eq!(incremental, packing.any_overlap());
+                if incremental {
+                    // Return to a valid state
+                    while packing.any_overlap() {
+                        let lattice = packing.lattice().scaled(1.2);
+                        packing.set_lattice(lattice);
+                    }
+                }
+            }
+        }
+    }
+}

@@ -10,12 +10,18 @@
 
 pub mod basis;
 pub mod cell;
+pub mod engine;
+pub mod geometry;
+pub mod hard_shape;
+pub mod lattice;
+pub mod monte_carlo;
 pub mod ops_macros;
 pub mod optimisation;
 pub mod random;
 pub mod shape;
 pub mod site;
 pub mod state;
+pub mod symmetry;
 pub mod to_svg;
 pub mod traits;
 pub mod transform;
