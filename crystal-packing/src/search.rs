@@ -738,7 +738,7 @@ impl Search {
             }
             Phase::Finished => {}
         }
-        if self.phase != Phase::Finished && self.round >= self.config.max_rounds + 1 {
+        if self.phase != Phase::Finished && self.round > self.config.max_rounds {
             self.phase = Phase::Finished;
         }
     }
