@@ -531,7 +531,8 @@ function unconstrained() {
     .split(",")
     .map((n) => Number(n.trim()))
     .filter((n) => Number.isInteger(n) && n > 0);
-  search("exhaustive", { unconstrained: counts });
+  // Larger systems need a proportionally larger budget
+  search("exhaustive", { unconstrained: counts, steps_per_shape: 2500 });
 }
 
 buttons.search.addEventListener("click", () => search("halving"));

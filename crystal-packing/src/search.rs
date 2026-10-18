@@ -512,6 +512,9 @@ pub struct SearchConfig {
     pub replicas: usize,
     /// The number of Monte Carlo steps per optimisation in the first round
     pub steps: u64,
+    /// The minimum number of steps per shape in the unit cell in the first round, so larger
+    /// systems get a proportionally larger budget. Zero to use `steps` for every candidate.
+    pub steps_per_shape: u64,
     /// The fraction of candidates kept after each round is 1 / eta, while the number of steps
     /// increases by a factor of eta.
     pub eta: usize,
@@ -544,6 +547,7 @@ impl Default for SearchConfig {
             max_shapes: 12,
             replicas: 4,
             steps: 10_000,
+            steps_per_shape: 0,
             eta: 3,
             max_step_growth: 3,
             strategy: Strategy::Halving,
@@ -608,8 +612,8 @@ pub struct Search {
     phase: Phase,
     /// The number of consecutive rounds without improvement in the converge phase
     stale: usize,
-    /// The number of steps of the latest round before refinement
-    final_steps: u64,
+    /// The growth of the number of steps in the latest round before refinement
+    final_growth: u32,
 }
 
 impl Search {
@@ -662,7 +666,7 @@ impl Search {
             round: 0,
             phase,
             stale: 0,
-            final_steps: 0,
+            final_growth: 0,
         })
     }
 
@@ -675,12 +679,29 @@ impl Search {
     }
 
     /// The number of steps for each optimisation in the current round
-    fn round_steps(&self) -> u64 {
+    /// The power of eta by which the number of steps has grown in the current round
+    fn round_growth(&self) -> u32 {
         if self.phase == Phase::Refine {
-            return self.final_steps;
+            return self.final_growth;
         }
-        let growth = (self.round as u32).min(self.config.max_step_growth);
-        self.config.steps * (self.config.eta as u64).pow(growth)
+        (self.round as u32).min(self.config.max_step_growth)
+    }
+
+    /// The number of steps for each optimisation of a candidate, for a growth of the budget
+    fn candidate_steps(&self, index: usize, growth: u32) -> u64 {
+        let candidate = &self.results[index].candidate;
+        let shapes: u64 = PlaneGroup::from_name(&candidate.group)
+            .map(|group| {
+                candidate
+                    .sites
+                    .iter()
+                    .filter_map(|&l| group.wyckoff_position(l).ok())
+                    .map(|w| w.multiplicity as u64)
+                    .sum()
+            })
+            .unwrap_or(candidate.sites.len() as u64);
+        let base = self.config.steps.max(self.config.steps_per_shape * shapes);
+        base * (self.config.eta as u64).pow(growth)
     }
 
     pub fn round(&self) -> usize {
@@ -696,10 +717,11 @@ impl Search {
         if self.is_finished() {
             return vec![];
         }
-        let steps = self.round_steps();
+        let growth = self.round_growth();
         let mut jobs = vec![];
         for &index in self.active.iter() {
             let result = &self.results[index];
+            let steps = self.candidate_steps(index, growth);
             for replica in 0..self.config.replicas {
                 let mut values = result.candidate.seed_values();
                 values.push(self.round as u64);
@@ -731,17 +753,19 @@ impl Search {
 
     /// Submit the outcomes of the current round's jobs, advancing to the next round
     pub fn submit(&mut self, outcomes: Vec<Outcome>) {
-        let steps = self.round_steps();
+        let growth = self.round_growth();
         let previous_best = self.best_score();
         let mut improved = false;
         for outcome in outcomes {
-            let Some(result) = self
+            let Some(index) = self
                 .results
-                .iter_mut()
-                .find(|r| r.candidate == outcome.candidate)
+                .iter()
+                .position(|r| r.candidate == outcome.candidate)
             else {
                 continue;
             };
+            let steps = self.candidate_steps(index, growth);
+            let result = &mut self.results[index];
             result.rounds = self.round + 1;
             result.steps = result.steps.max(steps);
             if let Some(error) = outcome.error {
@@ -775,7 +799,7 @@ impl Search {
                 if self.active.len() == 1 {
                     self.phase = Phase::Converge;
                 }
-                self.final_steps = steps;
+                self.final_growth = growth;
                 self.round += 1;
             }
             Phase::Converge => {
@@ -784,7 +808,7 @@ impl Search {
                     Strategy::Exhaustive => improved,
                 };
                 self.stale = if progress { 0 } else { self.stale + 1 };
-                self.final_steps = steps;
+                self.final_growth = growth;
                 self.round += 1;
                 if self.stale >= self.config.patience || self.round >= self.config.max_rounds {
                     self.start_refinement();
@@ -807,7 +831,8 @@ impl Search {
         let refine: Vec<usize> = (0..self.results.len())
             .filter(|&i| {
                 let result = &self.results[i];
-                result.score() >= threshold && result.steps < self.final_steps
+                result.score() >= threshold
+                    && result.steps < self.candidate_steps(i, self.final_growth)
             })
             .collect();
         if refine.is_empty() {
@@ -1415,6 +1440,30 @@ mod test {
         assert_eq!(distinct.len(), 2);
         assert_eq!(distinct[1].result.candidate.label(), "p1:a");
         assert_eq!(search.distinct_near_best(0.2, Some(1)).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn steps_scale_with_number_of_shapes() {
+        let mut search = Search::new(
+            ShapeSpec::Disk,
+            SearchConfig {
+                unconstrained: vec![1, 4, 8],
+                strategy: Strategy::Exhaustive,
+                steps: 100,
+                steps_per_shape: 50,
+                eta: 2,
+                replicas: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let steps = |jobs: &[Job]| -> Vec<u64> { jobs.iter().map(|j| j.config.steps).collect() };
+        // The budget is the larger of the steps and the steps per shape
+        assert_eq!(steps(&search.jobs()), vec![100, 200, 400]);
+        submit_round(&mut search, |job| {
+            0.5 + 0.01 * job.candidate.sites.len() as f64
+        });
+        assert_eq!(steps(&search.jobs()), vec![200, 400, 800]);
     }
 
     #[test]

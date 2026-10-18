@@ -18,9 +18,18 @@ use crystal_packing::validate::validate;
 
 /// The best packing fraction for each number of shapes
 fn unconstrained(shape: ShapeSpec, counts: Vec<usize>) -> Vec<(usize, f64)> {
+    unconstrained_with(shape, counts, 0)
+}
+
+fn unconstrained_with(
+    shape: ShapeSpec,
+    counts: Vec<usize>,
+    steps_per_shape: u64,
+) -> Vec<(usize, f64)> {
     let config = SearchConfig {
         unconstrained: counts,
         strategy: Strategy::Exhaustive,
+        steps_per_shape,
         seed: 2,
         ..Default::default()
     };
@@ -105,4 +114,23 @@ fn heptagons() {
         "{}",
         results[0].1
     );
+}
+
+#[test]
+#[ignore]
+fn larger_systems() {
+    // With a budget proportional to the number of shapes, larger systems still find the
+    // densest packings
+    let double_lattice = (5. - 5f64.sqrt()) / 3.;
+    for (n, phi) in unconstrained_with(ShapeSpec::Polygon { sides: 5 }, vec![12], 2500) {
+        assert!(
+            (phi - double_lattice).abs() < 1e-3,
+            "{} pentagons: {}",
+            n,
+            phi
+        );
+    }
+    for (n, phi) in unconstrained_with(ShapeSpec::Disk, vec![24], 2500) {
+        assert!((phi - 0.906900).abs() < 1e-3, "{} disks: {}", n, phi);
+    }
 }

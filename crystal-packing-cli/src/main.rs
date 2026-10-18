@@ -186,6 +186,10 @@ struct MonteCarloArgs {
     /// The number of independent optimisations of each candidate
     #[arg(long, default_value = "4")]
     replicas: usize,
+    /// The minimum number of steps per shape in the unit cell, so larger systems get a
+    /// proportionally larger budget. Defaults to 2500 for unconstrained packing and 0 otherwise.
+    #[arg(long)]
+    steps_per_shape: Option<u64>,
     /// The reduced pressure at the start of the compression
     #[arg(long, default_value = "0.1")]
     pressure_start: f64,
@@ -389,6 +393,7 @@ fn search_config(
     SearchConfig {
         replicas: monte_carlo.replicas,
         steps: monte_carlo.steps,
+        steps_per_shape: monte_carlo.steps_per_shape.unwrap_or(0),
         eta,
         strategy,
         patience: report.patience,
@@ -627,6 +632,7 @@ fn unconstrained(args: UnconstrainedArgs) -> Result<(), Error> {
     let shape = args.shape.spec()?;
     let config = SearchConfig {
         unconstrained: args.shapes.clone(),
+        steps_per_shape: args.monte_carlo.steps_per_shape.unwrap_or(2500),
         ..search_config(
             &args.monte_carlo,
             &args.potential,
