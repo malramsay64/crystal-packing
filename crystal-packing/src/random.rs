@@ -4,15 +4,16 @@
 // Distributed under terms of the MIT license.
 //
 
-//! A small, dependency free, deterministic random number generator.
+//! The deterministic random number generator used by the optimisation.
 //!
-//! The optimisation needs to give bit-identical results on every platform for a given seed,
-//! including when compiled to WebAssembly. Implementing the generator here, rather than relying on
-//! an external crate, ensures the stream of numbers never changes underneath us.
+//! The generator is xoshiro256++ from `rand_xoshiro`, seeded with SplitMix64. It's a specified
+//! algorithm, so a seed gives the same numbers on every platform (including WebAssembly) and with
+//! every version of the crate. This wraps it with the few ways the optimisation draws numbers.
 
-use serde::{Deserialize, Serialize};
+use rand_core::{Rng as _, SeedableRng};
+use rand_xoshiro::Xoshiro256PlusPlus;
 
-/// The SplitMix64 generator, used to expand a single `u64` seed into the full generator state.
+/// One step of SplitMix64, used to mix seeds together in [`Rng::derive_seed`]
 fn splitmix64(state: &mut u64) -> u64 {
     *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
     let mut z = *state;
@@ -21,7 +22,7 @@ fn splitmix64(state: &mut u64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// The xoshiro256++ generator by Blackman and Vigna.
+/// A xoshiro256++ generator
 ///
 /// ```
 /// use crystal_packing::Rng;
@@ -31,21 +32,13 @@ fn splitmix64(state: &mut u64) -> u64 {
 /// let x = a.uniform();
 /// assert!((0. ..1.).contains(&x));
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rng {
-    s: [u64; 4],
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rng(Xoshiro256PlusPlus);
 
 impl Rng {
+    /// A generator with its state expanded from a seed by SplitMix64
     pub fn seed_from_u64(seed: u64) -> Self {
-        let mut state = seed;
-        let s = [
-            splitmix64(&mut state),
-            splitmix64(&mut state),
-            splitmix64(&mut state),
-            splitmix64(&mut state),
-        ];
-        Rng { s }
+        Rng(Xoshiro256PlusPlus::seed_from_u64(seed))
     }
 
     /// Combine a seed with a sequence of values to create an independent stream.
@@ -63,20 +56,10 @@ impl Rng {
     }
 
     pub fn next_u64(&mut self) -> u64 {
-        let result = (self.s[0].wrapping_add(self.s[3]))
-            .rotate_left(23)
-            .wrapping_add(self.s[0]);
-        let t = self.s[1] << 17;
-        self.s[2] ^= self.s[0];
-        self.s[3] ^= self.s[1];
-        self.s[1] ^= self.s[2];
-        self.s[0] ^= self.s[3];
-        self.s[2] ^= t;
-        self.s[3] = self.s[3].rotate_left(45);
-        result
+        self.0.next_u64()
     }
 
-    /// A uniformly distributed value in the range [0, 1)
+    /// A uniformly distributed value in the range [0, 1), from the top 53 bits
     pub fn uniform(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 * (1.0 / (1u64 << 53) as f64)
     }
@@ -89,7 +72,7 @@ impl Rng {
     /// A uniformly distributed index in the range [0, n)
     pub fn index(&mut self, n: usize) -> usize {
         assert!(n > 0, "Cannot choose from an empty range");
-        // Lemire's multiply-shift method; the bias is negligible for the small n used here.
+        // Lemire's multiply-shift method; the bias of at most n / 2^64 is negligible.
         ((self.next_u64() as u128 * n as u128) >> 64) as usize
     }
 }
@@ -139,5 +122,28 @@ mod test {
         let c = Rng::derive_seed(0, &[1, 2]);
         assert_ne!(a, b);
         assert_eq!(a, c);
+    }
+
+    #[test]
+    fn matches_reference_values() {
+        // The xoshiro256++ reference implementation from a state of [1, 2, 3, 4]
+        let mut state = [0u8; 32];
+        for (i, word) in [1u64, 2, 3, 4].iter().enumerate() {
+            state[8 * i..8 * i + 8].copy_from_slice(&word.to_le_bytes());
+        }
+        let mut rng = Rng(Xoshiro256PlusPlus::from_seed(state));
+        let expected = [
+            41943041,
+            58720359,
+            3588806011781223,
+            3591011842654386,
+            9228616714210784205,
+        ];
+        for value in expected {
+            assert_eq!(rng.next_u64(), value);
+        }
+        // Seeding with SplitMix64, as recorded before using rand_xoshiro, so a seed gives the
+        // same structures it always has
+        assert_eq!(Rng::seed_from_u64(0).next_u64(), 0x5317_5d61_490b_23df);
     }
 }

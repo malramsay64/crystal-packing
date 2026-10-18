@@ -8,6 +8,8 @@ description = "Core library for packing shapes in an infinite crystal lattice."
 
 [dependencies]
 libm = "0.2"
+rand_core = { version = "0.10", default-features = false }
+rand_xoshiro = { version = "0.8", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
