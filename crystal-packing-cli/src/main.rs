@@ -6,7 +6,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Error};
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -18,7 +18,7 @@ use crystal_packing::engine::Structure;
 use crystal_packing::monte_carlo::MonteCarloConfig;
 use crystal_packing::potential::LennardJones;
 use crystal_packing::render::render_structure;
-use crystal_packing::search::{run_job, Candidate, Job, Search, SearchConfig, ShapeSpec};
+use crystal_packing::search::{run_job, Candidate, Job, Search, SearchConfig, ShapeSpec, Strategy};
 use crystal_packing::Rng;
 
 #[derive(Debug, Parser)]
@@ -44,6 +44,8 @@ struct Cli {
 enum Command {
     /// Search the plane groups for the densest packing of a shape
     Search(SearchArgs),
+    /// Optimise every candidate of every plane group, reporting the best of each group
+    Survey(SurveyArgs),
     /// Optimise a single plane group and choice of Wyckoff sites
     Optimise(OptimiseArgs),
     /// Render a saved structure as an SVG image
@@ -212,14 +214,9 @@ impl MonteCarloArgs {
     }
 }
 
+/// Options shared by the commands searching over candidates
 #[derive(Debug, Args)]
-struct SearchArgs {
-    #[command(flatten)]
-    shape: ShapeArgs,
-    #[command(flatten)]
-    monte_carlo: MonteCarloArgs,
-    #[command(flatten)]
-    potential: PotentialArgs,
+struct CandidateArgs {
     /// Comma separated plane groups to search, defaulting to all 17
     #[arg(long, value_delimiter = ',')]
     groups: Vec<String>,
@@ -229,15 +226,45 @@ struct SearchArgs {
     /// The maximum number of shapes in the unit cell
     #[arg(long, default_value = "12")]
     max_shapes: usize,
-    /// The factor by which the candidates are reduced, and steps increased, each round
-    #[arg(long, default_value = "3")]
-    eta: usize,
+    /// Report every structure within this percentage of the best
+    #[arg(long, default_value = "2")]
+    within: f64,
+    /// Finish after this many rounds without the best result improving
+    #[arg(long, default_value = "2")]
+    patience: usize,
+    /// The maximum number of rounds
+    #[arg(long, default_value = "8")]
+    max_rounds: usize,
     /// The directory to write the results to
     #[arg(long, short, default_value = "packing-results")]
     output: PathBuf,
-    /// The number of the best structures to render
-    #[arg(long, default_value = "5")]
-    top: usize,
+}
+
+#[derive(Debug, Args)]
+struct SearchArgs {
+    #[command(flatten)]
+    shape: ShapeArgs,
+    #[command(flatten)]
+    monte_carlo: MonteCarloArgs,
+    #[command(flatten)]
+    potential: PotentialArgs,
+    #[command(flatten)]
+    candidates: CandidateArgs,
+    /// The factor by which the candidates are reduced, and steps increased, each round
+    #[arg(long, default_value = "3")]
+    eta: usize,
+}
+
+#[derive(Debug, Args)]
+struct SurveyArgs {
+    #[command(flatten)]
+    shape: ShapeArgs,
+    #[command(flatten)]
+    monte_carlo: MonteCarloArgs,
+    #[command(flatten)]
+    potential: PotentialArgs,
+    #[command(flatten)]
+    candidates: CandidateArgs,
 }
 
 #[derive(Debug, Args)]
@@ -319,20 +346,34 @@ fn write_structure(
     Ok(())
 }
 
-fn search(args: SearchArgs) -> Result<(), Error> {
-    let shape = args.shape.spec()?;
-    let seed = args.monte_carlo.seed();
-    let config = SearchConfig {
-        groups: args.groups.clone(),
-        max_sites: args.max_sites,
-        max_shapes: args.max_shapes,
-        replicas: args.monte_carlo.replicas,
-        steps: args.monte_carlo.steps,
-        eta: args.eta,
-        seed,
-        monte_carlo: args.monte_carlo.config(),
-        potential: args.potential.config(),
-    };
+fn search_config(
+    monte_carlo: &MonteCarloArgs,
+    potential: &PotentialArgs,
+    candidates: &CandidateArgs,
+    strategy: Strategy,
+    eta: usize,
+) -> SearchConfig {
+    SearchConfig {
+        groups: candidates.groups.clone(),
+        max_sites: candidates.max_sites,
+        max_shapes: candidates.max_shapes,
+        replicas: monte_carlo.replicas,
+        steps: monte_carlo.steps,
+        eta,
+        strategy,
+        patience: candidates.patience,
+        max_rounds: candidates.max_rounds,
+        within: candidates.within / 100.,
+        seed: monte_carlo.seed(),
+        monte_carlo: monte_carlo.config(),
+        potential: potential.config(),
+        ..Default::default()
+    }
+}
+
+/// Run a search to completion, using every core
+fn run_search(shape: &ShapeSpec, config: SearchConfig) -> Result<(Search, Duration), Error> {
+    let seed = config.seed;
     let mut search = Search::new(shape.clone(), config)?;
     info!(
         "Searching {} candidates with seed {}",
@@ -343,42 +384,132 @@ fn search(args: SearchArgs) -> Result<(), Error> {
     while !search.is_finished() {
         let jobs = search.jobs();
         let message = format!(
-            "Round {}: {} candidates",
+            "Round {} ({:?}): {} candidates",
             search.round() + 1,
+            search.phase(),
             search.num_active()
         );
         let outcomes = run_jobs(&jobs, message);
         search.submit(outcomes);
     }
-    let elapsed = start.elapsed();
+    Ok((search, start.elapsed()))
+}
 
-    fs::create_dir_all(&args.output)?;
-    let ranking = search.ranking();
+fn energy_text(structure: Option<&Structure>) -> String {
+    structure
+        .and_then(|s| s.energy)
+        .map_or(String::from("-"), |e| format!("{:.5}", e))
+}
+
+/// The difference of a score from the best, as a percentage
+fn percent_below(score: f64, best: f64) -> f64 {
+    100. * (best - score) / best.abs()
+}
+
+/// Print and save every structure within the tolerance of the best
+fn report_near_best(
+    search: &Search,
+    shape: &ShapeSpec,
+    within: f64,
+    output: &Path,
+) -> Result<(), Error> {
+    let near = search.near_best(within / 100.);
+    let best = search.best().map_or(0., |s| s.score());
     println!(
-        "{:>4}  {:<16} {:>8} {:>10} {:>7} {:>7}",
-        "rank", "candidate", "phi", "energy", "shapes", "rounds"
+        "\n{} structures within {}% of the best:",
+        near.len(),
+        within
     );
-    let mut csv =
-        String::from("rank,group,sites,packing_fraction,energy,num_shapes,rounds,a,b,angle\n");
-    for (rank, result) in ranking.iter().enumerate() {
-        let (phi, shapes) = result
+    println!(
+        "{:<16} {:>9} {:>10} {:>8} {:>7}",
+        "candidate", "phi", "energy", "below %", "shapes"
+    );
+    let directory = output.join("near-best");
+    fs::create_dir_all(&directory)?;
+    let mut structures = vec![];
+    for (rank, result) in near.iter().enumerate() {
+        let structure = result
             .best
             .as_ref()
-            .map_or((0., 0), |s| (s.packing_fraction, s.num_shapes));
-        let energy = result.best.as_ref().and_then(|s| s.energy);
-        let energy_text = energy.map_or(String::from("-"), |e| format!("{:.5}", e));
+            .expect("Near best results have a structure");
+        println!(
+            "{:<16} {:>9.5} {:>10} {:>8.3} {:>7}",
+            result.candidate.label(),
+            structure.packing_fraction,
+            energy_text(Some(structure)),
+            percent_below(structure.score(), best),
+            structure.num_shapes
+        );
+        let name = format!(
+            "{:02}-{}",
+            rank + 1,
+            result.candidate.label().replace(':', "-")
+        );
+        write_structure(&directory, &name, shape, structure)?;
+        structures.push(structure);
+    }
+    fs::write(
+        output.join("near-best.json"),
+        serde_json::to_string_pretty(&structures)?,
+    )?;
+    Ok(())
+}
+
+fn print_best(best: &Structure, elapsed: Duration) {
+    match best.energy {
+        Some(energy) => println!(
+            "\nLowest energy {:.6} (packing fraction {:.6}) in {} ({}) found in {:.1?}",
+            energy,
+            best.packing_fraction,
+            best.group,
+            best.sites_label(),
+            elapsed
+        ),
+        None => println!(
+            "\nBest packing fraction {:.6} in {} ({}) found in {:.1?}",
+            best.packing_fraction,
+            best.group,
+            best.sites_label(),
+            elapsed
+        ),
+    }
+}
+
+fn search(args: SearchArgs) -> Result<(), Error> {
+    let shape = args.shape.spec()?;
+    let config = search_config(
+        &args.monte_carlo,
+        &args.potential,
+        &args.candidates,
+        Strategy::Halving,
+        args.eta,
+    );
+    let (search, elapsed) = run_search(&shape, config)?;
+    let output = &args.candidates.output;
+    fs::create_dir_all(output)?;
+
+    println!(
+        "{:>4}  {:<16} {:>9} {:>10} {:>7} {:>7}",
+        "rank", "candidate", "phi", "energy", "shapes", "rounds"
+    );
+    let mut csv = String::from(
+        "rank,group,sites,packing_fraction,energy,num_shapes,rounds,steps,a,b,angle\n",
+    );
+    for (rank, result) in search.ranking().iter().enumerate() {
+        let best = result.best.as_ref();
+        let (phi, shapes) = best.map_or((0., 0), |s| (s.packing_fraction, s.num_shapes));
         if rank < 20 {
             println!(
-                "{:>4}  {:<16} {:>8.5} {:>10} {:>7} {:>7}",
+                "{:>4}  {:<16} {:>9.5} {:>10} {:>7} {:>7}",
                 rank + 1,
                 result.candidate.label(),
                 phi,
-                energy_text,
+                energy_text(best),
                 shapes,
                 result.rounds
             );
         }
-        let (a, b, angle) = result.best.as_ref().map_or((0., 0., 0.), |s| {
+        let (a, b, angle) = best.map_or((0., 0., 0.), |s| {
             (
                 s.lattice.a().norm(),
                 s.lattice.b().norm(),
@@ -386,55 +517,111 @@ fn search(args: SearchArgs) -> Result<(), Error> {
             )
         });
         csv.push_str(&format!(
-            "{},{},{},{:.8},{},{},{},{:.8},{:.8},{:.6}\n",
+            "{},{},{},{:.8},{},{},{},{},{:.8},{:.8},{:.6}\n",
             rank + 1,
             result.candidate.group,
             result.candidate.sites.iter().collect::<String>(),
             phi,
-            energy.map_or(String::new(), |e| format!("{:.8}", e)),
+            best.and_then(|s| s.energy)
+                .map_or(String::new(), |e| format!("{:.8}", e)),
             shapes,
             result.rounds,
+            result.steps,
             a,
             b,
             angle
         ));
-        if rank < args.top {
-            if let Some(structure) = &result.best {
-                let name = format!(
-                    "rank{:02}-{}",
-                    rank + 1,
-                    result.candidate.label().replace(':', "-")
+    }
+    fs::write(output.join("results.csv"), csv)?;
+    fs::write(
+        output.join("results.json"),
+        serde_json::to_string_pretty(&search)?,
+    )?;
+    report_near_best(&search, &shape, args.candidates.within, output)?;
+    if let Some(best) = search.best() {
+        write_structure(output, "best", &shape, best)?;
+        print_best(best, elapsed);
+    }
+    println!("Results written to {}", output.display());
+    Ok(())
+}
+
+fn survey(args: SurveyArgs) -> Result<(), Error> {
+    let shape = args.shape.spec()?;
+    let config = search_config(
+        &args.monte_carlo,
+        &args.potential,
+        &args.candidates,
+        Strategy::Exhaustive,
+        3,
+    );
+    let (search, elapsed) = run_search(&shape, config)?;
+    let output = &args.candidates.output;
+    let directory = output.join("groups");
+    fs::create_dir_all(&directory)?;
+    let best = search.best().map_or(0., |s| s.score());
+
+    println!(
+        "{:<6} {:<8} {:>9} {:>10} {:>8} {:>7} {:>11}",
+        "group", "sites", "phi", "energy", "below %", "shapes", "candidates"
+    );
+    let mut csv = String::from(
+        "group,sites,packing_fraction,energy,percent_below_best,num_shapes,candidates\n",
+    );
+    for (group, result) in search.best_per_group() {
+        let candidates = search
+            .results
+            .iter()
+            .filter(|r| r.candidate.group == group)
+            .count();
+        match result.and_then(|r| r.best.as_ref().map(|s| (r, s))) {
+            Some((result, structure)) => {
+                let sites: String = result.candidate.sites.iter().collect();
+                let below = percent_below(structure.score(), best);
+                println!(
+                    "{:<6} {:<8} {:>9.5} {:>10} {:>8.3} {:>7} {:>11}",
+                    group,
+                    sites,
+                    structure.packing_fraction,
+                    energy_text(Some(structure)),
+                    below,
+                    structure.num_shapes,
+                    candidates
                 );
-                write_structure(&args.output, &name, &shape, structure)?;
+                csv.push_str(&format!(
+                    "{},{},{:.8},{},{:.6},{},{}\n",
+                    group,
+                    sites,
+                    structure.packing_fraction,
+                    structure
+                        .energy
+                        .map_or(String::new(), |e| format!("{:.8}", e)),
+                    below,
+                    structure.num_shapes,
+                    candidates
+                ));
+                write_structure(&directory, &group, &shape, structure)?;
+            }
+            None => {
+                println!(
+                    "{:<6} {:<8} {:>9} {:>10} {:>8} {:>7} {:>11}",
+                    group, "-", "-", "-", "-", "-", candidates
+                );
+                csv.push_str(&format!("{},,,,,,{}\n", group, candidates));
             }
         }
     }
-    fs::write(args.output.join("results.csv"), csv)?;
+    fs::write(output.join("survey.csv"), csv)?;
     fs::write(
-        args.output.join("results.json"),
+        output.join("survey.json"),
         serde_json::to_string_pretty(&search)?,
     )?;
+    report_near_best(&search, &shape, args.candidates.within, output)?;
     if let Some(best) = search.best() {
-        write_structure(&args.output, "best", &shape, best)?;
-        match best.energy {
-            Some(energy) => println!(
-                "\nLowest energy {:.6} (packing fraction {:.6}) in {} ({}) found in {:.1?}",
-                energy,
-                best.packing_fraction,
-                best.group,
-                best.sites_label(),
-                elapsed
-            ),
-            None => println!(
-                "\nBest packing fraction {:.6} in {} ({}) found in {:.1?}",
-                best.packing_fraction,
-                best.group,
-                best.sites_label(),
-                elapsed
-            ),
-        }
+        write_structure(output, "best", &shape, best)?;
+        print_best(best, elapsed);
     }
-    println!("Results written to {}", args.output.display());
+    println!("Results written to {}", output.display());
     Ok(())
 }
 
@@ -523,6 +710,7 @@ fn main() -> Result<(), Error> {
     }
     match cli.command {
         Command::Search(args) => search(args),
+        Command::Survey(args) => survey(args),
         Command::Optimise(args) => optimise(args),
         Command::Render(args) => render(args),
     }
