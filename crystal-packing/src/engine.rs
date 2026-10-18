@@ -18,6 +18,7 @@
 use anyhow::{anyhow, bail, Error};
 use serde::{Deserialize, Serialize};
 
+use crate::cells::CellList;
 use crate::geometry::{Mat2, Vec2};
 use crate::hard_shape::HardShape;
 use crate::lattice::Lattice;
@@ -117,6 +118,8 @@ pub struct Packing<S: HardShape> {
     /// The images before the last change, swapped back to undo it without placing the shapes
     saved: Vec<Vec<Image<S::Placed>>>,
     undo: Undo,
+    /// The images by their position in the cell, so only nearby images are checked for overlaps
+    cells: CellList,
 }
 
 impl<S: HardShape> Packing<S> {
@@ -212,6 +215,7 @@ impl<S: HardShape> Packing<S> {
             saved: images.clone(),
             images,
             undo: Undo::None,
+            cells: CellList::default(),
             reduced: Mat2::IDENTITY,
             reduced_inverse: Mat2::IDENTITY,
             range: Vec2::ZERO,
@@ -334,6 +338,7 @@ impl<S: HardShape> Packing<S> {
         std::mem::swap(&mut self.images[index], &mut self.saved[index]);
         self.state[index] = state;
         self.update_site_images(index);
+        self.update_site_cells(index);
     }
 
     /// Update the lattice, updating all cached images. This can be undone with
@@ -356,6 +361,46 @@ impl<S: HardShape> Packing<S> {
         for index in 0..self.sites.len() {
             self.update_site_images(index);
         }
+        self.rebuild_cells();
+    }
+
+    /// Divide the cell into a grid, in the fractional coordinates of the reduced basis, with
+    /// cells at least as wide as the contact distance
+    fn rebuild_cells(&mut self) {
+        if !CellList::enough_items(self.num_shapes) {
+            self.cells.disable();
+            return;
+        }
+        let (u, v) = (self.reduced.column(0), self.reduced.column(1));
+        let det = self.reduced.det().abs();
+        // Lines of constant fractional x are parallel to v, so det / |v| apart, and similarly
+        // for y. The grid is limited to about four cells for each image, so a dilute structure
+        // doesn't have many empty cells.
+        let max = (2. * (self.num_shapes as f64).sqrt()).ceil() as usize;
+        let nx = CellList::divisions(det / v.norm(), self.contact, max);
+        let ny = CellList::divisions(det / u.norm(), self.contact, max);
+        if !CellList::useful(nx, ny, self.num_shapes) {
+            // Most structures are too small for a grid, so they skip building it
+            self.cells.disable();
+            return;
+        }
+        let sizes: Vec<usize> = self.images.iter().map(|images| images.len()).collect();
+        let (images, inverse) = (&self.images, self.reduced_inverse);
+        self.cells.rebuild(nx, ny, &sizes, |site, image| {
+            let f = inverse * images[site][image].centre;
+            (f.x, f.y)
+        });
+    }
+
+    /// Move the images of a site to their cells
+    fn update_site_cells(&mut self, index: usize) {
+        if !self.cells.is_enabled() {
+            return;
+        }
+        for (image, placed) in self.images[index].iter().enumerate() {
+            let f = self.reduced_inverse * placed.centre;
+            self.cells.update(index, image, f.x, f.y);
+        }
     }
 
     /// Undo the last change of a site or the lattice, restoring the images from before it
@@ -366,6 +411,7 @@ impl<S: HardShape> Packing<S> {
             Undo::Site(index, state) => {
                 self.state[index] = state;
                 std::mem::swap(&mut self.images[index], &mut self.saved[index]);
+                self.update_site_cells(index);
             }
             Undo::Lattice(lattice, reduced, reduced_inverse, range) => {
                 self.lattice = lattice;
@@ -373,6 +419,7 @@ impl<S: HardShape> Packing<S> {
                 self.reduced_inverse = reduced_inverse;
                 self.range = range;
                 std::mem::swap(&mut self.images, &mut self.saved);
+                self.rebuild_cells();
             }
         }
     }
@@ -538,6 +585,20 @@ impl<S: HardShape> Packing<S> {
     /// Check for overlaps involving any image of the site
     pub fn site_overlaps(&self, index: usize) -> bool {
         let representative = &self.images[index][0];
+        if self.cells.is_enabled() {
+            // The same checks as below, of only the images in the neighbouring cells
+            let overlap = self.cells.any_neighbour(index, 0, |j, l| {
+                self.images_overlap(representative, &self.images[j][l], j == index && l == 0)
+            });
+            return overlap
+                || self.images[index].iter().enumerate().any(|(l, image)| {
+                    self.cells.any_neighbour(index, l, |j, m| {
+                        m == 0
+                            && j != index
+                            && self.images_overlap(&self.images[j][0], image, false)
+                    })
+                });
+        }
         for (j, images) in self.images.iter().enumerate() {
             for (l, image) in images.iter().enumerate() {
                 if self.images_overlap(representative, image, j == index && l == 0) {
@@ -560,6 +621,14 @@ impl<S: HardShape> Packing<S> {
 
     /// Check for any overlaps in the structure
     pub fn any_overlap(&self) -> bool {
+        if self.cells.is_enabled() {
+            return (0..self.images.len()).any(|i| {
+                let representative = &self.images[i][0];
+                self.cells.any_neighbour(i, 0, |j, l| {
+                    self.images_overlap(representative, &self.images[j][l], i == j && l == 0)
+                })
+            });
+        }
         for (i, site_images) in self.images.iter().enumerate() {
             let representative = &site_images[0];
             for (j, images) in self.images.iter().enumerate() {
@@ -717,6 +786,15 @@ mod test {
         packing
     }
 
+    #[test]
+    fn cell_list_used_for_large_cells() {
+        // 30 independent pentagons at a low density use a grid, while a single site doesn't
+        let packing = random_polygon_packing(5, "p1", &['a'; 30], 1, 1.);
+        assert!(packing.cells.is_enabled());
+        let packing = random_polygon_packing(5, "p2", &['e'], 1, 1.);
+        assert!(!packing.cells.is_enabled());
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(300))]
 
@@ -866,6 +944,42 @@ mod test {
             }
             naive /= 2. * shapes.len() as f64;
             prop_assert!((energy - naive).abs() < 1e-9 * naive.abs().max(1.), "{} {}", energy, naive);
+        }
+
+        #[test]
+        fn cell_list_matches_naive(
+            seed in 0u64..10_000,
+            scale in 0.3f64..1.2,
+            (group, letter, count) in prop::sample::select(vec![
+                ("p1", 'a', 30usize),
+                ("p2", 'e', 12),
+                ("p4", 'd', 6),
+                ("p6", 'd', 4),
+                ("p2gg", 'c', 8),
+            ]),
+        ) {
+            let letters = vec![letter; count];
+            let mut packing = random_polygon_packing(5, group, &letters, seed, scale);
+            prop_assume!(packing.cells.is_enabled());
+            prop_assert_eq!(packing.any_overlap(), naive_overlap(&packing));
+            // Moving sites keeps the cells up to date, and the check of a single site agrees
+            let mut rng = Rng::seed_from_u64(seed);
+            for _ in 0..10 {
+                let index = rng.index(count);
+                let mut state = packing.site_state(index);
+                state.position.x += rng.centered() * 0.5;
+                state.position.y += rng.centered() * 0.5;
+                state.angle += rng.centered();
+                packing.set_site(index, state);
+                if rng.index(2) == 0 {
+                    packing.undo();
+                }
+                let full = naive_overlap(&packing);
+                prop_assert_eq!(packing.any_overlap(), full);
+                // A site overlaps only if the structure does, and the site checks find them all
+                let any_site = (0..count).any(|i| packing.site_overlaps(i));
+                prop_assert_eq!(any_site, full);
+            }
         }
 
         #[test]

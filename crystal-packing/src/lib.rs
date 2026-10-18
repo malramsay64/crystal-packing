@@ -32,6 +32,7 @@
 
 #![forbid(unsafe_code)]
 
+mod cells;
 pub mod compare;
 pub mod container;
 pub mod engine;

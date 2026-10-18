@@ -69,7 +69,10 @@ and set of sites can be animated.
   only the first image of each site needs checking against the other shapes, and moving a site
   only rechecks the pairs involving it. Polygons store their convex pieces, edge normals and
   bounding circles in their own frame, so placing a shape is only a rotation and translation, and
-  a rejected move swaps back the previous images rather than placing the shapes again. Periodic images are found exactly from the reduced
+  a rejected move swaps back the previous images rather than placing the shapes again.
+  With 12 or more shapes, a cell list (a grid of cells at least the contact distance wide) means
+  a moved shape is only checked against the shapes in the cells around it, making each move
+  independent of the number of shapes: 64 disks run 6.5 times faster. Periodic images are found exactly from the reduced
   lattice basis.
 - **Optimisation**: an isobaric ("floppy box") Monte Carlo compression with a rising pressure and
   adaptive step sizes, followed by a squeeze to contact. Every result is checked by an

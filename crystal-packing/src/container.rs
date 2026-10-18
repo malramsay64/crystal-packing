@@ -23,6 +23,7 @@ use std::f64::consts::PI;
 use anyhow::{bail, Error};
 use serde::{Deserialize, Serialize};
 
+use crate::cells::CellList;
 use crate::engine::{SiteRecord, Structure};
 use crate::geometry::{convex_hull, perimeter, polygon_area, wrap_angle, Mat2, Vec2};
 use crate::hard_shape::{HardShape, Outline, OVERLAP_TOLERANCE};
@@ -240,6 +241,9 @@ pub struct Confined<S: HardShape> {
     /// The placed shapes before the last change, swapped back to undo it
     saved: Vec<S::Placed>,
     undo: Undo,
+    /// The shapes by position, in a grid covering `extent`, so only nearby shapes are checked
+    cells: CellList,
+    extent: (f64, f64),
 }
 
 impl<S: HardShape> Confined<S> {
@@ -286,6 +290,8 @@ impl<S: HardShape> Confined<S> {
             hull: Cell::new(None),
             saved: vec![S::Placed::default(); n],
             undo: Undo::None,
+            cells: CellList::default(),
+            extent: (1., 1.),
         };
         confined.set_size(confined.size);
         for _ in 0..200 {
@@ -319,10 +325,13 @@ impl<S: HardShape> Confined<S> {
             hull: Cell::new(None),
             saved: vec![S::Placed::default(); n],
             undo: Undo::None,
+            cells: CellList::default(),
+            extent: (1., 1.),
         };
         for (i, site) in structure.sites.iter().enumerate() {
             confined.set_shape(i, Vec2::new(site.x, site.y), site.angle);
         }
+        confined.rebuild_cells();
         Ok(confined)
     }
 
@@ -382,6 +391,7 @@ impl<S: HardShape> Confined<S> {
         self.positions[index] = Vec2::new(x, 2. * position.y / self.size.height);
         self.angles[index] = wrap_angle(angle, 2. * PI);
         self.place(index);
+        self.update_cell(index);
     }
 
     /// Change the size of the container, scaling the positions of the shapes with it. This can be
@@ -392,6 +402,61 @@ impl<S: HardShape> Confined<S> {
         self.size = self.container.constrain(size);
         for index in 0..self.positions.len() {
             self.place(index);
+        }
+        self.rebuild_cells();
+    }
+
+    /// Divide the container into a grid of cells at least as wide as the contact distance.
+    ///
+    /// The grid is periodic, which for a strip is the period of the strip. In a container with
+    /// walls the wrapping only adds pairs of shapes on opposite sides, which can't be in contact,
+    /// and a cluster, which has no size, uses the extent of its shapes, which may later spread
+    /// beyond it with the same effect.
+    fn rebuild_cells(&mut self) {
+        if !CellList::enough_items(self.num_shapes()) {
+            self.cells.disable();
+            return;
+        }
+        self.extent = if self.container.is_cluster() {
+            let n = self.num_shapes();
+            let (lo, hi) = (0..n).map(|i| self.position(i)).fold(
+                (
+                    Vec2::new(f64::INFINITY, f64::INFINITY),
+                    -Vec2::new(f64::INFINITY, f64::INFINITY),
+                ),
+                |(lo, hi), p| {
+                    (
+                        Vec2::new(lo.x.min(p.x), lo.y.min(p.y)),
+                        Vec2::new(hi.x.max(p.x), hi.y.max(p.y)),
+                    )
+                },
+            );
+            (hi.x - lo.x + self.contact, hi.y - lo.y + self.contact)
+        } else {
+            (self.size.width, self.size.height)
+        };
+        let max = (2. * (self.num_shapes() as f64).sqrt()).ceil() as usize;
+        let nx = CellList::divisions(self.extent.0, self.contact, max);
+        let ny = CellList::divisions(self.extent.1, self.contact, max);
+        if !CellList::useful(nx, ny, self.num_shapes()) {
+            self.cells.disable();
+            return;
+        }
+        let n = self.num_shapes();
+        let positions: Vec<(f64, f64)> = (0..n).map(|i| self.grid_position(i)).collect();
+        self.cells.rebuild(nx, ny, &[n], |_, i| positions[i]);
+    }
+
+    /// The position of a shape as a fraction of the extent of the grid
+    fn grid_position(&self, index: usize) -> (f64, f64) {
+        let p = self.position(index);
+        (p.x / self.extent.0, p.y / self.extent.1)
+    }
+
+    fn update_cell(&mut self, index: usize) {
+        if self.cells.is_enabled() {
+            let (x, y) = self.grid_position(index);
+            self.cells.update(0, index, x, y);
         }
     }
 
@@ -423,11 +488,13 @@ impl<S: HardShape> Confined<S> {
                 self.angles[index] = angle;
                 std::mem::swap(&mut self.placed[index], &mut self.saved[index]);
                 self.hull.set(hull);
+                self.update_cell(index);
             }
             Undo::Size(size, hull) => {
                 self.size = size;
                 std::mem::swap(&mut self.placed, &mut self.saved);
                 self.hull.set(hull);
+                self.rebuild_cells();
             }
         }
     }
@@ -466,11 +533,28 @@ impl<S: HardShape> Confined<S> {
 
     /// Whether a shape overlaps another shape, its own periodic images or the walls
     pub fn shape_overlaps(&self, index: usize) -> bool {
+        if self.cells.is_enabled() {
+            // The same checks, against only the shapes in the neighbouring cells
+            return self.outside(index)
+                || self.pair_overlaps(index, index)
+                || self
+                    .cells
+                    .any_neighbour(0, index, |_, j| j != index && self.pair_overlaps(index, j));
+        }
         self.outside(index) || (0..self.num_shapes()).any(|j| self.pair_overlaps(index, j))
     }
 
     pub fn any_overlap(&self) -> bool {
         let n = self.num_shapes();
+        if self.cells.is_enabled() {
+            return (0..n).any(|i| {
+                self.outside(i)
+                    || self.pair_overlaps(i, i)
+                    || self
+                        .cells
+                        .any_neighbour(0, i, |_, j| j > i && self.pair_overlaps(i, j))
+            });
+        }
         (0..n).any(|i| self.outside(i) || (i..n).any(|j| self.pair_overlaps(i, j)))
     }
 
@@ -956,6 +1040,20 @@ mod test {
     }
 
     #[test]
+    fn cell_list_used_for_many_shapes() {
+        let size = ContainerSize {
+            width: 15.,
+            height: 15.,
+        };
+        assert!(random(Molecule::disk(), Container::Square, 30, size, 0)
+            .cells
+            .is_enabled());
+        assert!(!random(Molecule::disk(), Container::Square, 3, size, 0)
+            .cells
+            .is_enabled());
+    }
+
+    #[test]
     fn hull_of_disks() {
         let disks = |centres: &[(f64, f64)], r: f64| -> Vec<Outline> {
             centres
@@ -1197,6 +1295,37 @@ mod test {
             let trimer = Molecule::trimer(0.6, 120., 1.).unwrap();
             let size = ContainerSize { width, height };
             check_overlaps(&random(trimer, container, n, size, seed))?;
+        }
+
+        #[test]
+        fn cell_list_matches_validation(
+            container in containers(),
+            n in 20usize..40,
+            width in 10f64..20.,
+            height in 10f64..20.,
+            seed in 0u64..10_000,
+        ) {
+            // Many shapes in a large container, so the overlaps are found with the cell list
+            let mut confined = random(Molecule::disk(), container, n, ContainerSize { width, height }, seed);
+            prop_assume!(confined.cells.is_enabled());
+            check_overlaps(&confined)?;
+            // Moves, undoing them, and resizing all keep the cells up to date
+            let mut rng = Rng::seed_from_u64(seed);
+            for step in 0..20 {
+                if step % 5 == 4 {
+                    let size = confined.size();
+                    let scale = 0.9 + 0.2 * rng.uniform();
+                    confined.set_size(ContainerSize { width: size.width * scale, height: size.height * scale });
+                } else {
+                    let i = rng.index(n);
+                    let p = confined.position(i) + Vec2::new(rng.centered(), rng.centered()) * 4.;
+                    confined.set_shape(i, p, rng.uniform());
+                }
+                if rng.index(2) == 0 {
+                    confined.undo();
+                }
+                check_overlaps(&confined)?;
+            }
         }
 
         #[test]
