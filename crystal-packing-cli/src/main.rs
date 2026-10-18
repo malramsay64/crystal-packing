@@ -46,6 +46,8 @@ enum Command {
     Search(SearchArgs),
     /// Optimise every candidate of every plane group, reporting the best of each group
     Survey(SurveyArgs),
+    /// Pack independent shapes in a periodic cell, without any symmetry
+    Unconstrained(UnconstrainedArgs),
     /// Optimise a single plane group and choice of Wyckoff sites
     Optimise(OptimiseArgs),
     /// Render a saved structure as an SVG image
@@ -214,7 +216,27 @@ impl MonteCarloArgs {
     }
 }
 
-/// Options shared by the commands searching over candidates
+/// Options for how long to search and which results to report
+#[derive(Debug, Args)]
+struct ReportArgs {
+    /// Report every structure within this percentage of the best
+    #[arg(long, default_value = "2")]
+    within: f64,
+    /// Report at most this many structures
+    #[arg(long)]
+    max_results: Option<usize>,
+    /// Finish after this many rounds without the best result improving
+    #[arg(long, default_value = "2")]
+    patience: usize,
+    /// The maximum number of rounds
+    #[arg(long, default_value = "8")]
+    max_rounds: usize,
+    /// The directory to write the results to
+    #[arg(long, short, default_value = "packing-results")]
+    output: PathBuf,
+}
+
+/// Options shared by the commands searching over plane groups
 #[derive(Debug, Args)]
 struct CandidateArgs {
     /// Comma separated plane groups to search, defaulting to all 17
@@ -226,18 +248,23 @@ struct CandidateArgs {
     /// The maximum number of shapes in the unit cell
     #[arg(long, default_value = "12")]
     max_shapes: usize,
-    /// Report every structure within this percentage of the best
-    #[arg(long, default_value = "2")]
-    within: f64,
-    /// Finish after this many rounds without the best result improving
-    #[arg(long, default_value = "2")]
-    patience: usize,
-    /// The maximum number of rounds
-    #[arg(long, default_value = "8")]
-    max_rounds: usize,
-    /// The directory to write the results to
-    #[arg(long, short, default_value = "packing-results")]
-    output: PathBuf,
+    #[command(flatten)]
+    report: ReportArgs,
+}
+
+#[derive(Debug, Args)]
+struct UnconstrainedArgs {
+    #[command(flatten)]
+    shape: ShapeArgs,
+    #[command(flatten)]
+    monte_carlo: MonteCarloArgs,
+    #[command(flatten)]
+    potential: PotentialArgs,
+    /// Comma separated numbers of shapes in the periodic cell
+    #[arg(long, value_delimiter = ',', default_value = "1,2,3,4")]
+    shapes: Vec<usize>,
+    #[command(flatten)]
+    report: ReportArgs,
 }
 
 #[derive(Debug, Args)]
@@ -349,6 +376,28 @@ fn write_structure(
 fn search_config(
     monte_carlo: &MonteCarloArgs,
     potential: &PotentialArgs,
+    report: &ReportArgs,
+    strategy: Strategy,
+    eta: usize,
+) -> SearchConfig {
+    SearchConfig {
+        replicas: monte_carlo.replicas,
+        steps: monte_carlo.steps,
+        eta,
+        strategy,
+        patience: report.patience,
+        max_rounds: report.max_rounds,
+        within: report.within / 100.,
+        seed: monte_carlo.seed(),
+        monte_carlo: monte_carlo.config(),
+        potential: potential.config(),
+        ..Default::default()
+    }
+}
+
+fn group_config(
+    monte_carlo: &MonteCarloArgs,
+    potential: &PotentialArgs,
     candidates: &CandidateArgs,
     strategy: Strategy,
     eta: usize,
@@ -357,17 +406,7 @@ fn search_config(
         groups: candidates.groups.clone(),
         max_sites: candidates.max_sites,
         max_shapes: candidates.max_shapes,
-        replicas: monte_carlo.replicas,
-        steps: monte_carlo.steps,
-        eta,
-        strategy,
-        patience: candidates.patience,
-        max_rounds: candidates.max_rounds,
-        within: candidates.within / 100.,
-        seed: monte_carlo.seed(),
-        monte_carlo: monte_carlo.config(),
-        potential: potential.config(),
-        ..Default::default()
+        ..search_config(monte_carlo, potential, &candidates.report, strategy, eta)
     }
 }
 
@@ -406,25 +445,30 @@ fn percent_below(score: f64, best: f64) -> f64 {
     100. * (best - score) / best.abs()
 }
 
-/// Print and save every structure within the tolerance of the best
-fn report_near_best(
-    search: &Search,
-    shape: &ShapeSpec,
-    within: f64,
-    output: &Path,
-) -> Result<(), Error> {
-    let near = search.near_best(within / 100.);
+/// Print and save every structure within the tolerance of the best, best first
+fn report_near_best(search: &Search, shape: &ShapeSpec, report: &ReportArgs) -> Result<(), Error> {
+    let all = search.near_best(report.within / 100.);
+    let near = search.near_best_limited(report.within / 100., report.max_results);
     let best = search.best().map_or(0., |s| s.score());
+    let limited = if near.len() < all.len() {
+        format!(", showing the best {}", near.len())
+    } else {
+        String::new()
+    };
     println!(
-        "\n{} structures within {}% of the best:",
-        near.len(),
-        within
+        "\n{} structures within {}% of the best{}:",
+        all.len(),
+        report.within,
+        limited
     );
     println!(
-        "{:<16} {:>9} {:>10} {:>8} {:>7}",
-        "candidate", "phi", "energy", "below %", "shapes"
+        "{:>4}  {:<16} {:>9} {:>10} {:>8} {:>7}",
+        "rank", "candidate", "phi", "energy", "below %", "shapes"
     );
-    let directory = output.join("near-best");
+    let directory = report.output.join("near-best");
+    if directory.exists() {
+        fs::remove_dir_all(&directory)?;
+    }
     fs::create_dir_all(&directory)?;
     let mut structures = vec![];
     for (rank, result) in near.iter().enumerate() {
@@ -433,7 +477,8 @@ fn report_near_best(
             .as_ref()
             .expect("Near best results have a structure");
         println!(
-            "{:<16} {:>9.5} {:>10} {:>8.3} {:>7}",
+            "{:>4}  {:<16} {:>9.5} {:>10} {:>8.3} {:>7}",
+            rank + 1,
             result.candidate.label(),
             structure.packing_fraction,
             energy_text(Some(structure)),
@@ -448,8 +493,9 @@ fn report_near_best(
         write_structure(&directory, &name, shape, structure)?;
         structures.push(structure);
     }
+    println!();
     fs::write(
-        output.join("near-best.json"),
+        report.output.join("near-best.json"),
         serde_json::to_string_pretty(&structures)?,
     )?;
     Ok(())
@@ -475,40 +521,14 @@ fn print_best(best: &Structure, elapsed: Duration) {
     }
 }
 
-fn search(args: SearchArgs) -> Result<(), Error> {
-    let shape = args.shape.spec()?;
-    let config = search_config(
-        &args.monte_carlo,
-        &args.potential,
-        &args.candidates,
-        Strategy::Halving,
-        args.eta,
-    );
-    let (search, elapsed) = run_search(&shape, config)?;
-    let output = &args.candidates.output;
-    fs::create_dir_all(output)?;
-
-    println!(
-        "{:>4}  {:<16} {:>9} {:>10} {:>7} {:>7}",
-        "rank", "candidate", "phi", "energy", "shapes", "rounds"
-    );
+/// Write every candidate's best result as CSV
+fn results_csv(search: &Search) -> String {
     let mut csv = String::from(
         "rank,group,sites,packing_fraction,energy,num_shapes,rounds,steps,a,b,angle\n",
     );
     for (rank, result) in search.ranking().iter().enumerate() {
         let best = result.best.as_ref();
         let (phi, shapes) = best.map_or((0., 0), |s| (s.packing_fraction, s.num_shapes));
-        if rank < 20 {
-            println!(
-                "{:>4}  {:<16} {:>9.5} {:>10} {:>7} {:>7}",
-                rank + 1,
-                result.candidate.label(),
-                phi,
-                energy_text(best),
-                shapes,
-                result.rounds
-            );
-        }
         let (a, b, angle) = best.map_or((0., 0., 0.), |s| {
             (
                 s.lattice.a().norm(),
@@ -532,23 +552,109 @@ fn search(args: SearchArgs) -> Result<(), Error> {
             angle
         ));
     }
-    fs::write(output.join("results.csv"), csv)?;
+    csv
+}
+
+/// Write the files common to every search, and report the best structures
+fn finish_report(
+    search: &Search,
+    shape: &ShapeSpec,
+    report: &ReportArgs,
+    elapsed: Duration,
+) -> Result<(), Error> {
+    let output = &report.output;
+    fs::write(output.join("results.csv"), results_csv(search))?;
     fs::write(
         output.join("results.json"),
-        serde_json::to_string_pretty(&search)?,
+        serde_json::to_string_pretty(search)?,
     )?;
-    report_near_best(&search, &shape, args.candidates.within, output)?;
+    report_near_best(search, shape, report)?;
     if let Some(best) = search.best() {
-        write_structure(output, "best", &shape, best)?;
+        write_structure(output, "best", shape, best)?;
         print_best(best, elapsed);
     }
     println!("Results written to {}", output.display());
     Ok(())
 }
 
+fn search(args: SearchArgs) -> Result<(), Error> {
+    let shape = args.shape.spec()?;
+    let config = group_config(
+        &args.monte_carlo,
+        &args.potential,
+        &args.candidates,
+        Strategy::Halving,
+        args.eta,
+    );
+    let (search, elapsed) = run_search(&shape, config)?;
+    fs::create_dir_all(&args.candidates.report.output)?;
+    finish_report(&search, &shape, &args.candidates.report, elapsed)
+}
+
+fn unconstrained(args: UnconstrainedArgs) -> Result<(), Error> {
+    let shape = args.shape.spec()?;
+    let config = SearchConfig {
+        unconstrained: args.shapes.clone(),
+        ..search_config(
+            &args.monte_carlo,
+            &args.potential,
+            &args.report,
+            Strategy::Exhaustive,
+            3,
+        )
+    };
+    let (search, elapsed) = run_search(&shape, config)?;
+    let output = &args.report.output;
+    fs::create_dir_all(output)?;
+    let best = search.best().map_or(0., |s| s.score());
+    println!(
+        "{:>6} {:>9} {:>10} {:>8} {:>9} {:>9} {:>8}",
+        "shapes", "phi", "energy", "below %", "a", "b", "angle"
+    );
+    let mut csv = String::from("shapes,packing_fraction,energy,percent_below_best,a,b,angle\n");
+    for result in search.results.iter() {
+        let n = result.candidate.sites.len();
+        let Some(structure) = result.best.as_ref() else {
+            println!("{:>6} {:>9}", n, "failed");
+            continue;
+        };
+        let (a, b, angle) = (
+            structure.lattice.a().norm(),
+            structure.lattice.b().norm(),
+            structure.lattice.reduced_angle_degrees(),
+        );
+        let below = percent_below(structure.score(), best);
+        println!(
+            "{:>6} {:>9.5} {:>10} {:>8.3} {:>9.4} {:>9.4} {:>8.2}",
+            n,
+            structure.packing_fraction,
+            energy_text(Some(structure)),
+            below,
+            a,
+            b,
+            angle
+        );
+        csv.push_str(&format!(
+            "{},{:.8},{},{:.6},{:.8},{:.8},{:.6}\n",
+            n,
+            structure.packing_fraction,
+            structure
+                .energy
+                .map_or(String::new(), |e| format!("{:.8}", e)),
+            below,
+            a,
+            b,
+            angle
+        ));
+        write_structure(output, &format!("shapes-{}", n), &shape, structure)?;
+    }
+    fs::write(output.join("unconstrained.csv"), csv)?;
+    finish_report(&search, &shape, &args.report, elapsed)
+}
+
 fn survey(args: SurveyArgs) -> Result<(), Error> {
     let shape = args.shape.spec()?;
-    let config = search_config(
+    let config = group_config(
         &args.monte_carlo,
         &args.potential,
         &args.candidates,
@@ -556,7 +662,7 @@ fn survey(args: SurveyArgs) -> Result<(), Error> {
         3,
     );
     let (search, elapsed) = run_search(&shape, config)?;
-    let output = &args.candidates.output;
+    let output = &args.candidates.report.output;
     let directory = output.join("groups");
     fs::create_dir_all(&directory)?;
     let best = search.best().map_or(0., |s| s.score());
@@ -616,13 +722,7 @@ fn survey(args: SurveyArgs) -> Result<(), Error> {
         output.join("survey.json"),
         serde_json::to_string_pretty(&search)?,
     )?;
-    report_near_best(&search, &shape, args.candidates.within, output)?;
-    if let Some(best) = search.best() {
-        write_structure(output, "best", &shape, best)?;
-        print_best(best, elapsed);
-    }
-    println!("Results written to {}", output.display());
-    Ok(())
+    finish_report(&search, &shape, &args.candidates.report, elapsed)
 }
 
 fn read_structure(path: &Path) -> Result<Structure, Error> {
@@ -711,6 +811,7 @@ fn main() -> Result<(), Error> {
     match cli.command {
         Command::Search(args) => search(args),
         Command::Survey(args) => survey(args),
+        Command::Unconstrained(args) => unconstrained(args),
         Command::Optimise(args) => optimise(args),
         Command::Render(args) => render(args),
     }

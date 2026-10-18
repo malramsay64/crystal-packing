@@ -117,6 +117,115 @@ fn search_lists_results_near_the_best() {
     assert_eq!(images, 2 * near.len());
 }
 
+/// The packing fractions listed in the results table, which follows the line starting with
+/// `title` and ends at the first blank line
+fn table_fractions(text: &str, title: &str) -> Vec<f64> {
+    text.lines()
+        .skip_while(|l| !l.contains(title))
+        .skip(2)
+        .take_while(|l| !l.trim().is_empty())
+        .map(|l| l.split_whitespace().nth(2).unwrap().parse().unwrap())
+        .collect()
+}
+
+#[test]
+fn search_shows_everything_near_the_best_in_order() {
+    let dir = output_dir("search-order");
+    let mut args = vec!["search", "--shape", "polygon", "--sides", "5", "-o"];
+    args.push(dir.to_str().unwrap());
+    args.extend(FAST);
+    let output = packing(&args);
+    assert_success(&output);
+    let text = stdout(&output);
+    // By default every structure within 2% of the best is listed
+    let line = text
+        .lines()
+        .find(|l| l.contains("within 2% of the best"))
+        .unwrap();
+    let count: usize = line.split_whitespace().next().unwrap().parse().unwrap();
+    let fractions = table_fractions(&text, "within 2% of the best");
+    assert_eq!(fractions.len(), count, "{}", text);
+    assert!(
+        fractions.windows(2).all(|w| w[0] >= w[1]),
+        "Not ordered:\n{}",
+        text
+    );
+    assert!(fractions.iter().all(|&f| f >= 0.98 * fractions[0] - 1e-9));
+    // The CSV has every candidate, not only those near the best
+    let csv = fs::read_to_string(dir.join("results.csv")).unwrap();
+    assert!(csv.lines().count() - 1 > count);
+}
+
+#[test]
+fn within_is_configurable() {
+    let dir = output_dir("search-within");
+    let mut args = vec![
+        "search", "--shape", "polygon", "--sides", "5", "--within", "100", "-o",
+    ];
+    args.push(dir.to_str().unwrap());
+    args.extend(FAST);
+    let output = packing(&args);
+    assert_success(&output);
+    let text = stdout(&output);
+    let csv = fs::read_to_string(dir.join("results.csv")).unwrap();
+    // Within 100% of the best includes every candidate
+    let fractions = table_fractions(&text, "within 100% of the best");
+    assert_eq!(fractions.len(), csv.lines().count() - 1, "{}", text);
+    assert!(fractions.windows(2).all(|w| w[0] >= w[1]));
+}
+
+#[test]
+fn number_of_results_can_be_limited() {
+    let dir = output_dir("search-limit");
+    let mut args = vec![
+        "search",
+        "--shape",
+        "polygon",
+        "--sides",
+        "5",
+        "--within",
+        "100",
+        "--max-results",
+        "3",
+        "-o",
+    ];
+    args.push(dir.to_str().unwrap());
+    args.extend(FAST);
+    let output = packing(&args);
+    assert_success(&output);
+    let text = stdout(&output);
+    assert!(text.contains("showing the best 3"), "{}", text);
+    assert_eq!(table_fractions(&text, "within 100% of the best").len(), 3);
+    assert_eq!(fs::read_dir(dir.join("near-best")).unwrap().count(), 6);
+}
+
+#[test]
+fn unconstrained_shapes() {
+    let dir = output_dir("unconstrained");
+    let mut args = vec![
+        "unconstrained",
+        "--shape",
+        "polygon",
+        "--sides",
+        "4",
+        "--shapes",
+        "1,2,3",
+        "-o",
+    ];
+    args.push(dir.to_str().unwrap());
+    args.extend(FAST);
+    let output = packing(&args);
+    assert_success(&output);
+    let text = stdout(&output);
+    let csv = fs::read_to_string(dir.join("unconstrained.csv")).unwrap();
+    assert!(csv.starts_with("shapes,"));
+    assert_eq!(csv.lines().count(), 4, "{}", csv);
+    for n in 1..=3 {
+        assert!(dir.join(format!("shapes-{}.svg", n)).exists());
+    }
+    assert!(text.contains("shapes"), "{}", text);
+}
+
 #[test]
 fn optimise_and_render() {
     let dir = output_dir("optimise");
