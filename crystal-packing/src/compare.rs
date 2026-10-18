@@ -11,7 +11,7 @@
 //! compared using the local environment of every shape, which doesn't depend on any of these
 //! choices.
 
-use anyhow::Error;
+use anyhow::{bail, Error};
 
 use crate::engine::Structure;
 use crate::geometry::{Mat2, Vec2};
@@ -195,6 +195,135 @@ impl Fingerprint {
 /// Whether two structures of a shape are the same crystal
 pub fn equivalent<S: HardShape>(shape: &S, a: &Structure, b: &Structure) -> Result<bool, Error> {
     Ok(Fingerprint::new(shape, a)?.matches(&Fingerprint::new(shape, b)?))
+}
+
+/// Whether two structures of shapes in a container are the same arrangement.
+///
+/// The containers need to be the same, and the arrangements are compared using the distances of
+/// the points of the shapes from the centre of the container and from each other, which don't
+/// change when the arrangement is rotated or reflected, or the shapes are listed in another order.
+pub fn equivalent_confined<S: HardShape>(
+    shape: &S,
+    a: &Structure,
+    b: &Structure,
+) -> Result<bool, Error> {
+    let (Some(ca), Some(cb)) = (a.container, b.container) else {
+        bail!("Both structures need to be in a container");
+    };
+    let scale = shape.circumradius();
+    let tolerance = DISTANCE_TOLERANCE * scale;
+    let mut size_a = [ca.width, ca.height];
+    let mut size_b = [cb.width, cb.height];
+    size_a.sort_by(f64::total_cmp);
+    size_b.sort_by(f64::total_cmp);
+    if ca.kind != cb.kind
+        || a.num_shapes != b.num_shapes
+        || size_a
+            .iter()
+            .zip(size_b.iter())
+            .any(|(x, y)| (x - y).abs() > tolerance)
+    {
+        return Ok(false);
+    }
+    let features = |structure: &Structure| {
+        let points: Vec<Vec2> = structure
+            .sites
+            .iter()
+            .flat_map(|site| {
+                let centre = Vec2::new(site.x, site.y);
+                points(&shape.outlines(&Mat2::rotation(site.angle), centre))
+            })
+            .collect();
+        let mut radial: Vec<f64> = points.iter().map(|p| p.norm()).collect();
+        let mut pairs: Vec<f64> = points
+            .iter()
+            .enumerate()
+            .flat_map(|(i, p)| points.iter().skip(i + 1).map(move |q| (*p - *q).norm()))
+            .collect();
+        radial.sort_by(f64::total_cmp);
+        pairs.sort_by(f64::total_cmp);
+        (radial, pairs)
+    };
+    let close = |x: &[f64], y: &[f64]| {
+        x.len() == y.len()
+            && x.iter()
+                .zip(y.iter())
+                .all(|(p, q)| (p - q).abs() < tolerance)
+    };
+    let (radial_a, pairs_a) = features(a);
+    let (radial_b, pairs_b) = features(b);
+    Ok(close(&radial_a, &radial_b) && close(&pairs_a, &pairs_b))
+}
+
+#[cfg(test)]
+mod confined_test {
+    use super::*;
+    use crate::container::{Container, ContainerState};
+    use crate::engine::SiteRecord;
+    use crate::hard_shape::Molecule;
+    use crate::lattice::Lattice;
+    use crate::symmetry::LatticeFamily;
+
+    /// Seven unit disks in a circle of radius 3: one at the centre and six around it
+    fn seven_disks(rotation: f64, reflect: bool) -> Structure {
+        let mut sites = vec![SiteRecord {
+            letter: 'a',
+            x: 0.,
+            y: 0.,
+            angle: 0.,
+        }];
+        for k in 0..6 {
+            let angle = rotation + std::f64::consts::PI / 3. * k as f64;
+            let y = 2. * angle.sin();
+            sites.push(SiteRecord {
+                letter: 'a',
+                x: 2. * angle.cos(),
+                y: if reflect { -y } else { y },
+                angle: 0.,
+            });
+        }
+        Structure {
+            shape: "Disk".into(),
+            group: "finite".into(),
+            sites,
+            lattice: Lattice::from_parameters(LatticeFamily::Rectangular, &[6., 6.]),
+            num_shapes: 7,
+            packing_fraction: 7. / 9.,
+            energy: None,
+            container: Some(ContainerState {
+                kind: Container::Circle,
+                width: 6.,
+                height: 6.,
+            }),
+        }
+    }
+
+    #[test]
+    fn rotated_and_reflected_are_equivalent() {
+        let disk = Molecule::disk();
+        let a = seven_disks(0., false);
+        let b = seven_disks(0.37, true);
+        // The shapes can be listed in any order
+        let mut c = seven_disks(1.1, false);
+        c.sites.reverse();
+        assert!(equivalent_confined(&disk, &a, &b).unwrap());
+        assert!(equivalent_confined(&disk, &a, &c).unwrap());
+    }
+
+    #[test]
+    fn different_arrangements_differ() {
+        let disk = Molecule::disk();
+        let a = seven_disks(0., false);
+        let mut b = a.clone();
+        // Move one outer disk inwards slightly
+        b.sites[3].x *= 0.97;
+        b.sites[3].y *= 0.97;
+        assert!(!equivalent_confined(&disk, &a, &b).unwrap());
+        // A different container
+        let mut c = a.clone();
+        c.container.as_mut().unwrap().kind = Container::Square;
+        assert!(!equivalent_confined(&disk, &a, &c).unwrap());
+    }
 }
 
 #[cfg(test)]

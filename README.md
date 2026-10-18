@@ -104,6 +104,9 @@ disks and 0.449 for triangles, and didn't improve with more steps.
 
 ## Testing
 
+The minimum supported Rust version is 1.88. CI checks formatting, clippy (native and wasm) and the
+documentation with warnings as errors, runs every test suite, and audits the dependencies.
+
 - Unit and property tests compare the overlap checks with brute force implementations, check the
   symmetry data against the International Tables, and test the search scheduling with fake results.
 - `tests/regression.rs`: the known densest packings above.
@@ -116,6 +119,9 @@ disks and 0.449 for triangles, and didn't improve with more steps.
 - `tests/confined.rs`: known optimal packings of disks, squares and triangles in containers.
 - `tests/distinct.rs`: full searches find a single distinct structure near the best for pentagons
   and disks, and three for heptagons.
+- `tests/known_geometries.rs`: known densest arrangements are constructed by hand (the hexagonal
+  disk packing, square lattice, triangle tiling and honeycomb, and disks and squares in containers)
+  and the structures the search finds are compared with them, not just their packing fractions.
 - `crystal-packing-cli/tests`: run the `packing` binary.
 - `crystal-packing-wasm/tests`: the WebAssembly build matches the native build exactly, and the
   web front end runs a search with live views of every worker, filters the results near the best,
@@ -124,7 +130,6 @@ disks and 0.449 for triangles, and didn't improve with more steps.
 ```bash
 cargo test --workspace
 # The slower suites, in release mode
-cargo test --release -p crystal_packing --test regression --test adversarial --test unconstrained \
-    --test confined --test distinct -- --ignored
+cargo test --release --workspace -- --include-ignored
 cargo bench -p crystal_packing --bench engine
 ```

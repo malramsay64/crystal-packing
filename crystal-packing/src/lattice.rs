@@ -65,9 +65,9 @@ impl Lattice {
 
     /// Create a lattice from its free parameters
     ///
-    /// - Oblique: [a_x, b_x, b_y]
-    /// - Rectangular: [a, b]
-    /// - Square and Hexagonal: [a]
+    /// - Oblique: `[a_x, b_x, b_y]`
+    /// - Rectangular: `[a, b]`
+    /// - Square and Hexagonal: `[a]`
     pub fn from_parameters(family: LatticeFamily, p: &[f64]) -> Lattice {
         let matrix = match family {
             LatticeFamily::Oblique => Mat2::new(p[0], p[1], 0., p[2]),

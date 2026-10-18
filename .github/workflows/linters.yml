@@ -25,3 +25,28 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps
+
+  clippy-wasm:
+    name: Clippy (wasm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Run cargo clippy
+        run: cargo clippy -p crystal-packing-wasm --target wasm32-unknown-unknown -- -D warnings

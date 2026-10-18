@@ -13,6 +13,20 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
+  msrv:
+    name: Minimum supported Rust version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Check
+        run: |
+          cargo check --workspace --all-targets
+          cargo check -p crystal-packing-wasm --target wasm32-unknown-unknown
+
   regression:
     name: Known packings
     runs-on: ubuntu-latest
@@ -30,6 +44,8 @@ jobs:
         run: cargo test --release -p crystal_packing --test confined -- --ignored --nocapture
       - name: Run distinct structures
         run: cargo test --release -p crystal_packing --test distinct -- --ignored --nocapture
+      - name: Run known geometries
+        run: cargo test --release -p crystal_packing --test known_geometries -- --ignored --nocapture
 
   wasm:
     name: WebAssembly
