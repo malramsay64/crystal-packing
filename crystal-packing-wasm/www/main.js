@@ -66,7 +66,9 @@ function showRanking(results) {
       const row = document.createElement("tr");
       const phi = result.best ? result.best.packing_fraction.toFixed(5) : "—";
       const shapes = result.best ? result.best.num_shapes : "—";
-      for (const value of [index + 1, `${result.candidate.group}:${result.candidate.sites.join("")}`, phi, shapes]) {
+      const energy = result.best?.energy != null ? result.best.energy.toFixed(4) : "—";
+      const label = `${result.candidate.group}:${result.candidate.sites.join("")}`;
+      for (const value of [index + 1, label, phi, energy, shapes]) {
         const cell = document.createElement("td");
         cell.textContent = value;
         row.append(cell);
@@ -86,6 +88,7 @@ async function search(event) {
     steps: Number(data.get("steps")),
     seed: Number(data.get("seed")),
   };
+  if (data.get("potential") === "lj") config.potential = {};
   const groups = String(data.get("groups")).split(",").map((g) => g.trim()).filter(Boolean);
   if (groups.length) config.groups = groups;
 
@@ -120,7 +123,7 @@ async function search(event) {
   const best = JSON.parse(searcher.best());
   status.textContent = cancelled
     ? "Stopped"
-    : `Best packing fraction ${best.packing_fraction.toFixed(6)} in ${best.group} (${best.sites
+    : `${best.energy != null ? `Lowest energy ${best.energy.toFixed(6)}, packing fraction` : "Best packing fraction"} ${best.packing_fraction.toFixed(6)} in ${best.group} (${best.sites
         .map((s) => s.letter)
         .join("")}) after ${seconds} s`;
   document.body.dataset.result = JSON.stringify(best);

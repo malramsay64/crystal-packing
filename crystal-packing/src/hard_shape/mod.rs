@@ -22,7 +22,7 @@ use crate::geometry::{angle_distance, wrap_angle, Mat2, Vec2};
 mod molecule;
 mod polygon;
 
-pub use molecule::{Disk, Molecule};
+pub use molecule::{Disk, Molecule, PlacedMolecule};
 pub use polygon::Polygon;
 
 /// The relative tolerance used when deciding whether two shapes are touching or overlapping.

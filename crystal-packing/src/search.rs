@@ -26,6 +26,7 @@ use crate::engine::{Packing, Structure};
 use crate::geometry::Vec2;
 use crate::hard_shape::{HardShape, Molecule, Polygon, ShapeSymmetry};
 use crate::monte_carlo::{MonteCarloConfig, Optimiser, Progress};
+use crate::potential::{Annealer, LennardJones};
 use crate::random::Rng;
 use crate::symmetry::{PlaneGroup, SymOp};
 use crate::validate::validate;
@@ -293,6 +294,9 @@ pub struct Job {
     pub seed: u64,
     pub config: MonteCarloConfig,
     pub start: Option<Structure>,
+    /// Minimise the energy of this potential rather than maximising the packing fraction
+    #[serde(default)]
+    pub potential: Option<LennardJones>,
 }
 
 /// The result of running a [`Job`]
@@ -307,16 +311,44 @@ impl Outcome {
     pub fn packing_fraction(&self) -> f64 {
         self.structure.as_ref().map_or(0., |s| s.packing_fraction)
     }
+
+    /// The value being maximised, see [`Structure::score`]
+    pub fn score(&self) -> f64 {
+        self.structure
+            .as_ref()
+            .map_or(f64::NEG_INFINITY, |s| s.score())
+    }
 }
 
-fn start_optimiser<S: HardShape>(shape: S, job: &Job) -> Result<Optimiser<S>, Error> {
+fn start_packing<S: HardShape>(shape: S, job: &Job) -> Result<(Packing<S>, u64), Error> {
     let group = PlaneGroup::from_name(&job.candidate.group)?;
     let mut rng = Rng::seed_from_u64(job.seed);
     let packing = match &job.start {
         Some(structure) => Packing::from_structure(shape, structure)?,
         None => Packing::new(shape, group, &job.candidate.sites, &mut rng)?,
     };
-    Ok(Optimiser::new(packing, job.config, rng.next_u64()))
+    Ok((packing, rng.next_u64()))
+}
+
+fn start_optimiser<S: HardShape>(shape: S, job: &Job) -> Result<Optimiser<S>, Error> {
+    let (packing, seed) = start_packing(shape, job)?;
+    Ok(Optimiser::new(packing, job.config, seed))
+}
+
+fn start_annealer(shape: AnyShape, potential: LennardJones, job: &Job) -> Result<Annealer, Error> {
+    let AnyShape::Molecule(shape) = shape else {
+        bail!("A potential can only be used with molecules made of disks");
+    };
+    let (packing, seed) = start_packing(shape, job)?;
+    Ok(Annealer::new(packing, potential, job.config.steps, seed))
+}
+
+fn finish_annealer(annealer: &mut Annealer) -> Result<Structure, Error> {
+    let structure = annealer.finish();
+    match structure.energy {
+        Some(e) if e.is_finite() && structure.lattice.is_valid() => Ok(structure),
+        _ => bail!("Annealing produced an invalid structure"),
+    }
 }
 
 fn finish_optimiser<S: HardShape>(optimiser: &mut Optimiser<S>) -> Result<Structure, Error> {
@@ -329,6 +361,7 @@ fn finish_optimiser<S: HardShape>(optimiser: &mut Optimiser<S>) -> Result<Struct
 enum AnyOptimiser {
     Polygon(Box<Optimiser<Polygon>>),
     Molecule(Box<Optimiser<Molecule>>),
+    Annealer(Box<Annealer>),
 }
 
 /// Runs a [`Job`] in slices, so the progress can be reported and the work interleaved with
@@ -344,11 +377,14 @@ impl JobRunner {
             .shape
             .build()
             .and_then(|shape| {
-                Ok(match shape {
-                    AnyShape::Polygon(s) => {
+                Ok(match (shape, job.potential) {
+                    (shape, Some(potential)) => {
+                        AnyOptimiser::Annealer(Box::new(start_annealer(shape, potential, job)?))
+                    }
+                    (AnyShape::Polygon(s), None) => {
                         AnyOptimiser::Polygon(Box::new(start_optimiser(s, job)?))
                     }
-                    AnyShape::Molecule(s) => {
+                    (AnyShape::Molecule(s), None) => {
                         AnyOptimiser::Molecule(Box::new(start_optimiser(s, job)?))
                     }
                 })
@@ -365,6 +401,7 @@ impl JobRunner {
         match self.optimiser.as_mut().ok()? {
             AnyOptimiser::Polygon(o) => Some(o.run(steps)),
             AnyOptimiser::Molecule(o) => Some(o.run(steps)),
+            AnyOptimiser::Annealer(o) => Some(o.run(steps)),
         }
     }
 
@@ -372,6 +409,7 @@ impl JobRunner {
         match &self.optimiser {
             Ok(AnyOptimiser::Polygon(o)) => o.is_complete(),
             Ok(AnyOptimiser::Molecule(o)) => o.is_complete(),
+            Ok(AnyOptimiser::Annealer(o)) => o.is_complete(),
             Err(_) => true,
         }
     }
@@ -381,6 +419,7 @@ impl JobRunner {
         let result = match self.optimiser.as_mut() {
             Ok(AnyOptimiser::Polygon(o)) => finish_optimiser(o).map_err(|e| e.to_string()),
             Ok(AnyOptimiser::Molecule(o)) => finish_optimiser(o).map_err(|e| e.to_string()),
+            Ok(AnyOptimiser::Annealer(o)) => finish_annealer(o).map_err(|e| e.to_string()),
             Err(e) => Err(e.clone()),
         };
         match result {
@@ -423,6 +462,9 @@ pub struct SearchConfig {
     pub eta: usize,
     pub seed: u64,
     pub monte_carlo: MonteCarloConfig,
+    /// Minimise the energy of this potential rather than maximising the packing fraction
+    #[serde(default)]
+    pub potential: Option<LennardJones>,
 }
 
 impl Default for SearchConfig {
@@ -436,6 +478,7 @@ impl Default for SearchConfig {
             eta: 3,
             seed: 0,
             monte_carlo: MonteCarloConfig::default(),
+            potential: None,
         }
     }
 }
@@ -547,6 +590,7 @@ impl Search {
                     seed: Rng::derive_seed(self.config.seed, &values),
                     config,
                     start,
+                    potential: self.config.potential,
                 });
             }
         }
@@ -571,7 +615,7 @@ impl Search {
                 let better = result
                     .best
                     .as_ref()
-                    .is_none_or(|b| structure.packing_fraction > b.packing_fraction);
+                    .is_none_or(|b| structure.score() > b.score());
                 if better {
                     result.best = Some(structure);
                 }
@@ -585,7 +629,7 @@ impl Search {
             self.results[*i]
                 .best
                 .as_ref()
-                .map_or(0., |s| s.packing_fraction)
+                .map_or(f64::NEG_INFINITY, |s| s.score())
         };
         let mut ranked = self.active.clone();
         ranked.sort_by(|a, b| score(b).partial_cmp(&score(a)).unwrap_or(Ordering::Equal));
@@ -598,7 +642,7 @@ impl Search {
     /// All candidates ranked by their best packing fraction
     pub fn ranking(&self) -> Vec<&CandidateResult> {
         let mut ranked: Vec<&CandidateResult> = self.results.iter().collect();
-        let score = |r: &CandidateResult| r.best.as_ref().map_or(0., |s| s.packing_fraction);
+        let score = |r: &CandidateResult| r.best.as_ref().map_or(f64::NEG_INFINITY, |s| s.score());
         ranked.sort_by(|a, b| score(b).total_cmp(&score(a)));
         ranked
     }
@@ -727,6 +771,7 @@ mod test {
                 ..Default::default()
             },
             start: None,
+            potential: None,
         };
         let mut runner = JobRunner::new(&job);
         while !runner.is_complete() {
@@ -746,6 +791,7 @@ mod test {
             seed: 0,
             config: MonteCarloConfig::default(),
             start: None,
+            potential: None,
         };
         let outcome = run_job(&job);
         assert!(outcome.structure.is_none());

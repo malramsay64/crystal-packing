@@ -3,40 +3,45 @@
 // Copyright (C) 2019 Malcolm Ramsay <malramsay64@gmail.com>
 // Distributed under terms of the MIT license.
 //
-// This file is primarily for the definition of the public API of the crate, with most of the
-// functions and data structures being defined in submodules. This should additionally mean that
-// most of the imports throughout the rest of the crate can just be from the top level and nicely
-// grouped together.
 
-pub mod basis;
-pub mod cell;
+//! Finding dense packings of 2D shapes in periodic crystal structures.
+//!
+//! The crystal structures are described by one of the 17 plane groups ([`symmetry`]) with a set of
+//! occupied Wyckoff positions, a unit cell ([`lattice`]) and the free parameters of each occupied
+//! site. A [`engine::Packing`] holds such a structure for a [`hard_shape::HardShape`], checking for
+//! overlaps using the symmetry of the structure. The structures are compressed using isobaric
+//! Monte Carlo ([`monte_carlo`]), or for molecules interacting through a Lennard-Jones potential,
+//! the lattice energy is minimised with simulated annealing ([`potential`]).
+//!
+//! A [`search::Search`] finds the best structure over every compatible plane group and choice of
+//! Wyckoff sites, splitting the work into independent jobs which can run in parallel.
+//!
+//! ```
+//! use crystal_packing::search::{Search, SearchConfig, ShapeSpec};
+//!
+//! let config = SearchConfig {
+//!     groups: vec!["p2".into()],
+//!     replicas: 2,
+//!     steps: 5_000,
+//!     ..Default::default()
+//! };
+//! let mut search = Search::new(ShapeSpec::Polygon { sides: 4 }, config).unwrap();
+//! let best = search.run().unwrap();
+//! assert!(best.packing_fraction > 0.99);
+//! ```
+
+#![forbid(unsafe_code)]
+
 pub mod engine;
 pub mod geometry;
 pub mod hard_shape;
 pub mod lattice;
 pub mod monte_carlo;
-pub mod ops_macros;
-pub mod optimisation;
+pub mod potential;
 pub mod random;
 pub mod render;
 pub mod search;
-pub mod shape;
-pub mod site;
-pub mod state;
 pub mod symmetry;
-pub mod to_svg;
-pub mod traits;
-pub mod transform;
 pub mod validate;
-pub mod wallpaper;
 
-pub use crate::basis::*;
-pub use crate::cell::*;
-pub use crate::optimisation::*;
 pub use crate::random::Rng;
-pub use crate::shape::*;
-pub use crate::site::*;
-pub use crate::state::*;
-pub use crate::traits::{FromSymmetry, Intersect, Shape};
-pub use crate::transform::Transform2;
-pub use crate::wallpaper::WallpaperGroup;

@@ -28,6 +28,12 @@
           <option value="trimer">Trimer</option>
         </select>
       </label>
+      <label>Potential
+        <select name="potential">
+          <option value="hard">Hard shapes</option>
+          <option value="lj">Lennard-Jones (disks and trimers)</option>
+        </select>
+      </label>
       <label>Sides <input name="sides" type="number" min="3" value="5" /></label>
       <label>Trimer radius <input name="radius" type="number" step="any" value="0.637556" /></label>
       <label>Trimer angle <input name="angle" type="number" step="any" value="120" /></label>
@@ -45,7 +51,7 @@
     <main>
       <div id="structure"></div>
       <table id="ranking">
-        <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>N</th></tr></thead>
+        <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>N</th></tr></thead>
         <tbody></tbody>
       </table>
     </main>

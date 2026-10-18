@@ -8,5 +8,5 @@
 
 
 #!/bin/bash
-cargo build --release
-cargo install --bin packing --path . --root $PREFIX
+cargo build --release -p crystal-packing-cli
+cargo install --bin packing --path crystal-packing-cli --root $PREFIX

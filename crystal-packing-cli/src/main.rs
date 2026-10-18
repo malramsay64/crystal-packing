@@ -16,11 +16,10 @@ use rayon::prelude::*;
 
 use crystal_packing::engine::Structure;
 use crystal_packing::monte_carlo::MonteCarloConfig;
+use crystal_packing::potential::LennardJones;
 use crystal_packing::render::render_structure;
 use crystal_packing::search::{run_job, Candidate, Job, Search, SearchConfig, ShapeSpec};
 use crystal_packing::Rng;
-
-mod legacy;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -49,8 +48,51 @@ enum Command {
     Optimise(OptimiseArgs),
     /// Render a saved structure as an SVG image
     Render(RenderArgs),
-    /// The original optimisation, which also supports the Lennard-Jones potential
-    Legacy(legacy::LegacyArgs),
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum PotentialKind {
+    /// Hard shapes, maximising the packing fraction
+    Hard,
+    /// Lennard-Jones atoms (σ is twice the atom radius), minimising the lattice energy
+    Lj,
+}
+
+#[derive(Debug, Args)]
+struct PotentialArgs {
+    /// The interaction between shapes
+    #[arg(long, value_enum, default_value = "hard")]
+    potential: PotentialKind,
+    /// The depth of the Lennard-Jones potential
+    #[arg(long, default_value = "1")]
+    epsilon: f64,
+    /// The cutoff of the Lennard-Jones potential in units of σ
+    #[arg(long, default_value = "2.5")]
+    cutoff: f64,
+    /// The temperature at the start of the annealing
+    #[arg(long, default_value = "0.1")]
+    kt_start: f64,
+    /// The temperature at the end of the annealing
+    #[arg(long, default_value = "0.001")]
+    kt_end: f64,
+    /// The pressure applied to the cell when annealing
+    #[arg(long, default_value = "0")]
+    pressure: f64,
+}
+
+impl PotentialArgs {
+    fn config(&self) -> Option<LennardJones> {
+        match self.potential {
+            PotentialKind::Hard => None,
+            PotentialKind::Lj => Some(LennardJones {
+                epsilon: self.epsilon,
+                cutoff: self.cutoff,
+                kt_start: self.kt_start,
+                kt_end: self.kt_end,
+                pressure: self.pressure,
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -176,6 +218,8 @@ struct SearchArgs {
     shape: ShapeArgs,
     #[command(flatten)]
     monte_carlo: MonteCarloArgs,
+    #[command(flatten)]
+    potential: PotentialArgs,
     /// Comma separated plane groups to search, defaulting to all 17
     #[arg(long, value_delimiter = ',')]
     groups: Vec<String>,
@@ -202,6 +246,8 @@ struct OptimiseArgs {
     shape: ShapeArgs,
     #[command(flatten)]
     monte_carlo: MonteCarloArgs,
+    #[command(flatten)]
+    potential: PotentialArgs,
     /// The plane group, e.g. p2gg
     #[arg(long)]
     group: String,
@@ -285,6 +331,7 @@ fn search(args: SearchArgs) -> Result<(), Error> {
         eta: args.eta,
         seed,
         monte_carlo: args.monte_carlo.config(),
+        potential: args.potential.config(),
     };
     let mut search = Search::new(shape.clone(), config)?;
     info!(
@@ -308,21 +355,25 @@ fn search(args: SearchArgs) -> Result<(), Error> {
     fs::create_dir_all(&args.output)?;
     let ranking = search.ranking();
     println!(
-        "{:>4}  {:<16} {:>8} {:>8} {:>7}",
-        "rank", "candidate", "phi", "shapes", "rounds"
+        "{:>4}  {:<16} {:>8} {:>10} {:>7} {:>7}",
+        "rank", "candidate", "phi", "energy", "shapes", "rounds"
     );
-    let mut csv = String::from("rank,group,sites,packing_fraction,num_shapes,rounds,a,b,angle\n");
+    let mut csv =
+        String::from("rank,group,sites,packing_fraction,energy,num_shapes,rounds,a,b,angle\n");
     for (rank, result) in ranking.iter().enumerate() {
         let (phi, shapes) = result
             .best
             .as_ref()
             .map_or((0., 0), |s| (s.packing_fraction, s.num_shapes));
+        let energy = result.best.as_ref().and_then(|s| s.energy);
+        let energy_text = energy.map_or(String::from("-"), |e| format!("{:.5}", e));
         if rank < 20 {
             println!(
-                "{:>4}  {:<16} {:>8.5} {:>8} {:>7}",
+                "{:>4}  {:<16} {:>8.5} {:>10} {:>7} {:>7}",
                 rank + 1,
                 result.candidate.label(),
                 phi,
+                energy_text,
                 shapes,
                 result.rounds
             );
@@ -335,11 +386,12 @@ fn search(args: SearchArgs) -> Result<(), Error> {
             )
         });
         csv.push_str(&format!(
-            "{},{},{},{:.8},{},{},{:.8},{:.8},{:.6}\n",
+            "{},{},{},{:.8},{},{},{},{:.8},{:.8},{:.6}\n",
             rank + 1,
             result.candidate.group,
             result.candidate.sites.iter().collect::<String>(),
             phi,
+            energy.map_or(String::new(), |e| format!("{:.8}", e)),
             shapes,
             result.rounds,
             a,
@@ -364,13 +416,23 @@ fn search(args: SearchArgs) -> Result<(), Error> {
     )?;
     if let Some(best) = search.best() {
         write_structure(&args.output, "best", &shape, best)?;
-        println!(
-            "\nBest packing fraction {:.6} in {} ({}) found in {:.1?}",
-            best.packing_fraction,
-            best.group,
-            best.sites_label(),
-            elapsed
-        );
+        match best.energy {
+            Some(energy) => println!(
+                "\nLowest energy {:.6} (packing fraction {:.6}) in {} ({}) found in {:.1?}",
+                energy,
+                best.packing_fraction,
+                best.group,
+                best.sites_label(),
+                elapsed
+            ),
+            None => println!(
+                "\nBest packing fraction {:.6} in {} ({}) found in {:.1?}",
+                best.packing_fraction,
+                best.group,
+                best.sites_label(),
+                elapsed
+            ),
+        }
     }
     println!("Results written to {}", args.output.display());
     Ok(())
@@ -398,6 +460,7 @@ fn optimise(args: OptimiseArgs) -> Result<(), Error> {
             seed: Rng::derive_seed(seed, &[replica as u64]),
             config: args.monte_carlo.config(),
             start: start.clone(),
+            potential: args.potential.config(),
         })
         .collect();
     let outcomes = run_jobs(&jobs, candidate.label());
@@ -409,15 +472,23 @@ fn optimise(args: OptimiseArgs) -> Result<(), Error> {
     let best = outcomes
         .into_iter()
         .filter_map(|o| o.structure)
-        .max_by(|a, b| a.packing_fraction.total_cmp(&b.packing_fraction))
+        .max_by(|a, b| a.score().total_cmp(&b.score()))
         .context("No structure was found")?;
     fs::create_dir_all(&args.output)?;
     write_structure(&args.output, "best", &shape, &best)?;
-    println!(
-        "Best packing fraction {:.6}, written to {}",
-        best.packing_fraction,
-        args.output.display()
-    );
+    match best.energy {
+        Some(energy) => println!(
+            "Lowest energy {:.6}, packing fraction {:.6}, written to {}",
+            energy,
+            best.packing_fraction,
+            args.output.display()
+        ),
+        None => println!(
+            "Best packing fraction {:.6}, written to {}",
+            best.packing_fraction,
+            args.output.display()
+        ),
+    }
     Ok(())
 }
 
@@ -454,6 +525,5 @@ fn main() -> Result<(), Error> {
         Command::Search(args) => search(args),
         Command::Optimise(args) => optimise(args),
         Command::Render(args) => render(args),
-        Command::Legacy(args) => legacy::run(args),
     }
 }

@@ -120,6 +120,13 @@ pub struct PlacedMolecule {
     scale: f64,
 }
 
+impl PlacedMolecule {
+    /// The position and radius of each atom
+    pub fn atoms(&self) -> &[(Vec2, f64)] {
+        &self.atoms
+    }
+}
+
 impl HardShape for Molecule {
     type Placed = PlacedMolecule;
 

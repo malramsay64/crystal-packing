@@ -82,7 +82,7 @@ pub struct StepSize {
 }
 
 impl StepSize {
-    fn new(size: f64, min: f64, max: f64) -> Self {
+    pub(crate) fn new(size: f64, min: f64, max: f64) -> Self {
         StepSize {
             size,
             min,
@@ -94,7 +94,7 @@ impl StepSize {
         }
     }
 
-    fn record(&mut self, accepted: bool, interval: u64, target: f64) {
+    pub(crate) fn record(&mut self, accepted: bool, interval: u64, target: f64) {
         self.attempts += 1;
         self.total_attempts += 1;
         if accepted {
@@ -128,6 +128,8 @@ pub struct Progress {
     pub pressure: f64,
     pub packing_fraction: f64,
     pub best_packing_fraction: f64,
+    /// The lowest enthalpy per molecule, when minimising an energy
+    pub best_energy: Option<f64>,
 }
 
 /// A resumable Monte Carlo compression of a packing
@@ -143,8 +145,88 @@ pub struct Optimiser<S: HardShape> {
     best_packing_fraction: f64,
 }
 
+/// Displace a site by a random amount in Cartesian space, in units of the shape's circumradius
+pub(crate) fn propose_translation<S: HardShape>(
+    packing: &Packing<S>,
+    index: usize,
+    step: f64,
+    rng: &mut Rng,
+) -> SiteState {
+    let mut new = packing.site_state(index);
+    let free = packing.sites()[index].free;
+    let scale = step * packing.shape().circumradius();
+    let displacement = Vec2::new(rng.centered(), rng.centered()) * (2. * scale);
+    let fractional = packing.lattice().matrix.inverse() * displacement;
+    if free[0] {
+        new.position.x += fractional.x;
+    }
+    if free[1] {
+        new.position.y += fractional.y;
+    }
+    new.position.x -= libm::floor(new.position.x);
+    new.position.y -= libm::floor(new.position.y);
+    new
+}
+
+/// Rotate a site by a random angle
+pub(crate) fn propose_rotation(state: SiteState, step: f64, rng: &mut Rng) -> SiteState {
+    let mut new = state;
+    new.angle = crate::geometry::wrap_angle(new.angle + 2. * step * rng.centered(), 2. * PI);
+    new
+}
+
+/// Choose one of the allowed orientations of a site constrained by mirror symmetry
+pub(crate) fn propose_reorientation<S: HardShape>(
+    packing: &Packing<S>,
+    index: usize,
+    rng: &mut Rng,
+) -> Option<SiteState> {
+    match &packing.sites()[index].orientation {
+        OrientationFreedom::Discrete(angles) => {
+            let mut new = packing.site_state(index);
+            new.angle = angles[rng.index(angles.len())];
+            Some(new)
+        }
+        OrientationFreedom::Free => None,
+    }
+}
+
+/// Propose a random change to the lattice, with the step size being the logarithm of the
+/// relative change of a cell parameter.
+pub(crate) fn propose_lattice(lattice: &Lattice, step: f64, rng: &mut Rng) -> Lattice {
+    let mut p = lattice.parameters();
+    let delta = 2. * step * rng.centered();
+    match lattice.family {
+        LatticeFamily::Oblique => match rng.index(4) {
+            0 => p[0] *= libm::exp(delta),
+            1 => p[2] *= libm::exp(delta),
+            // A shear of the cell, which doesn't change the area
+            2 => p[1] += delta * p[0],
+            _ => p.iter_mut().for_each(|v| *v *= libm::exp(delta)),
+        },
+        LatticeFamily::Rectangular => match rng.index(3) {
+            0 => p[0] *= libm::exp(delta),
+            1 => p[1] *= libm::exp(delta),
+            _ => p.iter_mut().for_each(|v| *v *= libm::exp(delta)),
+        },
+        LatticeFamily::Square | LatticeFamily::Hexagonal => p[0] *= libm::exp(delta),
+    }
+    Lattice::from_parameters(lattice.family, &p)
+}
+
+/// Keep an oblique cell close to its reduced form, so the cell moves remain effective
+pub(crate) fn keep_reduced<S: HardShape>(packing: &mut Packing<S>) {
+    let lattice = packing.lattice();
+    let p = lattice.parameters();
+    if lattice.family == LatticeFamily::Oblique
+        && (p[1].abs() > p[0] || p[0] > 1.5 * lattice.b().norm())
+    {
+        packing.reduce_lattice();
+    }
+}
+
 /// Whether a site has any free parameters, translational or rotational
-fn site_moves(packing: &Packing<impl HardShape>, index: usize) -> (bool, bool, bool) {
+pub(crate) fn site_moves(packing: &Packing<impl HardShape>, index: usize) -> (bool, bool, bool) {
     let site = &packing.sites()[index];
     let translate = site.free[0] || site.free[1];
     let (rotate, reorient) = match &site.orientation {
@@ -215,23 +297,9 @@ impl<S: HardShape> Optimiser<S> {
         }
     }
 
-    fn translate_site(&mut self, index: usize) -> bool {
+    /// Apply a change to a site, keeping it when there are no overlaps
+    fn try_site(&mut self, index: usize, new: SiteState) -> bool {
         let old = self.packing.site_state(index);
-        let site = &self.packing.sites()[index];
-        let free = site.free;
-        // A random displacement in Cartesian space converted to fractional coordinates
-        let scale = self.translate.size * self.packing.shape().circumradius();
-        let displacement = Vec2::new(self.rng.centered(), self.rng.centered()) * (2. * scale);
-        let fractional = self.packing.lattice().matrix.inverse() * displacement;
-        let mut new = old;
-        if free[0] {
-            new.position.x += fractional.x;
-        }
-        if free[1] {
-            new.position.y += fractional.y;
-        }
-        new.position.x -= libm::floor(new.position.x);
-        new.position.y -= libm::floor(new.position.y);
         self.packing.set_site(index, new);
         if self.packing.site_overlaps(index) {
             self.packing.set_site(index, old);
@@ -239,62 +307,31 @@ impl<S: HardShape> Optimiser<S> {
         } else {
             true
         }
+    }
+
+    fn translate_site(&mut self, index: usize) -> bool {
+        let new = propose_translation(&self.packing, index, self.translate.size, &mut self.rng);
+        self.try_site(index, new)
     }
 
     fn rotate_site(&mut self, index: usize) -> bool {
-        let old = self.packing.site_state(index);
-        let mut new = old;
-        new.angle = crate::geometry::wrap_angle(
-            new.angle + 2. * self.rotate.size * self.rng.centered(),
-            2. * PI,
+        let new = propose_rotation(
+            self.packing.site_state(index),
+            self.rotate.size,
+            &mut self.rng,
         );
-        self.packing.set_site(index, new);
-        if self.packing.site_overlaps(index) {
-            self.packing.set_site(index, old);
-            false
-        } else {
-            true
-        }
+        self.try_site(index, new)
     }
 
     fn reorient_site(&mut self, index: usize) -> bool {
-        let old = self.packing.site_state(index);
-        let angles = match &self.packing.sites()[index].orientation {
-            OrientationFreedom::Discrete(angles) => angles.clone(),
-            OrientationFreedom::Free => return false,
-        };
-        let mut new = old;
-        new.angle = angles[self.rng.index(angles.len())];
-        self.packing.set_site(index, new);
-        if self.packing.site_overlaps(index) {
-            self.packing.set_site(index, old);
-            false
-        } else {
-            true
+        match propose_reorientation(&self.packing, index, &mut self.rng) {
+            Some(new) => self.try_site(index, new),
+            None => false,
         }
     }
 
-    /// Propose a new lattice from the current one
     fn propose_lattice(&mut self) -> Lattice {
-        let lattice = self.packing.lattice();
-        let mut p = lattice.parameters();
-        let delta = 2. * self.cell.size * self.rng.centered();
-        match lattice.family {
-            LatticeFamily::Oblique => match self.rng.index(4) {
-                0 => p[0] *= libm::exp(delta),
-                1 => p[2] *= libm::exp(delta),
-                // A shear of the cell, which doesn't change the area
-                2 => p[1] += delta * p[0],
-                _ => p.iter_mut().for_each(|v| *v *= libm::exp(delta)),
-            },
-            LatticeFamily::Rectangular => match self.rng.index(3) {
-                0 => p[0] *= libm::exp(delta),
-                1 => p[1] *= libm::exp(delta),
-                _ => p.iter_mut().for_each(|v| *v *= libm::exp(delta)),
-            },
-            LatticeFamily::Square | LatticeFamily::Hexagonal => p[0] *= libm::exp(delta),
-        }
-        Lattice::from_parameters(lattice.family, &p)
+        propose_lattice(self.packing.lattice(), self.cell.size, &mut self.rng)
     }
 
     fn cell_move(&mut self, pressure: f64) -> bool {
@@ -324,14 +361,7 @@ impl<S: HardShape> Optimiser<S> {
             self.packing.set_lattice(old);
             return false;
         }
-        // Keep an oblique cell close to its reduced form, so the cell moves remain effective
-        let lattice = self.packing.lattice();
-        let p = lattice.parameters();
-        if lattice.family == LatticeFamily::Oblique
-            && (p[1].abs() > p[0] || p[0] > 1.5 * lattice.b().norm())
-        {
-            self.packing.reduce_lattice();
-        }
+        keep_reduced(&mut self.packing);
         true
     }
 
@@ -395,6 +425,7 @@ impl<S: HardShape> Optimiser<S> {
             pressure: self.pressure(),
             packing_fraction: self.packing.packing_fraction(),
             best_packing_fraction: self.best_packing_fraction,
+            best_energy: None,
         }
     }
 

@@ -17,7 +17,7 @@ requirements:
 test:
   commands:
     - packing --help
-    - packing p2 -s 10 --outfile test.out trimer
+    - packing optimise --shape trimer --group p2 --sites e --steps 100 --replicas 1 --output test-out
 
 about:
   home: https://github.com/malramsay64/packing

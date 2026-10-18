@@ -298,3 +298,47 @@ Each phase lands as its own PR, with that phase's tests passing.
 6. **Search and CLI.** Pruning, successive halving and the new outputs.
 7. **WASM.** Real bindings, the worker pool, a minimal viewer, and the
    determinism test.
+
+## 7. Status
+
+All phases are implemented on the `optimiser-rewrite` branch. The original implementation has been
+removed, with the Lennard-Jones potential ported to the new engine (`potential.rs`).
+
+### Results
+
+| Measure | Before | After |
+|---|---|---|
+| Pentagon φ (full 17 group search) | 0.630 (p2 only) | 0.921311 in 2.0 s |
+| Square / disk / triangle φ | 0.767 / 0.788 / 0.449 | 1.0 / 0.906900 / 1.0 |
+| Pentagon state overlap check | 1.8 µs | 0.19 µs (full), 0.19 µs (one site) |
+| 10,000 MC steps, pentagons in p2 | 55 ms | 6.2 ms |
+| Native vs wasm results | — | bit-identical (checked in CI) |
+
+### Differences from the plan
+
+- `nalgebra` was replaced by small `Vec2`/`Mat2` types, and `rand`/`rand_pcg` by an in-crate
+  xoshiro256++ generator. This keeps the dependencies small and makes the random number stream
+  part of the code, which the cross-platform determinism relies on.
+- Errors use `anyhow` throughout rather than `thiserror`.
+- Values cross the wasm boundary as JSON strings rather than through `serde-wasm-bindgen`.
+- Wasm is tested with node (determinism against native) and playwright (a full search in
+  headless Chromium) instead of `wasm-bindgen-test`.
+- Step sizes keep adapting throughout the run instead of being frozen for a production phase,
+  since the aim is optimisation rather than sampling.
+- The trimer regression test checks a threshold rather than an `insta` snapshot.
+
+### Not yet done
+
+- Pruning candidates with an analytical upper bound on φ, and parallel tempering in pressure;
+  successive halving has been sufficient for the regression shapes.
+- Candidates are de-duplicated by origin shifts only, not by changes of basis (e.g. p2 sites
+  ab, ac and ad are all searched).
+- Concave polygons are split into triangles; merging them into larger convex pieces
+  (Hertel–Mehlhorn) would speed up their overlap checks.
+- Per pair, the separating axis test is slower than the old line-crossing test for polygons with
+  many sides (1.1 µs vs 0.08 µs at 64 sides when overlapping), though the old test missed
+  containment and collinear overlaps. A rotating calipers or GJK test would help shapes with many
+  vertices.
+- Mirror images of chiral shapes (the "flips" of the original C code) aren't supported.
+- The MC speed-up is 9× rather than the targeted 10×; the overall time to solution is far better
+  since the previous optimiser never reached the optimum.

@@ -56,6 +56,9 @@ pub struct Structure {
     pub lattice: Lattice,
     pub num_shapes: usize,
     pub packing_fraction: f64,
+    /// The energy per shape, for structures optimised with a potential
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub energy: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,6 +74,14 @@ impl Structure {
     pub fn sites_label(&self) -> String {
         self.sites.iter().map(|s| s.letter).collect()
     }
+
+    /// The value being maximised; the packing fraction, or the negative of the energy
+    pub fn score(&self) -> f64 {
+        match self.energy {
+            Some(energy) => -energy,
+            None => self.packing_fraction,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +95,7 @@ pub struct Packing<S: HardShape> {
     /// The reduced basis of the lattice, used to enumerate periodic images
     reduced: Mat2,
     reduced_inverse: Mat2,
-    /// The range of the coefficients of each reduced basis vector within the contact distance
+    /// The range of the coefficients of each reduced basis vector within a unit distance
     range: Vec2,
     /// Images further apart than this distance can't overlap
     contact: f64,
@@ -248,6 +259,7 @@ impl<S: HardShape> Packing<S> {
             lattice: self.lattice.clone(),
             num_shapes: self.num_shapes,
             packing_fraction: self.packing_fraction(),
+            energy: None,
         }
     }
 
@@ -312,7 +324,7 @@ impl<S: HardShape> Packing<S> {
         // |u × t| = |m| |u × v| ≤ |u| |t|), and similarly for n.
         let (u, v) = (self.reduced.column(0), self.reduced.column(1));
         let det = self.reduced.det().abs();
-        self.range = Vec2::new(self.contact * v.norm() / det, self.contact * u.norm() / det);
+        self.range = Vec2::new(v.norm() / det, u.norm() / det);
         for index in 0..self.sites.len() {
             self.update_site_images(index);
         }
@@ -395,22 +407,30 @@ impl<S: HardShape> Packing<S> {
         Some(angle)
     }
 
-    /// Check whether image `b` or any of its periodic copies overlaps image `a`
+    /// Call `f` with the separation and translation of every periodic copy of image `b` within
+    /// `cutoff` of image `a`, stopping early when `f` returns true.
     ///
     /// When `same` is true a and b are the same image, so the zero translation is skipped.
     #[inline]
-    fn images_overlap(&self, a: &Image<S::Placed>, b: &Image<S::Placed>, same: bool) -> bool {
+    fn for_each_neighbour(
+        &self,
+        a: &Image<S::Placed>,
+        b: &Image<S::Placed>,
+        same: bool,
+        cutoff: f64,
+        mut f: impl FnMut(f64, Vec2) -> bool,
+    ) -> bool {
         // Find the lattice translations t, as coefficients of the reduced basis, which bring b
-        // within the contact distance of a, i.e. |d + t| < contact.
+        // within the cutoff of a, i.e. |d + t| < cutoff.
         let d = b.centre - a.centre;
-        let f = self.reduced_inverse * d;
+        let fractional = self.reduced_inverse * d;
         let (u, v) = (self.reduced.column(0), self.reduced.column(1));
-        let contact_sq = self.contact * self.contact;
-        let core_sq = self.core * self.core;
-        let m_min = libm::ceil(-f.y - self.range.y) as i64;
-        let m_max = libm::floor(-f.y + self.range.y) as i64;
-        let n_min = libm::ceil(-f.x - self.range.x) as i64;
-        let n_max = libm::floor(-f.x + self.range.x) as i64;
+        let range = self.range * cutoff;
+        let cutoff_sq = cutoff * cutoff;
+        let m_min = libm::ceil(-fractional.y - range.y) as i64;
+        let m_max = libm::floor(-fractional.y + range.y) as i64;
+        let n_min = libm::ceil(-fractional.x - range.x) as i64;
+        let n_max = libm::floor(-fractional.x + range.x) as i64;
         for m in m_min..=m_max {
             for n in n_min..=n_max {
                 if same && n == 0 && m == 0 {
@@ -418,15 +438,54 @@ impl<S: HardShape> Packing<S> {
                 }
                 let t = u * n as f64 + v * m as f64;
                 let distance_sq = (d + t).norm_sq();
-                if distance_sq >= contact_sq {
-                    continue;
-                }
-                if distance_sq < core_sq || S::overlaps(&a.placed, &b.placed, t) {
+                if distance_sq < cutoff_sq && f(distance_sq, t) {
                     return true;
                 }
             }
         }
         false
+    }
+
+    /// Check whether image `b` or any of its periodic copies overlaps image `a`
+    #[inline]
+    fn images_overlap(&self, a: &Image<S::Placed>, b: &Image<S::Placed>, same: bool) -> bool {
+        let core_sq = self.core * self.core;
+        self.for_each_neighbour(a, b, same, self.contact, |distance_sq, t| {
+            distance_sq < core_sq || S::overlaps(&a.placed, &b.placed, t)
+        })
+    }
+
+    /// The energy per shape of the infinite crystal, for a pair potential between placed shapes
+    /// which is zero beyond the cutoff distance between their centres.
+    ///
+    /// Every image of a site has the same environment, so the energy is found from the
+    /// interactions of the representative image of each site with every other shape.
+    pub fn energy<F>(&self, cutoff: f64, pair: F) -> f64
+    where
+        F: Fn(&S::Placed, &S::Placed, Vec2) -> f64,
+    {
+        let mut total = 0.;
+        for (i, site_images) in self.images.iter().enumerate() {
+            let representative = &site_images[0];
+            let mut site_energy = 0.;
+            for (j, images) in self.images.iter().enumerate() {
+                for (l, image) in images.iter().enumerate() {
+                    self.for_each_neighbour(
+                        representative,
+                        image,
+                        i == j && l == 0,
+                        cutoff,
+                        |_, t| {
+                            site_energy += pair(&representative.placed, &image.placed, t);
+                            false
+                        },
+                    );
+                }
+            }
+            // Each pair is counted from both ends
+            total += 0.5 * site_energy * self.sites[i].wyckoff.multiplicity as f64;
+        }
+        total / self.num_shapes as f64
     }
 
     /// Check for overlaps involving any image of the site
@@ -725,6 +784,41 @@ mod test {
                 });
                 prop_assert!(found);
             }
+        }
+
+        #[test]
+        fn energy_matches_naive(seed in 0u64..10_000, scale in 0.6f64..1.5) {
+            let disk = Molecule::disk();
+            let group = PlaneGroup::from_name("p2").unwrap();
+            let mut rng = Rng::seed_from_u64(seed);
+            let mut packing = Packing::new(disk, group, &['e'], &mut rng).unwrap();
+            let lattice = packing.lattice().scaled(scale * 0.5);
+            packing.set_lattice(lattice);
+            // A simple pair potential between disk centres
+            let cutoff = 5.;
+            let pair = |a: &crate::hard_shape::PlacedMolecule, b: &crate::hard_shape::PlacedMolecule, t: Vec2| {
+                let r = (b.atoms()[0].0 + t - a.atoms()[0].0).norm();
+                if r < cutoff { 1. / (r * r) } else { 0. }
+            };
+            let energy = packing.energy(cutoff, pair);
+            // Sum over every pair in a large supercell, per shape in the central cell
+            let shapes = packing.placed_shapes(0);
+            let mut naive = 0.;
+            for (i, a) in shapes.iter().enumerate() {
+                for (j, b) in shapes.iter().enumerate() {
+                    for n in -30i32..=30 {
+                        for m in -30i32..=30 {
+                            if i == j && n == 0 && m == 0 {
+                                continue;
+                            }
+                            let t = packing.lattice().to_cartesian(Vec2::new(n as f64, m as f64));
+                            naive += pair(&a.3, &b.3, t);
+                        }
+                    }
+                }
+            }
+            naive /= 2. * shapes.len() as f64;
+            prop_assert!((energy - naive).abs() < 1e-9 * naive.abs().max(1.), "{} {}", energy, naive);
         }
 
         #[test]

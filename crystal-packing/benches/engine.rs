@@ -4,7 +4,7 @@
 // Distributed under terms of the MIT license.
 //
 
-//! Benchmarks of the hard shape engine, compared with the original implementation.
+//! Benchmarks of the hard shape engine.
 
 use std::f64::consts::PI;
 use std::hint::black_box;
@@ -16,9 +16,7 @@ use crystal_packing::geometry::{Mat2, Vec2};
 use crystal_packing::hard_shape::{HardShape, Molecule, Polygon};
 use crystal_packing::monte_carlo::{MonteCarloConfig, Optimiser};
 use crystal_packing::symmetry::PlaneGroup;
-use crystal_packing::traits::{Intersect, Shape};
-use crystal_packing::wallpaper::{Wallpaper, WyckoffSite};
-use crystal_packing::{CrystalFamily, LineShape, MCOptimiser, PackedState, Rng, Transform2};
+use crystal_packing::Rng;
 
 static SIDES: &[usize] = &[3, 5, 8, 16, 64];
 
@@ -52,13 +50,6 @@ fn pair_overlap(c: &mut Criterion) {
             group.bench_with_input(BenchmarkId::new("SAT", sides), &sides, |bench, _| {
                 bench.iter(|| Polygon::overlaps(black_box(&a), black_box(&b), Vec2::ZERO))
             });
-
-            let legacy = LineShape::from_radial("Polygon", vec![1.; sides]).unwrap();
-            let la = legacy.transform(&Transform2::new(angle_a, (pos_a.x, pos_a.y)));
-            let lb = legacy.transform(&Transform2::new(angle_b, (pos_b.x, pos_b.y)));
-            group.bench_with_input(BenchmarkId::new("Legacy", sides), &sides, |bench, _| {
-                bench.iter(|| black_box(&la).intersects(black_box(&lb)))
-            });
         }
         let disk = Molecule::disk();
         let mut a = Default::default();
@@ -83,28 +74,6 @@ fn dense_packing(sides: usize) -> Packing<Polygon> {
     Packing::from_structure(Polygon::regular(sides).unwrap(), &structure).unwrap()
 }
 
-fn legacy_state(sides: usize) -> PackedState<LineShape> {
-    let wallpaper = Wallpaper {
-        name: String::from("p2"),
-        family: CrystalFamily::Monoclinic,
-    };
-    let isopointal = &[WyckoffSite {
-        letter: 'd',
-        symmetries: vec![
-            Transform2::from_operations("x,y").unwrap(),
-            Transform2::from_operations("-x,-y").unwrap(),
-        ],
-        num_rotations: 1,
-        mirror_primary: false,
-        mirror_secondary: false,
-    }];
-    PackedState::initialise(
-        LineShape::from_radial("Polygon", vec![1.; sides]).unwrap(),
-        wallpaper,
-        isopointal,
-    )
-}
-
 fn state_overlap(c: &mut Criterion) {
     let mut group = c.benchmark_group("State overlap check");
     for &sides in &[5, 16] {
@@ -114,10 +83,6 @@ fn state_overlap(c: &mut Criterion) {
         });
         group.bench_with_input(BenchmarkId::new("Site", sides), &sides, |b, _| {
             b.iter(|| black_box(&packing).site_overlaps(0))
-        });
-        let legacy = legacy_state(sides);
-        group.bench_with_input(BenchmarkId::new("Legacy", sides), &sides, |b, _| {
-            b.iter(|| crystal_packing::traits::State::score(black_box(&legacy)))
         });
     }
     group.finish();
@@ -138,12 +103,6 @@ fn monte_carlo(c: &mut Criterion) {
                 Packing::new(Polygon::regular(5).unwrap(), group, &['e'], &mut rng).unwrap();
             let mut optimiser = Optimiser::new(packing, config, 0);
             optimiser.run(10_000)
-        })
-    });
-    group.bench_function("Legacy pentagon p2", |b| {
-        b.iter(|| {
-            let optimiser = MCOptimiser::new(0.1, 0.9, 0.01, 10_000, 1000, 0, None);
-            crystal_packing::traits::State::score(&optimiser.optimise_state(legacy_state(5)))
         })
     });
     group.finish();
