@@ -405,6 +405,15 @@ impl JobRunner {
         }
     }
 
+    /// The structure as it currently is, partway through the optimisation
+    pub fn current(&self) -> Option<Structure> {
+        match self.optimiser.as_ref().ok()? {
+            AnyOptimiser::Polygon(o) => Some(o.packing().structure()),
+            AnyOptimiser::Molecule(o) => Some(o.packing().structure()),
+            AnyOptimiser::Annealer(o) => Some(o.current_structure()),
+        }
+    }
+
     pub fn is_complete(&self) -> bool {
         match &self.optimiser {
             Ok(AnyOptimiser::Polygon(o)) => o.is_complete(),
@@ -945,6 +954,36 @@ mod test {
             runner.run(250);
         }
         assert_eq!(runner.finish(), run_job(&job));
+    }
+
+    #[test]
+    fn current_structure_while_running() {
+        let job = Job {
+            shape: ShapeSpec::Polygon { sides: 4 },
+            candidate: Candidate {
+                group: "p2".into(),
+                sites: vec!['e'],
+            },
+            seed: 1,
+            config: MonteCarloConfig {
+                steps: 4000,
+                ..Default::default()
+            },
+            start: None,
+            potential: None,
+        };
+        let mut runner = JobRunner::new(&job);
+        let mut fractions = vec![];
+        while !runner.is_complete() {
+            runner.run(500);
+            let current = runner.current().unwrap();
+            // The current structure is always valid
+            validate(&Polygon::regular(4).unwrap(), &current).unwrap();
+            fractions.push(current.packing_fraction);
+        }
+        assert_eq!(fractions.len(), 8);
+        // The structure is compressed as the pressure increases
+        assert!(fractions.last().unwrap() > fractions.first().unwrap());
     }
 
     #[test]

@@ -99,6 +99,23 @@ impl WasmSearch {
         serde_json::to_string(&self.search.best()).map_err(to_js)
     }
 
+    /// The candidates within `within_percent` of the best score, best first, as JSON
+    #[wasm_bindgen(js_name = nearBest)]
+    pub fn near_best(&self, within_percent: f64) -> Result<String, JsError> {
+        serde_json::to_string(&self.search.near_best(within_percent / 100.)).map_err(to_js)
+    }
+
+    /// The best candidate of every group searched, as JSON pairs of [group, result or null]
+    #[wasm_bindgen(js_name = bestPerGroup)]
+    pub fn best_per_group(&self) -> Result<String, JsError> {
+        serde_json::to_string(&self.search.best_per_group()).map_err(to_js)
+    }
+
+    /// The current phase of the search
+    pub fn phase(&self) -> String {
+        format!("{:?}", self.search.phase())
+    }
+
     /// Run the remaining search on the current thread, returning the best structure as JSON
     #[wasm_bindgen(js_name = runToCompletion)]
     pub fn run_to_completion(&mut self) -> Result<String, JsError> {
@@ -129,6 +146,15 @@ impl WasmJob {
             .as_mut()
             .ok_or_else(|| JsError::new("Job already finished"))?;
         serde_json::to_string(&runner.run(steps as u64)).map_err(to_js)
+    }
+
+    /// The structure as it currently is, as JSON
+    pub fn current(&self) -> Result<String, JsError> {
+        let runner = self
+            .runner
+            .as_ref()
+            .ok_or_else(|| JsError::new("Job already finished"))?;
+        serde_json::to_string(&runner.current()).map_err(to_js)
     }
 
     #[wasm_bindgen(js_name = isComplete)]

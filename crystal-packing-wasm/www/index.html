@@ -5,21 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Crystal Packing</title>
     <style>
-      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-      body { max-width: 1100px; margin: 0 auto; padding: 16px; }
-      form { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px 16px; align-items: end; }
-      label { display: flex; flex-direction: column; font-size: 0.9em; gap: 4px; }
-      main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
-      @media (max-width: 700px) { main { grid-template-columns: 1fr; } }
-      #structure svg { width: 100%; height: auto; }
-      table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-      td, th { padding: 2px 8px; text-align: right; }
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+        --border: #8884;
+        --muted: #888;
+        --accent: #4c78a8;
+      }
+      body { max-width: 1200px; margin: 0 auto; padding: 16px; }
+      form { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 16px; align-items: end; }
+      fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 8px 0; padding: 8px 12px; display: contents; }
+      label { display: flex; flex-direction: column; font-size: 0.85em; gap: 4px; }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
+      section { margin-top: 16px; }
+      h2 { font-size: 1.1em; margin: 0 0 8px; }
+      .columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+      @media (max-width: 760px) { .columns { grid-template-columns: 1fr; } }
+      svg { width: 100%; height: auto; }
+      #watch-view svg { max-height: 420px; }
+      table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.9em; }
+      td, th { padding: 2px 6px; text-align: right; border-bottom: 1px solid var(--border); }
       td:nth-child(2), th:nth-child(2) { text-align: left; }
       progress { width: 100%; }
+      #near-best { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+      .card { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+      .card p { margin: 4px 0 0; font-size: 0.85em; font-variant-numeric: tabular-nums; }
+      #watch-chart polyline { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+      #watch-chart text { fill: var(--muted); font-size: 11px; }
+      .muted { color: var(--muted); }
     </style>
   </head>
   <body>
-    <h1>Crystal Packing <small id="version"></small></h1>
+    <h1>Crystal Packing <small id="version" class="muted"></small></h1>
     <form id="controls">
       <label>Shape
         <select name="shape">
@@ -42,19 +59,60 @@
       <label>Max sites <input name="max_sites" type="number" min="1" max="3" value="1" /></label>
       <label>Replicas <input name="replicas" type="number" min="1" value="4" /></label>
       <label>Steps <input name="steps" type="number" min="100" step="100" value="10000" /></label>
+      <label>Show results within (%) <input name="within" type="number" min="0" step="any" value="2" /></label>
       <label>Seed <input name="seed" type="number" min="0" value="0" /></label>
-      <button type="submit">Search</button>
-      <button type="button" id="stop" disabled>Stop</button>
+      <label>Watch group <input name="watch_group" value="p2" /></label>
+      <label>Watch sites <input name="watch_sites" value="e" /></label>
+      <div class="actions">
+        <button type="button" id="search">Search</button>
+        <button type="button" id="survey" title="Optimise every candidate of every group">Survey all groups</button>
+        <button type="button" id="watch" title="Animate the optimisation of one group and set of sites">Watch optimisation</button>
+        <button type="button" id="stop" disabled>Stop</button>
+      </div>
     </form>
     <p id="status">Ready</p>
     <progress id="progress" value="0"></progress>
-    <main>
-      <div id="structure"></div>
-      <table id="ranking">
-        <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>N</th></tr></thead>
+
+    <section id="watch-section" hidden>
+      <h2>Optimisation of <span id="watch-label"></span></h2>
+      <div class="columns">
+        <div id="watch-view" data-frames="0"></div>
+        <div>
+          <svg id="watch-chart" viewBox="0 0 400 200" preserveAspectRatio="none" role="img" aria-label="Packing fraction against steps"></svg>
+          <p id="watch-status" class="muted"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="results-section" hidden>
+      <div class="columns">
+        <div>
+          <h2>Best structure</h2>
+          <div id="structure"></div>
+        </div>
+        <div>
+          <h2>Ranking</h2>
+          <table id="ranking">
+            <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>N</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="groups-section" hidden>
+      <h2>Best structure of each group</h2>
+      <table id="groups">
+        <thead><tr><th>Group</th><th>Sites</th><th>φ</th><th>Energy</th><th>Below best (%)</th></tr></thead>
         <tbody></tbody>
       </table>
-    </main>
+    </section>
+
+    <section id="near-section" hidden>
+      <h2 id="near-title">Structures near the best</h2>
+      <div id="near-best"></div>
+    </section>
+
     <script type="module" src="./main.js"></script>
   </body>
 </html>

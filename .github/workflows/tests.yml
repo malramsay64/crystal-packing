@@ -22,6 +22,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run regression suite
         run: cargo test --release -p crystal_packing --test regression -- --ignored --nocapture
+      - name: Run adversarial shapes
+        run: cargo test --release -p crystal_packing --test adversarial -- --ignored --nocapture
 
   wasm:
     name: WebAssembly

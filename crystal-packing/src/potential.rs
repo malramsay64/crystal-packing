@@ -264,6 +264,13 @@ impl Annealer {
         self.packing.num_shapes() as f64 * self.packing.shape().area() / self.best.1.area()
     }
 
+    /// The current structure, with its energy
+    pub fn current_structure(&self) -> Structure {
+        let mut structure = self.packing.structure();
+        structure.energy = Some(self.potential.energy(&self.packing));
+        structure
+    }
+
     pub fn packing(&self) -> &Packing<Molecule> {
         &self.packing
     }
