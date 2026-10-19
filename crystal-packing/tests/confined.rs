@@ -71,14 +71,56 @@ fn disks_in_a_circle() {
     assert_close(found[2], 7. / 9., "7 disks");
 }
 
+/// The largest smallest distance between n points in a unit square, for n from 2 to 20, which
+/// gives the densest packing of n disks in a square. These are the optima from E. Specht's
+/// Packomania tables, proven optimal for these n, with closed forms where they are known.
+fn square_separations() -> Vec<(usize, f64)> {
+    let (s2, s3, s6) = (2f64.sqrt(), 3f64.sqrt(), 6f64.sqrt());
+    vec![
+        (2, s2),
+        (3, s6 - s2),
+        (4, 1.),
+        (5, s2 / 2.),
+        (6, 13f64.sqrt() / 6.),
+        (7, 4. - 2. * s3),
+        (8, (s6 - s2) / 2.),
+        (9, 0.5),
+        (10, 0.421279543983903),
+        (11, 0.398207310236844),
+        (12, 34f64.sqrt() / 15.),
+        (13, 0.366096007696425),
+        (14, 0.348915260374265),
+        (15, 0.341081377402108),
+        (16, 1. / 3.),
+        (17, 0.306153985300332),
+        (18, 13f64.sqrt() / 12.),
+        (19, 0.289541565168737),
+        (20, 0.286611652351681),
+    ]
+}
+
 #[test]
 #[ignore]
 fn disks_in_a_square() {
-    // 2 disks along the diagonal of a square of side 2 + √2, and 4 disks in a square of side 4
-    let found = confined(ShapeSpec::Disk, Container::Square, vec![2, 4]);
-    let side = 2. + 2f64.sqrt();
-    assert_close(found[0], 2. * PI / (side * side), "2 disks");
-    assert_close(found[1], PI / 4., "4 disks");
+    // Points a distance m apart in a unit square are the centres of unit disks in a square of
+    // side 2 + 2/m. A single disk fills a square of side 2.
+    let mut known = vec![(1, PI / 4.)];
+    for (n, m) in square_separations() {
+        let side = 2. + 2. / m;
+        known.push((n, n as f64 * PI / (side * side)));
+    }
+    let counts = known.iter().map(|&(n, _)| n).collect();
+    let found = confined(ShapeSpec::Disk, Container::Square, counts);
+    for (&(n, expected), found) in known.iter().zip(found) {
+        // Every optimum is found to within 5e-4, and nothing denser, which would mean overlaps
+        assert!(
+            (found - expected).abs() < 5e-4 && found < expected + 1e-9,
+            "{} disks: found {:.6}, expected {:.6}",
+            n,
+            found,
+            expected
+        );
+    }
 }
 
 #[test]

@@ -136,7 +136,8 @@ and Dependabot keeps the Rust crates, the actions and playwright up to date.
 - `tests/unconstrained.rs`: independent shapes find the known packings without symmetry,
   including systems of 12 pentagons and 24 disks.
 - `tests/confined.rs`: known optimal packings of disks, squares and triangles in containers,
-  strips and clusters.
+  strips and clusters, including the proven optima for every number of disks in a square from
+  1 to 20.
 - `tests/distinct.rs`: full searches find a single distinct structure near the best for pentagons
   and disks, and three for heptagons.
 - `tests/known_geometries.rs`: known densest arrangements are constructed by hand (the hexagonal
