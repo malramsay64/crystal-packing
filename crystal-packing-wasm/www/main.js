@@ -1,7 +1,8 @@
 // Drive searches over the plane groups, running the jobs of each round on a pool of workers and
 // showing every optimiser as it runs, animate the optimisation of a single candidate, and draw
 // arbitrary shapes to pack.
-import init, { WasmSearch, renderSvg, shapeInfo, version } from "./pkg/crystal_packing_wasm.js";
+import init, { WasmSearch, renderSvg, version } from "./pkg/crystal_packing_wasm.js";
+import { drawingPad } from "./draw.js";
 
 const form = document.querySelector("#controls");
 const status = document.querySelector("#status");
@@ -23,120 +24,15 @@ let lastSearch = null;
 
 // --- Drawing a shape -------------------------------------------------------------------------
 
-const drawArea = document.querySelector("#draw-area");
-const drawStatus = document.querySelector("#draw-status");
-let drawnVertices = [];
-let drawnValid = false;
-
-/// The vertices moved so the area centroid is at the origin
-function centred(vertices) {
-  let area = 0;
-  let cx = 0;
-  let cy = 0;
-  vertices.forEach(([x0, y0], i) => {
-    const [x1, y1] = vertices[(i + 1) % vertices.length];
-    const cross = x0 * y1 - x1 * y0;
-    area += cross / 2;
-    cx += ((x0 + x1) * cross) / 6;
-    cy += ((y0 + y1) * cross) / 6;
-  });
-  if (Math.abs(area) < 1e-12) return vertices;
-  return vertices.map(([x, y]) => [x - cx / area, y - cy / area]);
-}
-
-function drawnShape() {
-  return { type: "vertices", name: "Drawn", vertices: centred(drawnVertices) };
-}
-
-function validateDrawing() {
-  if (drawnVertices.length < 3) {
-    drawnValid = false;
-    drawStatus.textContent = "Add at least three vertices";
-    return;
-  }
-  try {
-    const info = JSON.parse(shapeInfo(JSON.stringify(drawnShape())));
-    drawnValid = true;
-    drawStatus.textContent = `Valid polygon, ${drawnVertices.length} vertices, area ${info.area.toFixed(3)}, ${info.convex ? "convex" : "concave"}, ${info.rotations}-fold rotation, ${info.mirrors} mirror${info.mirrors === 1 ? "" : "s"}`;
-  } catch (error) {
-    drawnValid = false;
-    drawStatus.textContent = `Invalid shape: ${error.message ?? error}`;
-  }
-}
-
-function renderDrawing() {
-  const grid = [];
-  for (let i = -20; i <= 20; i += 1) {
-    const v = i / 10;
-    grid.push(`<line class="${i === 0 ? "axis" : "grid"}" x1="${v}" y1="-2" x2="${v}" y2="2" />`);
-    grid.push(`<line class="${i === 0 ? "axis" : "grid"}" x1="-2" y1="${v}" x2="2" y2="${v}" />`);
-  }
-  const points = drawnVertices.map(([x, y]) => `${x},${-y}`).join(" ");
-  const vertices = drawnVertices
-    .map(([x, y], i) => `<circle data-index="${i}" cx="${x}" cy="${-y}" r="0.05" />`)
-    .join("");
-  const shape = drawnVertices.length >= 2 ? `<polygon class="${drawnValid ? "" : "invalid"}" points="${points}" />` : "";
-  drawArea.innerHTML = grid.join("") + shape + vertices;
-}
-
-function updateDrawing() {
-  validateDrawing();
-  renderDrawing();
-  updateButtons();
-}
-
-/// The position of a pointer event in the drawing coordinates, with y upwards
-function drawingPoint(event) {
-  const matrix = drawArea.getScreenCTM().inverse();
-  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix);
-  let [x, y] = [point.x, -point.y];
-  if (document.querySelector("input[name=snap]").checked) {
-    [x, y] = [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
-  }
-  return [x, y];
-}
-
-let dragging = null;
-let moved = false;
-drawArea.addEventListener("pointerdown", (event) => {
-  const index = event.target.dataset?.index;
-  if (index !== undefined) {
-    dragging = Number(index);
-    moved = false;
-    drawArea.setPointerCapture(event.pointerId);
-  }
+const pad = drawingPad({
+  area: document.querySelector("#draw-area"),
+  status: document.querySelector("#draw-status"),
+  snap: () => document.querySelector("input[name=snap]").checked,
+  onChange: () => updateButtons(),
 });
-drawArea.addEventListener("pointermove", (event) => {
-  if (dragging === null) return;
-  moved = true;
-  drawnVertices[dragging] = drawingPoint(event);
-  updateDrawing();
-});
-drawArea.addEventListener("pointerup", (event) => {
-  if (dragging !== null) {
-    dragging = null;
-    return;
-  }
-  if (event.target.dataset?.index === undefined) {
-    drawnVertices.push(drawingPoint(event));
-    updateDrawing();
-  }
-});
-drawArea.addEventListener("dblclick", (event) => {
-  const index = event.target.dataset?.index;
-  if (index !== undefined && !moved) {
-    drawnVertices.splice(Number(index), 1);
-    updateDrawing();
-  }
-});
-document.querySelector("#draw-undo").addEventListener("click", () => {
-  drawnVertices.pop();
-  updateDrawing();
-});
-document.querySelector("#draw-clear").addEventListener("click", () => {
-  drawnVertices = [];
-  updateDrawing();
-});
+const drawnShape = pad.shape;
+document.querySelector("#draw-undo").addEventListener("click", pad.undo);
+document.querySelector("#draw-clear").addEventListener("click", pad.clear);
 
 // --- Shapes and configuration ----------------------------------------------------------------
 
@@ -179,7 +75,7 @@ function searchConfig(data, strategy) {
 function updateButtons() {
   const drawing = form.elements.shape.value === "drawn";
   document.querySelector("#draw-section").hidden = !drawing;
-  for (const button of runButtons) button.disabled = running || (drawing && !drawnValid);
+  for (const button of runButtons) button.disabled = running || (drawing && !pad.valid());
   buttons.stop.disabled = !running;
 }
 
@@ -552,5 +448,5 @@ buttons.stop.addEventListener("click", () => {
 
 await init();
 document.querySelector("#version").textContent = version();
-updateDrawing();
+pad.update();
 document.body.dataset.ready = "true";

@@ -2,7 +2,19 @@
 
 WebAssembly bindings and a browser front end for the crystal packing search.
 
-The page can search for the densest packing, survey every plane group, or pack independent shapes
+There are two pages in `www`:
+
+- `index.html` runs a shape in every structure at once. Choose a disk, a regular polygon, a trimer
+  or draw your own shape, then run it in all 17 plane groups, in a strip periodic in one direction
+  and as a cluster in a square. Every optimisation is shown as it runs, only the first row of plane
+  groups is shown until expanded, and the distinct structures within 2% of the best are listed at
+  the end with the strip and the cluster. The styling follows the
+  [Serene](https://github.com/isunjn/serene) theme for Zola, in light and dark mode, using the
+  theme's own CSS variables and session theme preference so it fits in a Serene blog. The theme's
+  defaults are wrapped in `:where()`, so the blog's stylesheet takes precedence when it's loaded.
+- `explorer.html` has every option of the search.
+
+The explorer can search for the densest packing, survey every plane group, or pack independent shapes
 without symmetry, in a periodic cell, a strip periodic in one direction, a cluster with no boundaries, or a square, rectangular or circular container. Every worker's current optimisation is shown as it runs, and the results list
 the distinct structures within a chosen percentage of the best (2% by default), best first, with
 the other candidates which found the same structure, updating as the
@@ -31,7 +43,9 @@ then open <http://localhost:8000>. Module workers are used, so a recent browser 
 `./build.sh node` additionally builds bindings for node, which are used by
 `tests/determinism.mjs` to check the WebAssembly build gives results identical to the native
 build for the same seed. `tests/browser.mjs` uses playwright to run a search and watch an optimisation in headless
-Chromium, checking the structures near the best and the animation. Playwright is pinned in
+Chromium with the explorer, checking the structures near the best and the animation, and
+`tests/dashboard.mjs` runs pentagons in every structure with `index.html` (set `SCREENSHOTS` to a
+directory to save screenshots in light and dark mode). Playwright is pinned in
 `package-lock.json`:
 
 ```bash

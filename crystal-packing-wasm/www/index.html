@@ -3,163 +3,196 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <title>Crystal Packing</title>
     <style>
-      :root {
-        color-scheme: light dark;
-        font-family: system-ui, sans-serif;
-        --border: #8884;
-        --muted: #888;
-        --accent: #4c78a8;
+      /* The defaults of the Serene theme for Zola (https://github.com/isunjn/serene). Every rule
+         from the theme is wrapped in :where() so the theme's own stylesheet takes precedence when
+         the page is served from a Serene blog. */
+      :where(body) {
+        --primary-color: #5871a2;
+        --primary-pale-color: #5871a233;
+        --primary-decoration-color: #5871a210;
+        --bg-color: #ffffff;
+        --text-color: #2f3030;
+        --text-pale-color: #767676;
+        --text-decoration-color: #a9a9a9;
+        --callout-tip-color: #268556;
+        --callout-important-color: #885fc9;
+        --callout-warning-color: #ab6632;
+        --callout-caution-color: #c64e4e;
+        --main-font: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --main-max-width: 768px;
+        --font-size: 16px;
+        --line-height: 1.75;
       }
-      body { max-width: 1200px; margin: 0 auto; padding: 16px; }
-      form { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 16px; align-items: end; }
-      fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 8px 0; padding: 8px 12px; display: contents; }
-      label { display: flex; flex-direction: column; font-size: 0.85em; gap: 4px; }
-      .actions { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
-      section { margin-top: 16px; }
-      h2 { font-size: 1.1em; margin: 0 0 8px; }
-      .columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
-      @media (max-width: 760px) { .columns { grid-template-columns: 1fr; } }
-      svg { width: 100%; height: auto; }
-      #watch-view svg { max-height: 420px; }
-      table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.9em; }
-      td, th { padding: 2px 6px; text-align: right; border-bottom: 1px solid var(--border); }
-      td:nth-child(2), th:nth-child(2), td:nth-child(7), th:nth-child(7) { text-align: left; }
-      progress { width: 100%; }
-      #near-best { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-      .card { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
-      .card p { margin: 4px 0 0; font-size: 0.85em; font-variant-numeric: tabular-nums; }
-      #watch-chart polyline { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
-      #watch-chart text { fill: var(--muted); font-size: 11px; }
-      .muted { color: var(--muted); }
-      label.inline { flex-direction: row; align-items: center; }
-      #draw-area { border: 1px solid var(--border); border-radius: 6px; touch-action: none; cursor: crosshair; width: min(100%, 420px); aspect-ratio: 1; }
-      #draw-area .grid { stroke: var(--border); stroke-width: 0.005; }
-      #draw-area .axis { stroke: var(--muted); stroke-width: 0.01; }
-      #draw-area polygon { fill: var(--accent); fill-opacity: 0.6; stroke: currentColor; stroke-width: 0.015; }
-      #draw-area polygon.invalid { fill: #e45756; }
-      #draw-area circle { fill: currentColor; cursor: grab; }
-      #live { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
-      .tile { border: 1px solid var(--border); border-radius: 6px; padding: 6px; font-size: 0.8em; }
-      .tile .view svg { max-height: 160px; }
-      .tile p { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+      :where(body.dark) {
+        --primary-color: #6f8fd1;
+        --primary-pale-color: #6f8fd166;
+        --primary-decoration-color: #6f8fd112;
+        --bg-color: #1c1c1c;
+        --text-color: #c1c1c1;
+        --text-pale-color: #848484;
+        --text-decoration-color: #5f5f5f;
+        --callout-tip-color: #47976f;
+        --callout-important-color: #9776cd;
+        --callout-warning-color: #ad7a52;
+        --callout-caution-color: #d06161;
+      }
+      :where(*, *::before, *::after) { box-sizing: border-box; }
+      :where(body) {
+        margin: 0;
+        font-family: var(--main-font);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-size: var(--font-size);
+        line-height: var(--line-height);
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+      }
+      :where(button:focus-visible, a:focus-visible) { outline: var(--primary-color) solid 3px; }
+      :where(::selection) { background-color: var(--primary-color); color: var(--bg-color); }
+      :where(body.prose-page main) { margin: 0 auto; max-width: var(--main-max-width); }
+      :where(body.prose-page article) { padding: 0 15px; }
+      :where(.prose h1) { font-size: 1.15em; font-weight: bolder; margin: 1.5em 0 0.75em; }
+      :where(.prose h2) { font-size: 1.1em; margin: 3em 0 1.5em; }
+      :where(.prose p) { margin: 1.5em 0; }
+      :where(.prose a) { border-bottom: 1.5px solid var(--primary-color); color: var(--primary-color); text-decoration: none; }
+
+      /* The page, using the theme's colours */
+      .pale { color: var(--text-pale-color); }
+      .packing button { font: inherit; color: inherit; background: none; cursor: pointer; border: 1.5px solid var(--text-decoration-color); min-height: 44px; padding: 0 16px; }
+      .packing button:hover:not(:disabled) { border-color: var(--text-color); }
+      .packing button:disabled { cursor: default; opacity: 0.5; }
+      .packing button.primary { background: var(--primary-color); border-color: var(--primary-color); color: var(--bg-color); }
+      .heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+      #theme-toggle { border: none; padding: 0; min-width: 44px; color: var(--text-pale-color); }
+      #theme-toggle svg { width: 20px; height: 20px; vertical-align: middle; }
+      body.dark #theme-toggle .sun, body:not(.dark) #theme-toggle .moon { display: none; }
+
+      #shapes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+      #shapes button { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; line-height: 1.4; }
+      #shapes button[aria-pressed="true"] { border-color: var(--primary-color); background: var(--primary-decoration-color); }
+      #shapes svg { width: 32px; height: 32px; fill: var(--text-decoration-color); }
+      #shapes button[aria-pressed="true"] svg { fill: var(--primary-color); }
+      #shapes small { color: var(--text-pale-color); }
+
+      #draw-section { display: flex; flex-wrap: wrap; gap: 0 24px; align-items: center; }
+      #draw-section[hidden] { display: none; }
+      #draw-area { flex: 0 1 280px; width: 100%; max-width: 280px; aspect-ratio: 1; border: 1px solid var(--text-decoration-color); touch-action: none; cursor: crosshair; }
+      #draw-area .grid { stroke: var(--primary-decoration-color); stroke-width: 0.01; }
+      #draw-area .grid.major { stroke: var(--primary-pale-color); }
+      #draw-area .axis { stroke: var(--text-decoration-color); stroke-width: 0.012; }
+      #draw-area polygon { fill: var(--primary-color); fill-opacity: 0.6; stroke: var(--text-color); stroke-width: 0.015; }
+      #draw-area polygon.invalid { fill: var(--callout-caution-color); }
+      #draw-area circle { fill: var(--text-color); cursor: grab; }
+      #draw-section > div { flex: 1 1 240px; }
+      #draw-status.invalid { color: var(--callout-caution-color); }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+      #progress { height: 1.5px; background: var(--primary-pale-color); }
+      #progress div { height: 100%; width: 0; background: var(--primary-color); }
+
+      .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+      .tile { min-width: 0; line-height: 1.5; }
+      .tile[hidden] { display: none; }
+      .tile-head { display: flex; justify-content: space-between; gap: 8px; }
+      .tile-head .group { font-family: var(--code-font); }
+      .tile .note, .tile .state, .tile .detail { font-size: 0.8em; color: var(--text-pale-color); }
+      .tile[data-state="running"] .state { color: var(--primary-color); }
+      .tile[data-state="done"] .state { color: var(--callout-warning-color); }
+      .view { aspect-ratio: 1; border: 1px solid var(--primary-pale-color); background: var(--primary-decoration-color); overflow: hidden; }
+      .view svg { width: 100%; height: 100%; display: block; }
+      .tile .phi { font-family: var(--code-font); }
+      .tile .detail { font-family: var(--code-font); overflow-wrap: anywhere; }
+      .bar { height: 1.5px; background: var(--primary-pale-color); }
+      .bar div { height: 100%; width: 0; background: var(--primary-color); }
+      .expand { text-align: center; margin-top: 1.5em; }
+
+      /* The structures are drawn by the library with fixed colours, themed here */
+      .view svg [fill="#4c78a8"] { fill: var(--primary-color); }
+      .view svg [fill="#f58518"] { fill: var(--primary-pale-color); }
+      .view svg [fill="#54a24b"] { fill: var(--callout-tip-color); }
+      .view svg [fill="#e45756"] { fill: var(--callout-warning-color); }
+      .view svg [fill="#72b7b2"] { fill: var(--callout-important-color); }
+      .view svg [fill="#b279a2"] { fill: var(--callout-caution-color); }
+      .view svg [stroke="#222"] { stroke: var(--bg-color); }
+      .view svg [stroke="#000"] { stroke: var(--callout-warning-color); }
+
+      #best { list-style: none; padding: 0; }
+      #best li { display: grid; grid-template-columns: 1.5em 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--primary-pale-color); }
+      #best .rank, #best .phi { font-family: var(--code-font); }
+      #best li.near .rank { color: var(--callout-warning-color); }
+      #best .label { font-family: var(--code-font); }
+      #best .also, #best .below { font-size: 0.8em; color: var(--text-pale-color); }
+      #best .phi { text-align: right; }
+      #best .below { display: block; }
+      footer { font-size: 0.8em; color: var(--text-pale-color); margin: 4em 0 2em; }
     </style>
   </head>
-  <body>
-    <h1>Crystal Packing <small id="version" class="muted"></small></h1>
-    <form id="controls">
-      <label>Shape
-        <select name="shape">
-          <option value="polygon">Regular polygon</option>
-          <option value="disk">Disk</option>
-          <option value="trimer">Trimer</option>
-          <option value="drawn">Draw a shape</option>
-        </select>
-      </label>
-      <label>Potential
-        <select name="potential">
-          <option value="hard">Hard shapes</option>
-          <option value="lj">Lennard-Jones (disks and trimers)</option>
-        </select>
-      </label>
-      <label>Sides <input name="sides" type="number" min="3" value="5" /></label>
-      <label>Trimer radius <input name="radius" type="number" step="any" value="0.637556" /></label>
-      <label>Trimer angle <input name="angle" type="number" step="any" value="120" /></label>
-      <label>Trimer distance <input name="distance" type="number" step="any" value="1" /></label>
-      <label>Groups (blank for all) <input name="groups" placeholder="p2,p2gg" /></label>
-      <label>Max sites <input name="max_sites" type="number" min="1" max="3" value="1" /></label>
-      <label>Replicas <input name="replicas" type="number" min="1" value="4" /></label>
-      <label>Steps <input name="steps" type="number" min="100" step="100" value="10000" /></label>
-      <label>Show results within (%) <input name="within" type="number" min="0" step="any" value="2" /></label>
-      <label>Maximum results <input name="max_results" type="number" min="1" placeholder="All" /></label>
-      <label class="inline"><input type="checkbox" name="show_equivalent" /> List equivalent structures separately</label>
-      <label>Seed <input name="seed" type="number" min="0" value="0" /></label>
-      <label>Watch group <input name="watch_group" value="p2" /></label>
-      <label>Watch sites <input name="watch_sites" value="e" /></label>
-      <label>Unconstrained shapes <input name="unconstrained_shapes" value="1,2,3,4" /></label>
-      <label>Boundary
-        <select name="boundary">
-          <option value="periodic">Periodic</option>
-          <option value="strip">Periodic in one direction (strip)</option>
-          <option value="cluster">No boundaries (cluster)</option>
-          <option value="square">Square container</option>
-          <option value="rectangle">Rectangular container</option>
-          <option value="circle">Circular container</option>
-        </select>
-      </label>
-      <div class="actions">
-        <button type="button" id="search">Search</button>
-        <button type="button" id="survey" title="Optimise every candidate of every group">Survey all groups</button>
-        <button type="button" id="watch" title="Animate the optimisation of one group and set of sites">Watch optimisation</button>
-        <button type="button" id="unconstrained" title="Independent shapes without symmetry, in a periodic cell, a strip, a cluster or a container">Unconstrained</button>
-        <button type="button" id="stop" disabled>Stop</button>
-      </div>
-    </form>
-    <section id="draw-section" hidden>
-      <h2>Draw a shape</h2>
-      <div class="columns">
-        <svg id="draw-area" viewBox="-2 -2 4 4" role="img" aria-label="Drawing area: click to add a vertex, drag to move one, double click to remove one"></svg>
-        <div>
-          <p>Click to add a vertex, drag a vertex to move it, and double click a vertex to remove it.
-            The shape is centred on its centroid, which is the point placed on symmetry sites.</p>
-          <label class="inline"><input type="checkbox" name="snap" checked /> Snap to a grid of 0.1</label>
-          <div class="actions">
-            <button type="button" id="draw-undo">Undo</button>
-            <button type="button" id="draw-clear">Clear</button>
+  <body class="prose-page">
+    <script>
+      // The same theme preference as the Serene blog theme: a choice for the session, otherwise
+      // the system setting
+      (() => {
+        let theme = null;
+        try { theme = sessionStorage.getItem("theme"); } catch {}
+        const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (theme === "dark" || (!theme && dark)) document.body.classList.add("dark");
+      })();
+    </script>
+    <main>
+      <article class="prose packing">
+        <div class="heading">
+          <h1>Crystal Packing</h1>
+          <button id="theme-toggle" type="button" aria-label="Switch between light and dark mode">
+            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>
+            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+          </button>
+        </div>
+        <p>Find the densest packings of a 2D shape. Choose a shape or draw your own, then run it in all 17 plane groups, in a strip periodic in one direction and as a cluster in a square. Every optimisation is shown as it runs, and the densest structures are listed at the end.</p>
+
+        <h2 id="shape-title">Choose a shape</h2>
+        <div id="shapes" role="group" aria-labelledby="shape-title"></div>
+        <div id="draw-section" hidden>
+          <svg id="draw-area" viewBox="-2 -2 4 4" role="img" aria-label="Drawing area: click to add a vertex, drag to move one, double click to remove one"></svg>
+          <div>
+            <p class="pale">Click to add a vertex, drag a vertex to move it, and double click a vertex to remove it. Vertices snap to a grid of 0.1 and concave shapes are allowed.</p>
+            <p id="draw-status" aria-live="polite">Add at least three vertices</p>
+            <div class="row">
+              <button type="button" id="draw-undo">Undo</button>
+              <button type="button" id="draw-clear">Clear</button>
+            </div>
           </div>
-          <p id="draw-status" class="muted">Add at least three vertices</p>
         </div>
-      </div>
-    </section>
+        <p class="row">
+          <button type="button" class="primary" id="run">Run all</button>
+          <span id="status" class="pale" aria-live="polite">17 plane groups, a strip and a cluster in a square</span>
+        </p>
+        <div id="progress"><div></div></div>
 
-    <p id="status">Ready</p>
-    <progress id="progress" value="0"></progress>
-
-    <section id="watch-section" hidden>
-      <h2>Optimisation of <span id="watch-label"></span></h2>
-      <div class="columns">
-        <div id="watch-view" data-frames="0"></div>
-        <div>
-          <svg id="watch-chart" viewBox="0 0 400 200" preserveAspectRatio="none" role="img" aria-label="Packing fraction against steps"></svg>
-          <p id="watch-status" class="muted"></p>
+        <h2 id="groups-title">Plane groups</h2>
+        <div class="tiles" id="group-tiles" aria-labelledby="groups-title"></div>
+        <div class="expand">
+          <button type="button" id="expand" aria-expanded="false" aria-controls="group-tiles"><span>Show all 17 plane groups</span></button>
         </div>
-      </div>
-    </section>
 
-    <section id="live-section" hidden>
-      <h2>Optimisers running</h2>
-      <div id="live"></div>
-    </section>
+        <h2 id="confined-title">Strip and cluster</h2>
+        <p class="pale">A strip is periodic along its length, between walls. A cluster is packed in a square.</p>
+        <div class="tiles" id="confined-tiles" aria-labelledby="confined-title"></div>
 
-    <section id="results-section" hidden>
-      <div class="columns">
-        <div>
-          <h2>Best structure</h2>
-          <div id="structure"></div>
-        </div>
-        <div>
-          <h2 id="results-title">Results</h2>
-          <table id="results">
-            <thead><tr><th>#</th><th>Candidate</th><th>φ</th><th>Energy</th><th>Below (%)</th><th>N</th><th>Also found in</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+        <h2 id="best-title">Best structures</h2>
+        <p id="best-empty" class="pale">Run all structures to see the densest packings: the distinct crystals within 2% of the best, then the strip and the cluster.</p>
+        <ol id="best" aria-labelledby="best-title"></ol>
 
-    <section id="groups-section" hidden>
-      <h2>Best structure of each group</h2>
-      <table id="groups">
-        <thead><tr><th>Group</th><th>Sites</th><th>φ</th><th>Energy</th><th>Below best (%)</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section id="near-section" hidden>
-      <div id="near-best"></div>
-    </section>
-
-    <script type="module" src="./main.js"></script>
+        <footer>
+          crystal-packing <span id="version"></span> ·
+          <a href="https://github.com/malramsay64/crystal-packing">source</a> ·
+          <a href="./explorer.html">explorer with every option</a>
+        </footer>
+      </article>
+    </main>
+    <script type="module" src="./dashboard.js"></script>
   </body>
 </html>

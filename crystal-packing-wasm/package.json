@@ -3,7 +3,7 @@
   "private": true,
   "description": "Browser tests of the WebAssembly front end",
   "scripts": {
-    "test:browser": "node tests/browser.mjs",
+    "test:browser": "node tests/browser.mjs && node tests/dashboard.mjs",
     "test:determinism": "node tests/determinism.mjs"
   },
   "devDependencies": {

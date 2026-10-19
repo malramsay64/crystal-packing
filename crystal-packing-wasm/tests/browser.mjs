@@ -1,4 +1,4 @@
-// Run a small search in headless Chromium using the web front end and its worker pool.
+// Run a small search in headless Chromium using the explorer (explorer.html) and its worker pool.
 //
 // Usage: node tests/browser.mjs   (after ./build.sh)
 // Requires playwright; set CHROMIUM_PATH to use a specific browser executable.
@@ -25,7 +25,7 @@ const server = createServer(async (request, response) => {
   }
 });
 await new Promise((resolve) => server.listen(0, resolve));
-const url = `http://localhost:${server.address().port}/`;
+const url = `http://localhost:${server.address().port}/explorer.html`;
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 let failed = false;
